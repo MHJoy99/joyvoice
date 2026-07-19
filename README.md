@@ -45,6 +45,28 @@ That's it. No window switching. No copy-paste. Just speak and keep typing.
 
 ---
 
+## 🖼️ App Preview
+
+<p align="center">
+  <img src="assets/desktop-mockup.png" alt="JoyVoice Desktop Mockup" width="600">
+  <br><em>Floating mic widget over your workspace — always on top, never in the way.</em>
+</p>
+
+<p align="center">
+  <img src="assets/how-it-works.png" alt="How It Works" width="600">
+  <br><em>Press F8 → Speak Bengali → Get clean English. That's it.</em>
+</p>
+
+<details>
+<summary>📸 More screenshots</summary>
+<p align="center">
+  <img src="assets/features_card.png" alt="Features" width="500">
+  <img src="assets/pipeline_infographic.png" alt="Pipeline" width="500">
+  <img src="assets/comparison_before_after.png" alt="Before/After" width="500">
+</details>
+
+---
+
 ## 📦 Install
 
 ### 🪟 Option A: Download Pre-built EXE *(recommended)*
