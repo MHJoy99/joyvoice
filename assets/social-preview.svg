@@ -1,12 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap');
+    text { font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace; }
+  </style>
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap');
-      text { font-family: 'JetBrains Mono', monospace; }
-    </style>
     <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
       <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
     </pattern>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+    </marker>
     <linearGradient id="cyanGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#22d3ee"/>
       <stop offset="100%" stop-color="#2dd4bf"/>
@@ -111,11 +114,4 @@
   <text x="640" y="580" fill="#475569" font-size="14" font-weight="500" text-anchor="middle">
     github.com/mhjoy/joyvoice  •  Built by MH Joy
   </text>
-
-  <!-- Arrowhead marker -->
-  <defs>
-    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
-    </marker>
-  </defs>
 </svg>
