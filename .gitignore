@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.eggs/
+
+# Distribution / packaging
+dist/
+build/
+*.spec
+*.egg
+
+# PyInstaller
+*.manifest
+*.exe (if applicable)
+
+# Whisper model cache (portable/dev mode)
+models/
+data/
+
+# Portable-mode marker (per-machine choice, not part of the repo)
+portable.txt
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+*.env
+
+# Temp files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE / Editor
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Testing / Coverage
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Benchmark scratch output (repo root)
+bench_results*.json
+bench_new*.json
+
+# AppData runtime (JoyVoice data folder — per-machine)
+# %APPDATA%/JoyVoice/
+JoyVoice/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Windows
+$RECYCLE.BIN/
+release/

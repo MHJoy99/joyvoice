@@ -1,0 +1,445 @@
+"""JoyVoice entry point: wires audio, whisper engine, hotkeys, paste and the
+floating widget together into a single state machine.
+
+Run with:  python app/main.py   (from the joyvoice/ repo root)
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+import numpy as np
+
+# Allow `python app/main.py` (repo root not automatically on sys.path).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from PySide6.QtCore import QThread, QTimer, Signal
+from PySide6.QtWidgets import QApplication
+
+from app.audio.recorder import Recorder
+from app.storage import history_store, paths, settings_store
+from app.system import paste as paste_module
+from app.system.hotkeys import HotkeyManager
+from app.transcription.cloud_asr import transcribe as cloud_asr_transcribe
+from app.transcription.gemini_audio import transcribe_and_translate
+from app.transcription.text_cleaner import clean_text
+from app.ui.floating_widget import FloatingWidget
+from app.ui.settings_window import SettingsWindow
+from app.ui.tray import TrayIcon
+
+# Lazy imports for optional UI components.
+# Benchmark and Diagnostics dialogs depend on local-model engine imports
+# that are no longer part of the cloud pipeline.
+def _lazy_benchmark_dialog():
+    from app.ui.benchmark_dialog import BenchmarkDialog
+    return BenchmarkDialog
+
+# ── Cloud LLM (translate / rewrite) ────────────────────────────────────────
+
+API_KEY = os.environ.get("JV_API_KEY", "")
+API_BASE = "https://ai.bdx.market/v1"
+FAST_MODEL = "gemini-3.1-flash-lite"  # fastest + cleanest from benchmarks
+AUDIO_MODEL = "gemini-3.1-flash-lite"  # fastest native Bengali audio (~3.3s)
+
+STYLE_PROMPTS = {
+    "translate_to_english": (
+        "You are a faithful translator. Translate the following Bengali speech "
+        "transcript to clean, natural English. Output ONLY the English translation, "
+        "nothing else.\n\nBengali transcript:\n{text}"
+    ),
+    "clean_english": (
+        "Clean up this dictated text: fix filler words (um, uh, like), punctuation, "
+        "and capitalization. Keep the original language. Output ONLY the cleaned text.\n\n{text}"
+    ),
+    "prompt_for_ai": (
+        "Rewrite the following dictated text into a clear, well-structured prompt "
+        "for an AI assistant. Output ONLY the prompt.\n\n{text}"
+    ),
+    "professional_message": (
+        "Rewrite the following dictated text into a professional email or message. "
+        "Output ONLY the rewritten message.\n\n{text}"
+    ),
+    "facebook_post": (
+        "Rewrite the following dictated text into an engaging Facebook post. "
+        "Output ONLY the post.\n\n{text}"
+    ),
+}
+
+
+def cloud_llm_rewrite(text: str, style: str) -> str:
+    """Send text to the fastest cloud LLM for cleanup/translation."""
+    import json, urllib.request, logging
+    logger = logging.getLogger("joyvoice.llm")
+
+    prompt_template = STYLE_PROMPTS.get(style, STYLE_PROMPTS["translate_to_english"])
+    prompt = prompt_template.format(text=text)
+
+    payload = json.dumps({
+        "model": FAST_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 500,
+        "temperature": 0.1,
+    }).encode()
+
+    req = urllib.request.Request(
+        f"{API_BASE}/chat/completions",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read())
+    output = result["choices"][0]["message"]["content"].strip()
+    logger.info("LLM rewrite (style=%s, model=%s): %s", style, FAST_MODEL, output[:80])
+    return output
+
+
+# ── Cloud ASR worker thread ────────────────────────────────────────────────
+
+class CloudASRWorker(QThread):
+    """Native Gemini audio understanding with Google ASR fallback."""
+    done = Signal(str, str)
+    failed = Signal(str)
+
+    def __init__(self, audio_bytes: bytes, language: str | None, parent=None):
+        super().__init__(parent)
+        self._audio = audio_bytes
+        self._lang = language
+
+    def run(self) -> None:
+        try:
+            transcript, translation = transcribe_and_translate(
+                self._audio,
+                api_base=API_BASE,
+                api_key=API_KEY,
+                model=AUDIO_MODEL,
+                language=self._lang,
+            )
+            logger.info("Gemini audio (%s): %s", AUDIO_MODEL, transcript[:80])
+            self.done.emit(transcript, translation)
+        except Exception as gemini_exc:
+            logger.warning("Gemini audio failed; falling back to Google: %s", gemini_exc)
+            try:
+                transcript = cloud_asr_transcribe(self._audio, self._lang)
+                translation = cloud_llm_rewrite(transcript, "translate_to_english")
+                self.done.emit(transcript, translation)
+            except Exception as fallback_exc:
+                logger.error("All ASR methods failed: %s", fallback_exc)
+                self.failed.emit(str(fallback_exc))
+
+
+class CloudLLMWorker(QThread):
+    """Runs cloud text rewriting without blocking the Qt event loop."""
+    done = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, text: str, style: str, parent=None):
+        super().__init__(parent)
+        self._text = text
+        self._style = style
+
+    def run(self) -> None:
+        try:
+            self.done.emit(cloud_llm_rewrite(self._text, self._style))
+        except Exception as exc:
+            logger.error("LLM rewrite failed: %s", exc)
+            self.failed.emit(str(exc))
+
+
+AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(paths.log_path(), encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger("joyvoice.main")
+
+PASTED_DISPLAY_MS = 1200
+ERROR_DISPLAY_MS = 3000
+
+
+class AppController:
+    def __init__(self) -> None:
+        self.settings = settings_store.load()
+
+        self.widget = FloatingWidget()
+        self.recorder = Recorder()
+        self.hotkeys = HotkeyManager()
+        self.tray = TrayIcon(self.widget)
+        self._settings_dialog: SettingsWindow | None = None
+        self._benchmark_dialog: BenchmarkDialog | None = None
+        self._pending_asr: CloudASRWorker | None = None
+        self._pending_llm: CloudLLMWorker | None = None
+        self._timing: dict | None = None
+
+        self._level_poll_timer = QTimer()
+        self._level_poll_timer.setInterval(40)
+        self._level_poll_timer.timeout.connect(
+            lambda: self.widget.set_level(self.recorder.current_level())
+        )
+
+        self._apply_settings_to_components()
+        self._wire_signals()
+
+        self.tray.show()
+
+    def _apply_audio_device(self) -> None:
+        device_name = self.settings.get("audio_device_name")
+        device_index = None
+        if device_name:
+            for dev in Recorder.list_input_devices():
+                if dev["name"] == device_name:
+                    device_index = dev["index"]
+                    break
+        self.recorder.set_device(device_index)
+
+    def _apply_settings_to_components(self) -> None:
+        self._apply_audio_device()
+
+        pos = self.settings.get("widget_pos")
+        if pos:
+            self.widget.move(pos[0], pos[1])
+        else:
+            self.widget.move(100, 100)
+
+        err = self.hotkeys.register(
+            self.settings["hotkey"], self.settings["hotkey_mode"]
+        )
+        if err:
+            logger.warning(err)
+            self.widget.set_state("error", "Hotkey error")
+
+    def _wire_signals(self) -> None:
+        self.widget.mic_clicked.connect(self.on_toggle)
+        self.widget.settings_requested.connect(self.show_settings)
+        self.widget.benchmark_requested.connect(self.show_benchmark)
+        self.widget.quit_requested.connect(self._quit)
+        self.hotkeys.toggle_activated.connect(self.on_toggle)
+        self.hotkeys.hold_started.connect(self.start_recording)
+        self.hotkeys.hold_ended.connect(self.stop_recording)
+        self.hotkeys.registration_error.connect(
+            lambda msg: self.widget.set_state("error", "Hotkey error")
+        )
+
+        self.tray.show_hide_requested.connect(self.toggle_widget_visibility)
+        self.tray.settings_requested.connect(self.show_settings)
+        self.tray.benchmark_requested.connect(self.show_benchmark)
+        self.tray.quit_requested.connect(self._quit)
+
+    # --- state machine -------------------------------------------------------
+
+    def on_toggle(self) -> None:
+        if self.recorder.is_recording():
+            self.stop_recording()
+        else:
+            self.start_recording()
+
+    def start_recording(self) -> None:
+        if self.recorder.is_recording():
+            return
+        err = self.recorder.start()
+        if err:
+            logger.error(err)
+            self._show_error(err)
+            return
+        self.widget.set_state("recording")
+        self._level_poll_timer.start()
+
+    def stop_recording(self) -> None:
+        if not self.recorder.is_recording():
+            return
+        self._level_poll_timer.stop()
+        audio, err = self.recorder.stop()
+        if err or audio is None:
+            logger.error(err or "no audio")
+            self._show_error(err or "No audio captured")
+            return
+
+        self.widget.set_state("transcribing")
+        language = self.settings["language"]
+        language = None if language == "auto" else language
+        output_mode = self.settings.get("output_mode", "translation")
+
+        self._timing = {"t0": time.monotonic(), "asr_s": None, "llm_s": 0.0}
+
+        # Recorder returns normalized float32; cloud audio APIs expect signed PCM16.
+        if isinstance(audio, np.ndarray):
+            raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+        else:
+            raw_bytes = audio
+        self._pending_asr = CloudASRWorker(raw_bytes, language)
+        self._pending_asr.done.connect(
+            lambda transcript, translation: self._on_asr_done(
+                transcript, translation, output_mode
+            )
+        )
+        self._pending_asr.failed.connect(self._on_asr_failed)
+        self._pending_asr.start()
+
+    def _on_asr_done(
+        self, raw_text: str, translated_text: str, output_mode: str
+    ) -> None:
+        if self._timing is not None:
+            self._timing["asr_s"] = time.monotonic() - self._timing["t0"]
+
+        base_text = self._style_text(raw_text)
+
+        if not base_text.strip():
+            self.widget.set_state("error", "No speech detected")
+            QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+            return
+
+        translation = self._style_text(translated_text)
+        if output_mode == "original":
+            final_text = base_text
+        elif output_mode == "both":
+            final_text = f"{base_text}\n\n{translation}"
+        else:
+            final_text = translation
+        self._finish_paste(final_text)
+
+    def _on_asr_failed(self, message: str) -> None:
+        self._timing = None
+        self._pending_asr = None
+        logger.error("Cloud ASR failed: %s", message)
+        self._show_error(f"Transcription failed: {message}")
+
+    def _style_text(self, raw_text: str) -> str:
+        if self.settings.get("text_style", "clean_english") == "raw":
+            return raw_text.strip()
+        return clean_text(raw_text, self.settings.get("replacements"))
+
+    def _run_llm(self, text: str, style: str) -> None:
+        """Run LLM rewriting in a QThread and return via queued Qt signals."""
+        self._pending_llm = CloudLLMWorker(text, style)
+        self._pending_llm.done.connect(self._on_llm_done)
+        self._pending_llm.failed.connect(self._on_llm_failed)
+        self._pending_llm.start()
+
+    def _on_llm_done(self, rewritten_text: str) -> None:
+        self._pending_llm = None
+        if self._timing is not None and "llm_t0" in self._timing:
+            self._timing["llm_s"] = time.monotonic() - self._timing.pop("llm_t0")
+        self._finish_paste(rewritten_text)
+
+    def _on_llm_failed(self, message: str) -> None:
+        self._pending_llm = None
+        self._timing = None
+        logger.error("LLM rewrite failed: %s", message)
+        self._show_error(f"AI rewrite failed: {message}")
+
+    def _finish_paste(self, final_text: str) -> None:
+        if self._timing is not None:
+            t = self._timing
+            self._timing = None
+            total = time.monotonic() - t["t0"]
+            logger.info(
+                "Pipeline latency: asr=%.2fs, llm=%.2fs, total=%.2fs (model=%s, mode=%s)",
+                t["asr_s"] or 0.0, t["llm_s"], total,
+                AUDIO_MODEL, self.settings.get("output_mode"),
+            )
+        err = paste_module.paste_text(
+            final_text,
+            copy_only=self.settings["paste_mode"] == "copy_only",
+            paste_delay_ms=self.settings["paste_delay_ms"],
+            restore_clipboard=self.settings["restore_clipboard"],
+            wait_for_release=self.settings["wait_for_hotkey_release"],
+        )
+
+        language = self.settings["language"]
+        history_store.append(
+            final_text, datetime.now(timezone.utc).isoformat(), None if language == "auto" else language
+        )
+
+        if err:
+            logger.warning(err)
+            self._show_error(err)
+            return
+
+        label = "Copied" if self.settings["paste_mode"] == "copy_only" else "Pasted"
+        self.widget.set_state("pasted", label)
+        QTimer.singleShot(PASTED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+
+    def _show_error(self, message: str) -> None:
+        self.widget.set_state("error", "Error")
+        self.widget.setToolTip(message)
+        QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+
+    # --- windows (tray / settings / benchmarking) ----------------------------
+
+    def toggle_widget_visibility(self) -> None:
+        self.widget.setVisible(not self.widget.isVisible())
+
+    def show_benchmark(self) -> None:
+        BenchmarkDialog = _lazy_benchmark_dialog()
+        self._benchmark_dialog = BenchmarkDialog(parent=self.widget)
+        self._benchmark_dialog.exec()
+
+    def show_settings(self) -> None:
+        self._settings_dialog = SettingsWindow(self.settings, parent=self.widget)
+        self._settings_dialog.settings_saved.connect(self.on_settings_saved)
+        self._settings_dialog.exec()
+
+    def on_settings_saved(self, updated_settings: dict) -> None:
+        old = self.settings
+        self.settings = updated_settings
+        settings_store.save(self.settings)
+
+        if (
+            old.get("hotkey") != self.settings.get("hotkey")
+            or old.get("hotkey_mode") != self.settings.get("hotkey_mode")
+        ):
+            err = self.hotkeys.register(self.settings["hotkey"], self.settings["hotkey_mode"])
+            if err:
+                logger.warning(err)
+                self._show_error(err)
+
+        if old.get("audio_device_name") != self.settings.get("audio_device_name"):
+            self._apply_audio_device()
+
+    def maybe_show_first_run(self) -> None:
+        if self.settings.get("first_run_complete"):
+            return
+        self.settings["first_run_complete"] = True
+        settings_store.save(self.settings)
+
+    def _quit(self) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+
+    def shutdown(self) -> None:
+        pos = [self.widget.pos().x(), self.widget.pos().y()]
+        self.settings["widget_pos"] = pos
+        settings_store.save(self.settings)
+        self.hotkeys.unregister()
+        if self.recorder.is_recording():
+            self.recorder.stop()
+
+
+def main() -> int:
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+
+    controller = AppController()
+    controller.widget.show()
+
+    app.aboutToQuit.connect(controller.shutdown)
+    QTimer.singleShot(0, controller.maybe_show_first_run)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
