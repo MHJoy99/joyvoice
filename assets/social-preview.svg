@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap');
+      text { font-family: 'JetBrains Mono', monospace; }
+    </style>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+    </pattern>
+    <linearGradient id="cyanGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <linearGradient id="fadeGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="20%" stop-color="rgba(2, 6, 23, 0.3)"/>
+      <stop offset="80%" stop-color="rgba(2, 6, 23, 0.3)"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="60" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="640" fill="#020617"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+
+  <!-- Top/bottom accent bars -->
+  <rect x="0" y="0" width="1280" height="3" fill="url(#cyanGrad)" opacity="0.7"/>
+  <rect x="0" y="637" width="1280" height="3" fill="url(#cyanGrad)" opacity="0.4"/>
+
+  <!-- Ambient glow behind the mic -->
+  <circle cx="200" cy="320" r="180" fill="#22d3ee" opacity="0.04" filter="url(#softGlow)"/>
+
+  <!-- Large Microphone icon -->
+  <g transform="translate(160, 200)" filter="url(#glow)">
+    <!-- Outer ring -->
+    <circle cx="48" cy="48" r="72" fill="none" stroke="#22d3ee" stroke-width="1" opacity="0.2"/>
+    <circle cx="48" cy="48" r="60" fill="none" stroke="#22d3ee" stroke-width="0.5" opacity="0.15"/>
+    <!-- Mic body -->
+    <rect x="24" y="0" width="48" height="68" rx="24" fill="none" stroke="url(#cyanGrad)" stroke-width="3"/>
+    <!-- Mic grille lines -->
+    <line x1="32" y1="18" x2="32" y2="34" stroke="#22d3ee" stroke-width="1.5" opacity="0.7"/>
+    <line x1="40" y1="18" x2="40" y2="34" stroke="#22d3ee" stroke-width="1.5" opacity="0.7"/>
+    <line x1="48" y1="18" x2="48" y2="34" stroke="#22d3ee" stroke-width="1.5" opacity="0.7"/>
+    <line x1="56" y1="18" x2="56" y2="34" stroke="#22d3ee" stroke-width="1.5" opacity="0.7"/>
+    <line x1="64" y1="18" x2="64" y2="34" stroke="#22d3ee" stroke-width="1.5" opacity="0.7"/>
+    <!-- Mic base -->
+    <path d="M 48 68 Q 48 90 48 90 L 48 104" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round"/>
+    <!-- Mic arc -->
+    <path d="M 32 104 Q 48 118 64 104" fill="none" stroke="#22d3ee" stroke-width="3" stroke-linecap="round"/>
+    <!-- Mic stand -->
+    <line x1="48" y1="112" x2="48" y2="126" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="22" y1="126" x2="74" y2="126" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Sound waves -->
+    <path d="M 102 32 Q 120 48 102 64" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 114 22 Q 138 48 114 74" fill="none" stroke="#2dd4bf" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+    <path d="M 126 12 Q 156 48 126 84" fill="none" stroke="#2dd4bf" stroke-width="1" stroke-linecap="round" opacity="0.2"/>
+  </g>
+
+  <!-- Title Section -->
+  <g>
+    <text x="400" y="270" fill="url(#cyanGrad)" font-size="72" font-weight="700" letter-spacing="-1">JoyVoice</text>
+    <line x1="400" y1="295" x2="900" y2="295" stroke="#334155" stroke-width="1.5"/>
+
+    <!-- Subtitle line 1 -->
+    <text x="400" y="345" fill="#94a3b8" font-size="22" font-weight="500">
+      Floating Mic Dictation
+    </text>
+
+    <!-- Subtitle line 2 -->
+    <text x="400" y="385" fill="#64748b" font-size="17" font-weight="400">
+      Bengali → English Translation • ~3.3s End-to-End • No GPU Required
+    </text>
+  </g>
+
+  <!-- Pipeline hint at the bottom -->
+  <g transform="translate(400, 435)">
+    <!-- Pipeline boxes -->
+    <rect x="0" y="0" width="130" height="44" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="65" y="27" fill="#22d3ee" font-size="13" font-weight="600" text-anchor="middle">Mic</text>
+
+    <line x1="132" y1="22" x2="162" y2="22" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="164" y="0" width="130" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="229" y="27" fill="#34d399" font-size="13" font-weight="600" text-anchor="middle">PCM16</text>
+
+    <line x1="296" y1="22" x2="326" y2="22" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="328" y="0" width="130" height="44" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+    <text x="393" y="27" fill="#fbbf24" font-size="13" font-weight="600" text-anchor="middle">Gemini Audio</text>
+
+    <line x1="460" y1="22" x2="490" y2="22" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="492" y="0" width="165" height="44" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="574" y="27" fill="#a78bfa" font-size="13" font-weight="600" text-anchor="middle">Bengali + English</text>
+
+    <line x1="659" y1="22" x2="689" y2="22" stroke="#475569" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="691" y="0" width="130" height="44" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="756" y="27" fill="#22d3ee" font-size="13" font-weight="600" text-anchor="middle">Paste</text>
+  </g>
+
+  <!-- Bottom tagline -->
+  <text x="640" y="580" fill="#475569" font-size="14" font-weight="500" text-anchor="middle">
+    github.com/mhjoy/joyvoice  •  Built by MH Joy
+  </text>
+
+  <!-- Arrowhead marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#475569"/>
+    </marker>
+  </defs>
+</svg>

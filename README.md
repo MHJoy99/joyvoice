@@ -1,5 +1,9 @@
 # JoyVoice — Floating Mic Dictation with Bengali → English Translation
 
+<p align="center">
+  <img src="assets/logo.svg" alt="JoyVoice Logo" width="720">
+</p>
+
 > Click mic → speak Bengali → get clean English pasted into any app. ~3.3 seconds end-to-end. No GPU required.
 
 ---
@@ -15,11 +19,9 @@ JoyVoice is a floating always-on-top microphone widget that:
 
 Google Web Speech API is the automatic fallback if Gemini is unavailable.
 
-```
-Mic → float32 → int16 PCM → WAV base64 → gemini-3.1-flash-lite → Bengali + English → paste
-                                                              ↕
-                                                     Google ASR (fallback)
-```
+<p align="center">
+  <img src="assets/pipeline.svg" alt="JoyVoice Pipeline" width="900">
+</p>
 
 ---
 

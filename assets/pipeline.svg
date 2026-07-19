@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap');
+      text { font-family: 'JetBrains Mono', monospace; }
+    </style>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+    </marker>
+    <linearGradient id="cyanGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="320" fill="#020617"/>
+  <rect width="1000" height="320" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="30" y="35" fill="#e2e8f0" font-size="14" font-weight="600">JoyVoice Pipeline</text>
+  <text x="30" y="53" fill="#64748b" font-size="10">End-to-end latency: ~3.3 seconds</text>
+
+  <!-- ===== STAGE 1: Mic / PD200X ===== -->
+  <g transform="translate(30, 80)">
+    <rect x="0" y="0" width="150" height="80" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <!-- Inner accent top bar -->
+    <rect x="0" y="0" width="150" height="3" rx="3" fill="#22d3ee" opacity="0.5"/>
+    <text x="75" y="25" fill="#22d3ee" font-size="11" font-weight="600" text-anchor="middle">Mic</text>
+    <text x="75" y="44" fill="#94a3b8" font-size="9" text-anchor="middle">PD200X Podcast Mic</text>
+    <text x="75" y="60" fill="#64748b" font-size="8" text-anchor="middle">float32 • 16 kHz mono</text>
+    <text x="75" y="74" fill="#22d3ee" font-size="7" text-anchor="middle">sounddevice InputStream</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <line x1="180" y1="120" x2="220" y2="120" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== STAGE 2: PCM16 ===== -->
+  <g transform="translate(222, 80)">
+    <rect x="0" y="0" width="150" height="80" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <rect x="0" y="0" width="150" height="3" rx="3" fill="#34d399" opacity="0.5"/>
+    <text x="75" y="25" fill="#34d399" font-size="11" font-weight="600" text-anchor="middle">PCM16</text>
+    <text x="75" y="44" fill="#94a3b8" font-size="9" text-anchor="middle">Float-to-Int Convert</text>
+    <text x="75" y="60" fill="#64748b" font-size="8" text-anchor="middle">clip(-1,1) × 32767</text>
+    <text x="75" y="74" fill="#34d399" font-size="7" text-anchor="middle">→ int16.ndarray</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <line x1="372" y1="120" x2="412" y2="120" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== STAGE 3: Gemini Audio ===== -->
+  <g transform="translate(414, 80)">
+    <rect x="0" y="0" width="160" height="100" rx="6" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+    <rect x="0" y="0" width="160" height="3" rx="3" fill="#fbbf24" opacity="0.5"/>
+    <text x="80" y="25" fill="#fbbf24" font-size="11" font-weight="600" text-anchor="middle">Gemini Audio</text>
+    <text x="80" y="44" fill="#94a3b8" font-size="9" text-anchor="middle">gemini-3.1-flash-lite</text>
+    <text x="80" y="60" fill="#64748b" font-size="8" text-anchor="middle">Native audio → base64 WAV</text>
+    <text x="80" y="76" fill="#64748b" font-size="8" text-anchor="middle">OpenAI-compatible gateway</text>
+    <text x="80" y="92" fill="#fbbf24" font-size="7" text-anchor="middle">~3.3s total latency</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 -->
+  <line x1="574" y1="130" x2="614" y2="130" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== STAGE 4: Bengali + English ===== -->
+  <g transform="translate(616, 80)">
+    <rect x="0" y="0" width="165" height="100" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+    <rect x="0" y="0" width="165" height="3" rx="3" fill="#a78bfa" opacity="0.5"/>
+    <text x="82" y="25" fill="#a78bfa" font-size="11" font-weight="600" text-anchor="middle">Bengali + English</text>
+    <text x="82" y="44" fill="#94a3b8" font-size="9" text-anchor="middle">Transcribe + Translate</text>
+    <text x="82" y="60" fill="#64748b" font-size="8" text-anchor="middle">Single API call</text>
+    <text x="82" y="76" fill="#64748b" font-size="8" text-anchor="middle">Punctuation cleanup</text>
+    <text x="82" y="92" fill="#a78bfa" font-size="7" text-anchor="middle">Fallback: Google ASR</text>
+  </g>
+
+  <!-- Arrow 4 -> 5 -->
+  <line x1="781" y1="130" x2="821" y2="130" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ===== STAGE 5: Paste ===== -->
+  <g transform="translate(823, 80)">
+    <rect x="0" y="0" width="140" height="80" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <rect x="0" y="0" width="140" height="3" rx="3" fill="#22d3ee" opacity="0.5"/>
+    <text x="70" y="25" fill="#22d3ee" font-size="11" font-weight="600" text-anchor="middle">Paste</text>
+    <text x="70" y="44" fill="#94a3b8" font-size="9" text-anchor="middle">Clipboard + Ctrl+V</text>
+    <text x="70" y="60" fill="#64748b" font-size="8" text-anchor="middle">300ms delay</text>
+    <text x="70" y="74" fill="#22d3ee" font-size="7" text-anchor="middle">Restores clipboard</text>
+  </g>
+
+  <!-- ===== FALLBACK ARROW ===== -->
+  <!-- Dashed line from Gemini Audio (bottom) to a "Google ASR Fallback" note -->
+  <path d="M 494 180 L 494 205 Q 494 215 484 215 L 300 215 Q 290 215 290 225 L 290 240" fill="none" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="395" y="210" fill="#fb7185" font-size="8" text-anchor="middle">on failure: Google Web Speech API</text>
+
+  <!-- ===== LEGEND ===== -->
+  <g transform="translate(30, 195)">
+    <text x="0" y="14" fill="#94a3b8" font-size="9" font-weight="600">Legend</text>
+
+    <rect x="0" y="22" width="14" height="9" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+    <text x="18" y="29" fill="#64748b" font-size="8">Audio I/O</text>
+
+    <rect x="90" y="22" width="14" height="9" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+    <text x="108" y="29" fill="#64748b" font-size="8">Signal Processing</text>
+
+    <rect x="210" y="22" width="14" height="9" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+    <text x="228" y="29" fill="#64748b" font-size="8">LLM API</text>
+
+    <rect x="285" y="22" width="14" height="9" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+    <text x="303" y="29" fill="#64748b" font-size="8">NLP / Translation</text>
+
+    <line x1="420" y1="26" x2="434" y2="26" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="438" y="29" fill="#64748b" font-size="8">Fallback path</text>
+  </g>
+
+  <!-- End-to-end total latency badge -->
+  <g transform="translate(720, 235)">
+    <rect x="0" y="0" width="250" height="36" rx="6" fill="rgba(15, 23, 42, 0.6)" stroke="#1e293b" stroke-width="1"/>
+    <text x="125" y="16" fill="#64748b" font-size="9" text-anchor="middle">End-to-End Pipeline</text>
+    <text x="125" y="30" fill="url(#cyanGrad)" font-size="11" font-weight="600" text-anchor="middle">Mic → Paste: ~3.3 seconds</text>
+  </g>
+</svg>
