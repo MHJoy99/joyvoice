@@ -1,131 +1,183 @@
 # JoyVoice — Troubleshooting Guide
 
-> Every known pitfall, its root cause, and the fix. Compiled from the Obsidian Knowledge Base and repair sessions.
+Deep-dive fixes for the most common and subtle issues encountered during JoyVoice development and operation. Each section covers a problem that caused at least an hour of debugging — read before touching the codebase.
 
 ---
 
-## Table of Contents
+## Quick Debugging Checklist
 
-1. [Debugging Checklist](#debugging-checklist)
-2. [PYTHONPATH Contamination](#1-pythonpath-contamination)
-3. [PCM Float32 → Int16 Conversion](#2-pcm-float32--int16-conversion)
-4. [typing_extensions Silently Disables Google ASR](#3-typing_extensions-silently-disables-google-asr)
-5. [QThread vs QTimer for LLM Callbacks](#4-qthread-vs-qtimer-for-llm-callbacks)
-6. [pythonw.exe Hides Startup Errors](#5-pythonwexe-hides-startup-errors)
-7. [Bengali Language Mapping](#6-bengali-language-mapping)
-8. [localhost DNS Resolution Delay](#7-localhost-dns-resolution-delay)
-9. [Floating Widget Keyboard Focus Stealing](#8-floating-widget-keyboard-focus-stealing)
-10. [Widget Stuck on "Loading model..."](#9-widget-stuck-on-loading-model)
-11. [cuBLAS/cuDNN DLL Loading (legacy)](#10-cublascudnn-dll-loading-legacy)
-12. [Specific Engine Pitfalls](#11-specific-engine-pitfalls-legacy)
-13. [Settings Corruption](#12-settings-corruption)
-14. [Common Error Messages](#common-error-messages)
+Before diving into specific issues, run through this checklist:
+
+1. **Kill orphan processes:** `powershell "Get-Process python* | Stop-Process -Force"`
+2. **Launch visible:** Use `run.bat` (not `pythonw.exe`) — you need to see errors
+3. **Check logs:** `%APPDATA%\JoyVoice\joyvoice.log`
+4. **Verify venv:** `env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import app.main"`
+5. **Test ASR:** Generate synthetic audio → verify cloud transcription succeeds
+6. **Check settings:** `"language": "bn"`, `"output_mode": "translation"` in `settings.json`
+7. **Restart:** Launch via Desktop shortcut after any config change
 
 ---
 
-## Debugging Checklist
-
-Before diving into specific issues, run through this:
-
-| # | Step | Command / Action |
-|---|---|---|
-| 1 | **Kill old processes** | `powershell "Get-Process python* | Stop-Process -Force"` |
-| 2 | **Launch with visible console** | `run.bat` (NOT `pythonw.exe`) |
-| 3 | **Check the log** | `type %APPDATA%\JoyVoice\joyvoice.log` |
-| 4 | **Verify venv imports** | `env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import app.main"` |
-| 5 | **Test ASR** | Generate synthetic audio, verify transcription |
-| 6 | **Check settings** | Confirm `"language": "bn"`, `"output_mode": "translation"` in `%APPDATA%\JoyVoice\settings.json` |
-| 7 | **Restart via shortcut** | Desktop shortcut → `run.bat` |
-
----
-
-## 1. PYTHONPATH Contamination
+## Issue #1: PYTHONPATH Contamination
 
 ### Symptom
 
-- `pip install` says "Requirement already satisfied" but the package is NOT in JoyVoice's venv
-- `import sounddevice` fails with `ModuleNotFoundError`
-- Packages appear to be installed but are actually in Hermes's venv
+- `pip install -r requirements.txt` reports all packages "already satisfied"
+- But `python app/main.py` fails with `ModuleNotFoundError` for packages like `sounddevice`, `numpy`, or `PySide6`
+- Packages appear installed but aren't actually in JoyVoice's `.venv`
 
 ### Root Cause
 
-Hermes agent profile sets `PYTHONPATH` and `PYTHONHOME` environment variables pointing to its own venv. When you run `pip` or `python`, these variables leak into the subprocess, causing it to see Hermes's site-packages instead of JoyVoice's.
+Other Python toolchains (especially **Hermes Agent**) export `PYTHONPATH` and `PYTHONHOME` environment variables that point to their own virtual environments. When you run `pip` or `python` from the JoyVoice repo, the shell inherits these leaked variables. Pip sees packages in the Hermes venv and falsely skips installation.
+
+### Affected Packages
+
+Any package in `requirements.txt` can be affected, but these are the most common victims:
+
+| Package | Impact if Missing |
+|:---|:---|
+| `sounddevice` | Audio capture fails — "No module named 'sounddevice'" |
+| `numpy` | Audio buffer conversion crashes |
+| `typing_extensions` | Google ASR silently disabled (see Issue #3) |
+| `PySide6` | UI fails to start |
+| `pyperclip` | Clipboard paste broken |
+| `SpeechRecognition` | Fallback ASR unavailable |
 
 ### Fix
 
-**Always** prefix pip/python commands with `env -u PYTHONPATH -u PYTHONHOME`:
+Always strip `PYTHONPATH` and `PYTHONHOME` before any pip or Python command targeting JoyVoice:
 
 ```bash
-# Install packages
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install <pkg>
+# Install with isolated environment:
+env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install -r requirements.txt
 
-# Run the app
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python app/main.py
-
-# Verify imports (isolated mode)
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import <pkg>"
-```
-
-### Affected packages
-
-All of them. The contamination is environmental, not package-specific. Most commonly missed: `sounddevice`, `numpy`, `typing_extensions`, `cffi`, `pycparser`, `PySide6`, `pyperclip`, `SpeechRecognition`.
-
-### Reference
-
-- Obsidian: `Knowledge Base/joyvoice/PYTHONPATH Contamination.md`
-- Skills: `python-venv-isolation`, `windows-python-environment`
-
----
-
-## 2. PCM Float32 → Int16 Conversion
-
-### Symptom
-
-- Google ASR returns blank / `UnknownValueError` for clear audio
-- Gemini receives distorted noise
-- Audio "sounds like static" when played back
-
-### Root Cause
-
-The `Recorder` (`app/audio/recorder.py`) captures audio as **float32** normalized samples (-1.0 to +1.0). Cloud APIs (Google, Gemini) expect **signed int16 PCM** bytes. Sending raw float32 bytes while declaring them as int16 produces unintelligible noise.
-
-### Fix
-
-The conversion is in `app/main.py:278-279`:
-
-```python
-if isinstance(audio, np.ndarray):
-    raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+# Or install individual packages:
+env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install sounddevice numpy typing_extensions
 ```
 
 ### Verification
 
-Generate a float32 test signal and verify the int16 conversion produces expected values:
-
-```python
-import numpy as np
-audio = np.array([0.0, 0.5, 1.0, -0.5, -1.0], dtype=np.float32)
-result = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
-# Expected: [0, 16383, 32767, -16384, -32768]
+```bash
+# Check that all packages are importable from the JoyVoice venv:
+env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "
+import PySide6, sounddevice, numpy, pyperclip, keyboard, speech_recognition, typing_extensions
+print('All packages OK')
+"
 ```
 
-### Reference
+### Prevention
 
-- Obsidian: `Knowledge Base/joyvoice/PCM Float32 to Int16 Conversion.md`
+- Always use `env -u PYTHONPATH -u PYTHONHOME` prefix when working with JoyVoice
+- The `run.bat` launcher uses the venv Python directly (`.venv\Scripts\python app\main.py`) which helps, but the venv must have packages installed correctly first
+- See also: `python-venv-isolation` and `windows-python-environment` Hermes skills
 
 ---
 
-## 3. typing_extensions Silently Disables Google ASR
+## Issue #2: PCM Float32 → Int16 Mismatch
 
 ### Symptom
 
-- Error in log: `'Recognizer' object has no attribute 'recognize_google'`
-- No import error at startup — app launches fine
-- Google ASR fallback always fails
+- Google ASR returns `UnknownValueError` (speech unintelligible) or blank output
+- Audio sounds like distorted noise if played back
+- Gemini audio model returns garbled or empty transcripts
 
 ### Root Cause
 
-`SpeechRecognition` wraps the import of its Google recognizer module in a silent `try/except`. When `typing_extensions` is missing, the import fails, `recognize_google` is never bound to the `Recognizer` class, and no error is raised. Only at call time do you get the `AttributeError`.
+The `Recorder` class (in `app/audio/recorder.py`) captures audio as **normalized float32** samples in the range `[-1.0, +1.0]`. Cloud audio APIs (Gemini, Google Web Speech) expect **signed 16-bit integer PCM** (`int16`, range `[-32768, +32767]`).
+
+Passing raw float32 bytes while declaring them as 16-bit PCM results in the API receiving byte patterns that represent floating-point values, not audio samples. The API "hears" digital noise.
+
+### Where
+
+`app/main.py` — `stop_recording()` method, inside `AppController`:
+
+```python
+# Line ~278-281
+if isinstance(audio, np.ndarray):
+    raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+else:
+    raw_bytes = audio
+```
+
+### The Conversion
+
+```python
+import numpy as np
+
+# audio: np.ndarray of float32, values in [-1.0, +1.0]
+
+# Step 1: Clamp to valid range (safety)
+clamped = np.clip(audio, -1.0, 1.0)
+
+# Step 2: Scale to int16 range
+scaled = clamped * 32767.0
+
+# Step 3: Convert to signed 16-bit integers
+int16_samples = scaled.astype(np.int16)
+
+# Step 4: Serialize to raw bytes
+raw_bytes = int16_samples.tobytes()
+```
+
+### Verification
+
+```python
+# Generate a test sine wave and verify the conversion:
+import numpy as np
+
+fs = 16000
+t = np.arange(fs * 0.5) / fs  # 0.5 seconds
+test_audio = np.sin(2 * np.pi * 440 * t).astype(np.float32)
+
+raw = (np.clip(test_audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+reconstructed = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32767.0
+
+# reconstructed should closely match test_audio
+assert np.max(np.abs(test_audio[:100] - reconstructed[:100])) < 0.01
+```
+
+### Prevention
+
+- Always ensure the float32→int16 conversion runs before sending audio to any cloud API
+- The conversion is handled in `app/main.py` `stop_recording()`, not in the recorder itself — this is intentional; the recorder stays format-agnostic
+
+---
+
+## Issue #3: `typing_extensions` — Silent Google ASR Killer
+
+### Symptom
+
+- Google Web Speech fallback never works
+- Log shows: `'Recognizer' object has no attribute 'recognize_google'`
+- No import error at startup — app launches normally
+- No stack trace when the failure occurs — just silence or a cryptic attribute error
+
+### Root Cause
+
+The `SpeechRecognition` package has a **silent** dependency on `typing_extensions`. In its `__init__.py`, the import of the Google recognizer module is wrapped in a broad `try/except`:
+
+```python
+# Inside speech_recognition/__init__.py (simplified):
+try:
+    from .recognizers import google
+    # ... binds recognize_google to Recognizer class
+except Exception:
+    pass  # ← silently swallows ALL errors, including missing typing_extensions
+```
+
+If `typing_extensions` is not installed, the import fails inside the `try` block, the exception is caught and silently discarded, and the `recognize_google` method is **never bound** to the `Recognizer` class. The app launches fine but the fallback ASR is dead.
+
+### Detection
+
+```bash
+# Check if recognize_google is available:
+env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "
+import speech_recognition as sr
+print(hasattr(sr.Recognizer, 'recognize_google'))
+"
+# Should print: True
+# If False: typing_extensions is missing
+```
 
 ### Fix
 
@@ -133,50 +185,52 @@ result = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
 env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install typing_extensions
 ```
 
-### Detection
+After installing, restart JoyVoice. No code changes needed.
 
-```bash
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import speech_recognition as sr; print(hasattr(sr.Recognizer, 'recognize_google'))"
-```
+### Prevention
 
-Expected: `True`. If `False`, `typing_extensions` is missing from the venv.
-
-### Why It's Silent
-
-SpeechRecognition's `__init__.py` wraps the import in:
+- `typing_extensions>=4.16` is listed in `requirements.txt` — always install via `pip install -r requirements.txt`
+- If using the isolated install pattern (see Issue #1), this package will be installed correctly
+- Add a startup check in your debugging routine:
 
 ```python
-try:
-    from .recognizers import google
-except Exception:
-    pass  # No error, just skip
+# Quick self-check you can run anytime:
+python -c "import speech_recognition as sr; assert hasattr(sr.Recognizer, 'recognize_google'), 'typing_extensions missing!'"
 ```
-
-No warning, no log — the attribute is simply never set.
-
-### Reference
-
-- Obsidian: `Knowledge Base/joyvoice/typing_extensions Silent Google ASR Disable.md`
 
 ---
 
-## 4. QThread vs QTimer for LLM Callbacks
+## Issue #4: QThread vs QTimer — Lost LLM Results
 
 ### Symptom
 
-- LLM API call completes successfully (visible in logs)
-- Result never reaches the UI — widget stays stuck on "Transcribing..."
-- No error message
+- The Gemini API call completes successfully (logs show a response)
+- But the result never reaches the UI
+- The floating widget stays stuck on "Transcribing…" or the paste never happens
+- No error in logs — the API call succeeded, the result just "vanished"
 
 ### Root Cause
 
-`QTimer.singleShot()` was called from a plain Python `threading.Thread`, not a `QThread`. Plain threads have no Qt event loop, so the timer never fires. The result is silently lost.
+The original implementation used a plain Python `threading.Thread` (not a `QThread`) for the LLM API call, then tried to bridge back to the Qt UI thread with `QTimer.singleShot()`. Plain Python threads have **no Qt event loop**, so `QTimer.singleShot()` never fires. The LLM result is silently lost.
 
-### Fix
-
-Use `QThread` with Qt signals (`app/main.py:139-154`):
+### Incorrect Pattern (What Was There Before)
 
 ```python
+# ❌ WRONG — plain thread + QTimer
+def _run_llm_wrong(self, text, style):
+    def _worker():
+        result = cloud_llm_rewrite(text, style)
+        # This timer NEVER fires — no Qt event loop in a plain thread!
+        QTimer.singleShot(0, lambda: self._handle_result(result))
+    threading.Thread(target=_worker, daemon=True).start()
+```
+
+### Correct Pattern (Current Implementation)
+
+```python
+# ✅ CORRECT — QThread with Qt signals
+from PySide6.QtCore import QThread, Signal
+
 class CloudLLMWorker(QThread):
     done = Signal(str)
     failed = Signal(str)
@@ -188,61 +242,55 @@ class CloudLLMWorker(QThread):
 
     def run(self) -> None:
         try:
-            self.done.emit(cloud_llm_rewrite(self._text, self._style))
+            result = cloud_llm_rewrite(self._text, self._style)
+            self.done.emit(result)  # Signal crosses thread boundary safely
         except Exception as exc:
             self.failed.emit(str(exc))
 ```
 
-Usage:
+### Usage in AppController
 
 ```python
-self._pending_llm = CloudLLMWorker(text, style)
-self._pending_llm.done.connect(self._on_llm_done)
-self._pending_llm.failed.connect(self._on_llm_failed)
-self._pending_llm.start()
+# app/main.py — _run_llm()
+def _run_llm(self, text: str, style: str) -> None:
+    self._pending_llm = CloudLLMWorker(text, style)
+    self._pending_llm.done.connect(self._on_llm_done)
+    self._pending_llm.failed.connect(self._on_llm_failed)
+    self._pending_llm.start()
 ```
 
-### The Qt Event Loop Requirement
+### Key Principle
 
-Qt signal delivery requires an event loop. `QThread` provides one; `threading.Thread` does not. Signals emitted from a plain thread are queued but never delivered because nothing pumps the event queue.
+> **Any operation that needs to return a result to the Qt UI must use a `QThread` subclass with Qt `Signal`s.** Plain Python threads cannot interact with Qt objects. Qt's signal-slot mechanism handles the thread boundary safely.
 
-### Reference
+### Where
 
-- Obsidian: `Knowledge Base/joyvoice/QThread for LLM Callbacks.md`
-- Code: `app/main.py:139-154` (CloudLLMWorker), `app/main.py:107-136` (CloudASRWorker)
+- `app/main.py` — `CloudASRWorker(QThread)` (lines 107–136)
+- `app/main.py` — `CloudLLMWorker(QThread)` (lines 139–154)
 
 ---
 
-## 5. pythonw.exe Hides Startup Errors
+## Issue #5: `pythonw.exe` Hides Startup Errors
 
 ### Symptom
 
-- Double-clicking `JoyVoice.exe` or a `.pyw` launcher shows nothing
-- App never appears, no error dialog
-- Works fine from command line
+- Desktop shortcut launches JoyVoice but nothing appears
+- No error message, no window, no tray icon
+- The process shows briefly in Task Manager then disappears
+- Everything works fine when launched from terminal
 
 ### Root Cause
 
-`pythonw.exe` runs without a console window. If the app crashes during startup (import error, missing dependency, config issue), the traceback is written to stderr — which `pythonw.exe` discards. You never see the error.
+`pythonw.exe` is the "windowless" Python interpreter — it runs without a console window. If JoyVoice encounters a startup error (missing import, bad config, exception in `__init__`), the error is written to stderr which has nowhere to go. The process silently exits and you'll never see why.
 
 ### Fix
 
-Always launch with a visible console for debugging:
+**Always use `run.bat` for debugging.** It launches with the standard `python.exe` (visible console), so any startup errors are printed to the console window.
 
-```bash
-# Good: visible console
-.venv\Scripts\python app\main.py
-
-# Good: run.bat does this
-run.bat
-
-# Bad: hides errors
-pythonw app\main.py
-```
-
-The `run.bat` launcher (`run.bat:8-9`) pauses on error:
-
-```bat
+```batch
+:: run.bat — launches with visible console
+@echo off
+cd /d "%~dp0"
 .venv\Scripts\python app\main.py
 if errorlevel 1 (
     echo JoyVoice exited with error %errorlevel%
@@ -250,306 +298,121 @@ if errorlevel 1 (
 )
 ```
 
-### Production Use
+### For Daily Use
 
-Once everything is confirmed working, you can use `pythonw.exe` or the PyInstaller-built `.exe` for clean launches. But **never debug with pythonw.exe**.
+Once JoyVoice is working reliably, you can use `pythonw.exe` for a cleaner experience (no console window). But keep `run.bat` handy for the next time something breaks.
+
+### Checking Hidden Errors
+
+If you must debug a `pythonw.exe` launch:
+
+1. Launch via `run.bat` instead — the console will show errors
+2. Check `%APPDATA%\JoyVoice\joyvoice.log` for startup errors
+3. Test the import chain:
+   ```bash
+   env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import app.main; print('Import OK')"
+   ```
 
 ---
 
-## 6. Bengali Language Mapping
+## Issue #6: Bengali Language Mapping
 
 ### Symptom
 
-- Bengali speech transcribed as English gibberish
-- Google ASR returns English words for Bengali input
-- Settings show `"language": "en-US"` instead of `"bn"`
+- Bengali speech is transcribed as English gibberish
+- Settings show `"language": "en-US"` but you set it to Bengali
+- Or: settings show `"language": "bn"` but Google ASR still fails
 
 ### Root Cause
 
-Two issues:
+There are two potential issues:
 
-1. Settings key `"language": "bn"` was not being mapped to Google's expected BCP-47 tag `"bn-BD"` (fixed in `cloud_asr.py:15-18`).
-2. A verification run accidentally persisted `"language": "en-US"` into `settings.json`, overriding the default.
+1. **Settings persistence:** A verification run may have accidentally persisted `"language": "en-US"` into `settings.json`. The app reads settings at startup — check the file.
+
+2. **BCP-47 tag mismatch:** The internal settings key is `"bn"`, but Google's Web Speech API expects the BCP-47 tag `"bn-BD"`. The mapping must happen at ASR call time.
 
 ### Fix
 
-The mapping is in `app/transcription/cloud_asr.py:15-18`:
+**Check settings.json:**
+
+```json
+{
+    "language": "bn",
+    ...
+}
+```
+
+Not `"bn-BD"`, not `"en-US"` — the raw key is `"bn"`.
+
+**The mapping is in `app/transcription/cloud_asr.py`:**
 
 ```python
 GOOGLE_LANGUAGE_TAGS = {
     "bn": "bn-BD",
     "en": "en-US",
 }
+
+def transcribe(audio_bytes, language=None):
+    lang = GOOGLE_LANGUAGE_TAGS.get(language, language) if language else "bn-BD"
+    text = recognizer.recognize_google(audio_data, language=lang)
 ```
 
-The settings file should contain the short key:
-
-```json
-{
-  "language": "bn"
-}
-```
-
-Mapping happens at ASR call time — `settings.json` never stores `"bn-BD"`.
-
-### Gemini Audio Language Hints
-
-For Gemini native audio, language hints are injected into the prompt (`gemini_audio.py:44-47`):
+**For Gemini audio**, the language hint is injected into the prompt:
 
 ```python
 language_hint = {
     "bn": "The speaker primarily uses Bangladeshi Bengali and may code-switch into English.",
     "en": "The speaker primarily uses English.",
-}.get(language, "Detect the spoken language; Bengali and English may be mixed.")
+}.get(language, "Detect the spoken language...")
 ```
 
-### Check Your Settings
+---
+
+## Diagnostic Commands Cheat Sheet
 
 ```bash
-type %APPDATA%\JoyVoice\settings.json | findstr language
-```
-
-Must show `"language": "bn"` (not `"en-US"`, not `"bn-BD"`).
-
-### Reference
-
-- Obsidian: `Knowledge Base/joyvoice/Bengali Language Mapping.md`
-
----
-
-## 7. localhost DNS Resolution Delay
-
-### Symptom
-
-- Ollama AI rewrite calls take ~2 seconds longer than expected
-- Each "start/stop AI model" operation adds a noticeable delay
-- `127.0.0.1` works instantly but `localhost` is slow
-
-### Root Cause
-
-Windows dual-stack resolver tries IPv6 first (`::1`), waits for timeout, then falls back to IPv4 (`127.0.0.1`). This adds ~2 seconds to every connection attempt to `localhost`.
-
-### Fix
-
-Use `127.0.0.1` instead of `localhost` in all local API URLs. This was applied to Ollama's base URL in the changelog.
-
-```python
-# Bad: ~2s delay per call
-OLLAMA_BASE = "http://localhost:11434"
-
-# Good: instant
-OLLAMA_BASE = "http://127.0.0.1:11434"
-```
-
-### Reference
-
-- `CHANGELOG.md` — _"localhost resolution costs ~2 seconds on this machine"_
-
----
-
-## 8. Floating Widget Keyboard Focus Stealing
-
-### Symptom
-
-- After clicking the floating mic, Ctrl+V pastes into the widget itself instead of the target app
-- The previously focused app loses keyboard focus
-- Paste goes nowhere
-
-### Root Cause
-
-The floating widget was accepting keyboard focus on click, so the synthetic Ctrl+V was delivered to the widget instead of the previously active application.
-
-### Fix
-
-Applied in `app/ui/floating_widget.py:46-54`:
-
-```python
-self.setWindowFlags(
-    Qt.FramelessWindowHint
-    | Qt.WindowStaysOnTopHint
-    | Qt.Tool
-    | Qt.WindowDoesNotAcceptFocus  # <-- This
-)
-self.setAttribute(Qt.WA_ShowWithoutActivating)  # <-- And this
-self.setFocusPolicy(Qt.NoFocus)  # <-- And this
-```
-
-These three flags together ensure the widget never steals focus from the active application.
-
-### Reference
-
-- `CHANGELOG.md` — _"Floating widget stole keyboard focus on click"_
-
----
-
-## 9. Widget Stuck on "Loading model..."
-
-### Symptom
-
-- Widget permanently shows "Loading model..." status
-- Changing model in settings triggers reload, but status never resets
-- App otherwise functional — just wrong status text
-
-### Root Cause
-
-After a live settings-triggered model reload, the success path never called `set_state("idle")` on the widget. The error path reset it, but the success path left the stale status.
-
-### Fix
-
-Ensure `set_state("idle")` is called on both success and error paths after any model reload operation.
-
-### Reference
-
-- `CHANGELOG.md` — _"Widget stuck showing 'Loading model...'"_
-
----
-
-## 10. cuBLAS/cuDNN DLL Loading (Legacy)
-
-### Symptom
-
-- `ctranslate2` fails to load CUDA/cuBLAS at first inference call
-- `OSError: cannot load library 'cublas64_11.dll'`
-- Works on CPU but not GPU
-
-### Root Cause
-
-`os.add_dll_directory()` alone doesn't cover ctranslate2's lazy internal load of cuBLAS at first CUDA call. The NVIDIA pip-wheel `bin` directories need to be prepended to `PATH`.
-
-### Fix (Legacy — not relevant to current cloud-only pipeline)
-
-```python
-import os
-cuda_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin"
-os.environ["PATH"] = cuda_path + os.pathsep + os.environ.get("PATH", "")
-os.add_dll_directory(cuda_path)
-```
-
-> This is only relevant if using local Whisper with GPU. The current cloud pipeline doesn't use local models.
-
-### Reference
-
-- `CHANGELOG.md` — _"cuBLAS/cuDNN DLL loading"_
-
----
-
-## 11. Specific Engine Pitfalls (Legacy)
-
-These apply to benchmark-only local engines — not the live cloud pipeline.
-
-### Shrutimala — `input_features` vs `input_values`
-
-- **Symptom:** Crash at first run
-- **Cause:** `w2v-bert-2.0` expects `input_features`, not `input_values` (classic Wav2Vec2 convention)
-- **Fix:** Use `processor(audio, return_tensors="pt").input_features`
-
-### SeamlessM4T v2 — `audio=` vs `audios=`
-
-- **Symptom:** Exception in current `transformers`
-- **Cause:** Deprecated `audios=` parameter; old code warned, now raises
-- **Fix:** Use `audio=` (singular)
-
-### IndicConformer — Gated HuggingFace Repo
-
-- **Symptom:** `403 Forbidden` when downloading model
-- **Cause:** `ai4bharat/indic-conformer-600m-multilingual` requires accepted access + `HF_TOKEN`
-- **Fix:** Create HF account → accept terms on model page → set `HF_TOKEN` env var
-
-### Reference
-
-- `CHANGELOG.md` — _"Fixes found and applied along the way"_
-
----
-
-## 12. Settings Corruption
-
-### Symptom
-
-- App uses wrong settings on launch
-- Settings dialog shows stale values
-- `settings.json` is empty or malformed
-
-### Root Cause
-
-Manual editing of `settings.json` with invalid JSON, or concurrent write from multiple instances.
-
-### Fix
-
-1. Check the file: `type %APPDATA%\JoyVoice\settings.json`
-2. If corrupted, delete it: `del %APPDATA%\JoyVoice\settings.json`
-3. Restart — defaults are recreated automatically (`settings_store.py:17-31`)
-
-### Default Settings
-
-```json
-{
-  "language": "bn",
-  "output_mode": "translation",
-  "text_style": "clean_english",
-  "hotkey": "F8",
-  "hotkey_mode": "toggle",
-  "audio_device_name": null,
-  "paste_mode": "paste",
-  "paste_delay_ms": 300,
-  "restore_clipboard": true,
-  "wait_for_hotkey_release": true,
-  "replacements": { ... },
-  "widget_pos": null,
-  "first_run_complete": false
-}
-```
-
-### Validation
-
-Settings are loaded with graceful degradation (`settings_store.py:34-44`). If JSON is invalid, defaults are used and a warning is logged. No crash.
-
----
-
-## Common Error Messages
-
-| Error Message | Likely Cause | Fix |
-|---|---|---|
-| `'Recognizer' object has no attribute 'recognize_google'` | `typing_extensions` missing | [Section 3](#3-typing_extensions-silently-disables-google-asr) |
-| `ModuleNotFoundError: No module named 'sounddevice'` | PYTHONPATH contamination | [Section 1](#1-pythonpath-contamination) |
-| `UnknownValueError` (blank) | Float32 sent as int16 | [Section 2](#2-pcm-float32--int16-conversion) |
-| `Microphone error: ...` | Device unavailable or permissions | Check Windows mic privacy settings |
-| `Hotkey error` | F8 already registered by another app | Change hotkey in settings |
-| `Clipboard error: ...` | pyperclip backend issue | Install `xclip` (Linux) or check permissions |
-| `Transcription failed: ...` | API key missing or invalid | Check `JV_API_KEY` env var |
-| `AI rewrite failed: ...` | API gateway unreachable | Check network + API key |
-| Widget doesn't appear | Startup crash swallowed by pythonw.exe | [Section 5](#5-pythonwexe-hides-startup-errors) |
-| Widget stuck on "Transcribing..." | LLM callback lost (QThread issue) | [Section 4](#4-qthread-vs-qtimer-for-llm-callbacks) |
-| Bengali produces English gibberish | Wrong language in settings | [Section 6](#6-bengali-language-mapping) |
-| Paste goes to wrong window | Widget stole focus | [Section 8](#8-floating-widget-keyboard-focus-stealing) |
-
----
-
-## Quick Fixes Reference
-
-```bash
-# Fix 1: Kill everything and restart clean
-powershell "Get-Process python* | Stop-Process -Force"
-run.bat
-
-# Fix 2: Reinstall all deps cleanly
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install --force-reinstall -r requirements.txt
-
-# Fix 3: Reset settings to defaults
-del %APPDATA%\JoyVoice\settings.json
-run.bat
-
-# Fix 4: Verify everything works
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "
-import PySide6, sounddevice, numpy, pyperclip, keyboard, speech_recognition, typing_extensions
-print('All OK')
-print('Google:', hasattr(speech_recognition.Recognizer, 'recognize_google'))
+# ── Environment ──────────────────────────────────────────
+echo %JV_API_KEY%                              # Check API key is set
+echo %APPDATA%                                 # Should be your AppData\Roaming path
+where python                                   # Which python is on PATH
+
+# ── Venv Health ──────────────────────────────────────────
+.venv\Scripts\python.exe --version             # Should say Python 3.11.x
+env -u PYTHONPATH -u PYTHONHOME .venv\Scripts\python.exe -I -c "import app.main"
+
+# ── Package Verification ─────────────────────────────────
+env -u PYTHONPATH -u PYTHONHOME .venv\Scripts\python.exe -I -c "
+import PySide6, sounddevice, numpy, pyperclip, keyboard
+import speech_recognition as sr
+assert hasattr(sr.Recognizer, 'recognize_google'), 'typing_extensions missing!'
+import typing_extensions
+print('All packages OK')
 "
 
-# Fix 5: Check API connectivity
-env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "
-import os, json, urllib.request
-req = urllib.request.Request('https://ai.bdx.market/v1/models',
-    headers={'Authorization': f'Bearer {os.environ[\"JV_API_KEY\"]}'})
-print(json.loads(urllib.request.urlopen(req, timeout=10).read()))
-"
+# ── Process Management ───────────────────────────────────
+powershell "Get-Process python* | Stop-Process -Force"    # Kill all python
+tasklist | findstr python                                  # List python processes
+
+# ── Logs & Settings ──────────────────────────────────────
+type %APPDATA%\JoyVoice\joyvoice.log                       # View log (cmd)
+cat $env:APPDATA\JoyVoice\joyvoice.log                     # View log (PowerShell)
+type %APPDATA%\JoyVoice\settings.json                      # View settings
 ```
+
+---
+
+## Still Stuck?
+
+1. Check `joyvoice.log` for the exact error message and stack trace
+2. Run the [Quick Debugging Checklist](#quick-debugging-checklist) from top to bottom
+3. Verify all packages with the diagnostic command above
+4. Try a clean venv: delete `.venv`, recreate, reinstall
+5. Consult the **Obsidian Knowledge Base** at `C:\Users\Administrator\Documents\Hermes Vault\Knowledge Base\joyvoice\` for detailed notes on each subsystem
+
+---
+
+## Related Docs
+
+- **[SETUP.md](SETUP.md)** — Fresh installation guide
+- **[API.md](API.md)** — Gateway configuration and model reference
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — Code structure understanding

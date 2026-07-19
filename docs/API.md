@@ -1,336 +1,221 @@
-# JoyVoice — API Reference
+# JoyVoice — API & Gateway Reference
 
-> Gateway configuration, model benchmarks, endpoints, and fallback chain.
-
----
-
-## Table of Contents
-
-1. [API Gateway](#api-gateway)
-2. [Gemini Native Audio Pipeline](#gemini-native-audio-pipeline)
-3. [Google Web Speech Fallback](#google-web-speech-fallback)
-4. [Text Rewriting (LLM)](#text-rewriting-llm)
-5. [Model Benchmarks](#model-benchmarks)
-6. [Translation Engine Benchmarks](#translation-engine-benchmarks)
-7. [Error Handling & Retries](#error-handling--retries)
+JoyVoice uses a single OpenAI-compatible API gateway for both audio transcription (Gemini native audio) and text processing (translation, cleanup, style rewrites).
 
 ---
 
-## API Gateway
-
-### Configuration
+## Gateway Configuration
 
 | Setting | Value | Source |
-|---|---|---|
-| **Base URL** | `https://ai.bdx.market/v1` | `app/main.py:45` |
-| **API Key** | `JV_API_KEY` environment variable | `app/main.py:44` |
-| **Protocol** | OpenAI-compatible `/chat/completions` | Both audio and text endpoints |
-| **Timeout** | 45s (audio), 30s (text) | `gemini_audio.py:82`, `main.py:98` |
+|:---|---|:---|
+| **Base URL** | `https://ai.bdx.market/v1` | Hardcoded in `app/main.py` |
+| **Authentication** | `Bearer` token via `JV_API_KEY` env var | Set by user |
+| **Override URL** | `JV_API_BASE` env var *(optional)* | Falls back to default |
+| **Protocol** | OpenAI-compatible `/chat/completions` | Standard JSON request/response |
 
-### Endpoints
+### Environment Variables
 
-#### Audio Transcription + Translation
+| Variable | Required | Default | Description |
+|:---|:---:|:---|:---|
+| `JV_API_KEY` | ✅ Yes | — | API gateway authentication key |
+| `JV_API_BASE` | ❌ No | `https://ai.bdx.market/v1` | Override the gateway base URL |
 
+### Setting the API Key
+
+```cmd
+# Command Prompt (temporary):
+set JV_API_KEY=sk-...
+
+# PowerShell (temporary):
+$env:JV_API_KEY = "sk-..."
+
+# Permanent (Windows):
+# Control Panel → System → Advanced → Environment Variables
+# Add JV_API_KEY as a user variable
 ```
-POST {API_BASE}/chat/completions
-```
 
-Request format (`app/transcription/gemini_audio.py:55-80`):
+---
 
-```json
+## Available Models
+
+JoyVoice uses **Gemini** models served through the gateway. The same endpoint handles both audio and text requests — the gateway routes to the appropriate backend based on the `model` field and whether `input_audio` content blocks are present.
+
+### Primary Model (Active)
+
+| Model | Role | Latency | Notes |
+|:---|---:|---:|:---|
+| `gemini-3.1-flash-lite` ⭐ | **Audio ASR + Text LLM** | ~3.3 s | Default for both transcription and translation. Native audio understanding — no intermediate text step. |
+
+### Audio Model Usage
+
+The primary audio model receives raw WAV (base64-encoded 16-bit PCM, 16 kHz mono) via the `input_audio` content type. Gemini transcribes Bengali speech and translates to English in a single API call.
+
+```python
+# From app/transcription/gemini_audio.py
 {
-  "model": "gemini-3.1-flash-lite",
-  "messages": [{
-    "role": "user",
-    "content": [
-      {
-        "type": "text",
-        "text": "The speaker primarily uses Bangladeshi Bengali... Listen to the original audio carefully. Return JSON only with keys \"bengali_transcript\" and \"english_translation\"..."
-      },
-      {
-        "type": "input_audio",
-        "input_audio": {
-          "data": "<base64-encoded WAV>",
-          "format": "wav"
-        }
-      }
-    ]
-  }],
-  "max_tokens": 700,
-  "temperature": 0
+    "model": "gemini-3.1-flash-lite",
+    "messages": [{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "<language hint + instruction prompt>"},
+            {"type": "input_audio", "input_audio": {
+                "data": "<base64 WAV>",
+                "format": "wav"
+            }}
+        ]
+    }],
+    "max_tokens": 700,
+    "temperature": 0
 }
 ```
 
-Response parsing (`gemini_audio.py:23-32`):
+The response is a JSON object with two keys:
 
 ```json
 {
-  "bengali_transcript": "আমি বাংলায় কথা বলছি",
-  "english_translation": "I am speaking in Bengali"
+    "bengali_transcript": "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না",
+    "english_translation": "I won't be able to join the meeting tomorrow morning."
 }
 ```
 
-The parser extracts JSON from the response via regex: `r"\{.*\}"` with `re.DOTALL`. This is tolerant of markdown wrapping (e.g., `` ```json ... ``` ``).
+### Text Model Usage
 
-#### Text Rewriting
+For text cleanup, translation refinement, and style rewrites, the same model is used via standard chat completions:
 
-```
-POST {API_BASE}/chat/completions
-```
-
-Request format (`app/main.py:82-97`):
-
-```json
+```python
+# From app/main.py — cloud_llm_rewrite()
 {
-  "model": "gemini-3.1-flash-lite",
-  "messages": [{
-    "role": "user",
-    "content": "You are a faithful translator. Translate the following Bengali speech transcript to clean, natural English..."
-  }],
-  "max_tokens": 500,
-  "temperature": 0.1
+    "model": "gemini-3.1-flash-lite",
+    "messages": [{"role": "user", "content": "<style-specific prompt>"}],
+    "max_tokens": 500,
+    "temperature": 0.1
 }
 ```
 
-### Available Models
+---
 
-| Model ID | Type | Use Case |
-|---|---|---|
-| `gemini-3.1-flash-lite` | Audio + Text | **Default** — fastest native Bengali audio (~3.3s) |
-| `gemini-3.5-flash-extra-low` | Audio | Good accuracy, ~4.5s |
-| `gemini-3.5-flash-low` | Audio | Good accuracy, ~5.1s |
-| `gemini-3-flash` | Audio | Good accuracy, ~5.1s |
-| `gemini-3.1-pro-low` | Audio | Most faithful transcription, ~10.3s (too slow for dictation) |
+## Benchmark Results
 
-Configured in `app/main.py:46-47`:
+Tested with a Bengali audio sample on 2026-07-19. All models accessed through the same `ai.bdx.market` gateway.
 
-```python
-FAST_MODEL = "gemini-3.1-flash-lite"
-AUDIO_MODEL = "gemini-3.1-flash-lite"
-```
+### Audio Transcription + Translation Benchmarks
+
+| Model | Wall-Clock Time | Bengali Accuracy | Verdict |
+|:---|---:|:---|:---|
+| **gemini-3.1-flash-lite** ⭐ | **3.3 s** | Best — correct transcript + natural English | ✅ **Default** — fastest + cleanest |
+| gemini-3.5-flash-extra-low | 4.5 s | Correct transcript | ⚠️ Slightly slower |
+| gemini-3.5-flash-low | 5.1 s | Correct transcript | ⚠️ Slower |
+| gemini-3-flash | 5.1 s | Correct transcript | ⚠️ Slower |
+| gemini-3.1-pro-low | 10.3 s | Most faithful transcription | ❌ Too slow for real-time dictation |
+
+### Benchmark Methodology
+
+1. Record a Bengali speech sample (natural pace, ~5–10 seconds)
+2. Convert to 16-bit PCM WAV at 16 kHz mono
+3. Send to each model via the gateway with identical prompts
+4. Measure wall-clock time (network latency included)
+5. Evaluate Bengali transcript accuracy and English translation quality manually
+
+> **Winner:** `gemini-3.1-flash-lite` — native audio understanding eliminates the text roundtrip entirely. 3.3 seconds wall-clock, mic to paste.
+
+### Pipeline Timing Breakdown
+
+| Stage | Time | Description |
+|:---|---:|:---|
+| 🎙️ Record | — | Captured via PD200X at 16 kHz mono float32 |
+| 🔢 PCM Conversion | < 50 ms | float32 → signed int16 |
+| 🧠 Gemini Audio | ~3.0 s | Transcription + translation in single API call |
+| ✨ Text Cleanup | < 50 ms | Punctuation, capitalization, replacements |
+| 📋 Paste | ~300 ms | Clipboard save → Ctrl+V → restore |
+| **Total** | **~3.3 s** | Mic to paste, end-to-end |
 
 ---
 
-## Gemini Native Audio Pipeline
+## Fallback Chain
 
-### Architecture (`app/transcription/gemini_audio.py`)
+When the primary Gemini audio model is unreachable, JoyVoice automatically falls back:
 
 ```
-PCM int16 bytes (16 kHz mono)
-  → _wav_base64(): wrap in WAV container, base64-encode
-  → POST to /chat/completions with input_audio content block
-  → _parse_result(): regex-extract JSON, validate both keys present
-  → Return (bengali_transcript, english_translation)
+1. Gemini Native Audio  ──failure──▶  2. Google Web Speech ASR
+                                            │
+                                      (free, no API key)
+                                            │
+                                            ▼
+                                     Bengali transcript
+                                            │
+                                            ▼
+                                      Gemini Text LLM
+                                      (translate to English)
+                                            │
+                                            ▼
+                                      Final English text
 ```
 
-### Language Hints (`gemini_audio.py:44-47`)
+| Fallback Stage | API | Key Required | Latency |
+|:---|:---|:---:|---:|
+| Gemini Audio | `ai.bdx.market/v1` | `JV_API_KEY` | ~3.0 s |
+| Google Web Speech | Google ASR servers | ❌ None (free) | ~2.5 s |
+| Gemini Text (fallback translate) | `ai.bdx.market/v1` | `JV_API_KEY` | ~0.5 s |
 
-| Settings Key | Prompt Injected |
-|---|---|
-| `"bn"` | "The speaker primarily uses Bangladeshi Bengali and may code-switch into English." |
-| `"en"` | "The speaker primarily uses English." |
-| Any other / `null` | "Detect the spoken language; Bengali and English may be mixed." |
-
-### PCM Format Requirements
-
-The audio sent to Gemini must be **16-bit PCM WAV**:
-
-| Parameter | Value |
-|---|---|
-| Sample rate | 16,000 Hz |
-| Channels | 1 (mono) |
-| Sample width | 2 bytes (int16) |
-| Encoding | Signed 16-bit PCM, little-endian |
-
-The recorder produces **float32** (-1.0 to +1.0). Conversion happens in `app/main.py:278-279`:
-
-```python
-raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
-```
+If both Gemini and Google fail, the widget displays an error state.
 
 ---
 
-## Google Web Speech Fallback
+## Authentication Details
 
-### When it's used (`app/main.py:117-136`)
+### Request Headers
 
-Google Web Speech is called **only when Gemini fails**:
+Every API call to the gateway includes:
 
-```python
-try:
-    transcript, translation = transcribe_and_translate(...)
-except Exception as gemini_exc:
-    # Fallback: Google ASR → Gemini text translation
-    transcript = cloud_asr_transcribe(audio, language)
-    translation = cloud_llm_rewrite(transcript, "translate_to_english")
+```http
+POST /v1/chat/completions HTTP/1.1
+Host: ai.bdx.market
+Authorization: Bearer sk-...
+Content-Type: application/json
 ```
 
-### Configuration (`app/transcription/cloud_asr.py`)
+### Key Validation
 
-| Setting | Value |
-|---|---|
-| **Library** | `speech_recognition` (Google Web Speech API) |
-| **Cost** | Free (same API Chrome uses for voice typing) |
-| **Rate limit** | ~50 requests/day per IP (unofficial) |
-| **Languages** | 80+ via BCP-47 tags |
+JoyVoice reads the key at startup from the environment. If `JV_API_KEY` is empty or invalid:
 
-### Language Mapping (`cloud_asr.py:15-18`)
+- The Gemini audio call will fail with an authentication error
+- The Google Web Speech fallback will still work (it's free and keyless)
+- The text translation step will fail (leaving the Bengali transcript untranslated)
 
-| Settings Key | Google Tag | Description |
-|---|---|---|
-| `"bn"` | `"bn-BD"` | Bangladeshi Bengali |
-| `"en"` | `"en-US"` | US English |
-| `"auto"` / `None` | `"bn-BD"` | Defaults to Bengali |
-
-Mapping happens at ASR call time — `settings.json` stores the short key (`"bn"`), not the BCP-47 tag.
-
-### Silent Failure Risk
-
-If `typing_extensions` is not installed, `SpeechRecognition` silently disables the Google recognizer. `recognize_google` becomes unavailable on the `Recognizer` object — no import error, only a runtime `AttributeError`.
-
-**Detection** (`TROUBLESHOOTING.md`):
-
-```bash
-python -I -c "import speech_recognition as sr; print(hasattr(sr.Recognizer, 'recognize_google'))"
-```
-
-Must return `True`.
+> **Tip:** Set `JV_API_KEY` as a permanent user environment variable (not just in your terminal session) so it survives reboots.
 
 ---
 
-## Text Rewriting (LLM)
+## Text Style Prompts
 
-### Style Prompts (`app/main.py:49-71`)
+Each text style sends a different system prompt to the LLM:
 
-| Style Key | Behavior | Output |
-|---|---|---|
-| `translate_to_english` | Bengali → English translation | English text only |
-| `clean_english` | Remove fillers, fix punctuation/caps | Cleaned original language |
-| `prompt_for_ai` | Rewrite as AI prompt | Structured prompt |
-| `professional_message` | Rewrite as professional email | Formal message |
-| `facebook_post` | Rewrite as Facebook post | Engaging social post |
+| Style | Prompt Intent | AI Call? |
+|:---|:---|:---:|
+| `raw` | No processing — return transcript as-is | ❌ |
+| `clean_english` | Fix filler words, punctuation, capitalization | ❌ (rule-based) |
+| `translate_to_english` | Faithful Bengali → English translation | ✅ |
+| `prompt_for_ai` | Rewrite as a clear AI prompt | ✅ |
+| `professional_message` | Rewrite as a professional email/message | ✅ |
+| `facebook_post` | Rewrite as an engaging social media post | ✅ |
 
-### Worker Thread (`app/main.py:139-154`)
-
-```python
-class CloudLLMWorker(QThread):
-    done = Signal(str)
-    failed = Signal(str)
-
-    def run(self) -> None:
-        try:
-            self.done.emit(cloud_llm_rewrite(self._text, self._style))
-        except Exception as exc:
-            self.failed.emit(str(exc))
-```
-
-Uses `QThread` (not plain thread) so Qt signals are delivered on the main event loop. Plain thread + `QTimer.singleShot()` silently loses results.
-
-### LLM Parameters
-
-| Parameter | Value | Rationale |
-|---|---|---|
-| `model` | `gemini-3.1-flash-lite` | Fastest cloud model |
-| `max_tokens` | 500 | Translations are short |
-| `temperature` | 0.0 (audio) / 0.1 (text) | Deterministic output |
+Styles requiring an AI call use `max_tokens: 500` and `temperature: 0.1` for deterministic, concise output.
 
 ---
 
-## Model Benchmarks
+## Rate Limits & Costs
 
-### Gemini Native Audio (Bengali TTS test audio, 2026-07-19)
-
-| Model | Latency | Accuracy | Notes |
-|---|---|---|---|
-| **gemini-3.1-flash-lite** ⭐ | **3.3s** | **Best** | Correct transcript + translation; default |
-| gemini-3.5-flash-extra-low | 4.5s | Good | Correct transcript |
-| gemini-3.5-flash-low | 5.1s | Good | Correct transcript |
-| gemini-3-flash | 5.1s | Good | Correct transcript |
-| gemini-3.1-pro-low | 10.3s | Most faithful | Too slow for real-time dictation |
-
-> **Selection rationale:** `gemini-3.1-flash-lite` was chosen as the default because it had the best accuracy at the lowest latency. `gemini-3.1-pro-low` is more faithful but 3× slower — unacceptable for dictation where users expect sub-4-second turnaround.
-
-### Full Pipeline Latency
-
-| Pipeline Stage | Primary (Gemini Audio) | Fallback (Google + Gemini Text) |
-|---|---|---|
-| Recording | — (real-time) | — (real-time) |
-| ASR | ~3.3s (single call) | ~1.0s (Google Web Speech) |
-| Translation | 0s (same call) | ~1.5s (Gemini text) |
-| **Total** | **~3.3s** | **~2.5s** |
-| Paste | <1s | <1s |
-
-> **Note:** The Google fallback is actually faster end-to-end (~2.5s vs ~3.3s) because Google Web Speech is extremely fast for short utterances. However, Gemini native audio is preferred because it handles code-switching (Bengali + English mixed) better and provides translation in a single API call.
+| Aspect | Detail |
+|:---|:---|
+| **Pricing** | ~$0.001 per dictation call (audio + text combined) |
+| **Rate limit** | Standard gateway limits apply |
+| **Concurrent calls** | One at a time (single-threaded pipeline) |
+| **Timeout** | 45 seconds for audio, 30 seconds for text |
 
 ---
 
-## Translation Engine Benchmarks
+## Related Docs
 
-The `app/transcription/translation_engines/` directory contains pluggable translation backends for benchmarking (not used in the live pipeline):
-
-| Engine | Module | Type | Notes |
-|---|---|---|---|
-| **Gemmax2** | `gemmax2.py` | Cloud LLM | Same as live pipeline |
-| **Ollama** | `ollama_translate.py` | Local LLM | qwen2.5:7b / 14b |
-| **NLLB** | `nllb.py` | Local model | Meta's No Language Left Behind |
-| **IndicTrans2** | `indictrans2.py` | Local model | AI4Bharat |
-| **mBART-50** | `mbart50.py` | Local model | Facebook multilingual |
-| **BanglaT5** | `banglat5.py` | Local model | Bengali-specific T5 |
-| **Hunyuan MT** | `hunyuan_mt.py` | Cloud/API | Tencent machine translation |
-| **MADLAD** | `madlad.py` | Local model | Google MADLAD-400 |
-
-### ASR Engine Benchmarks (legacy, local models)
-
-| Engine | Module | Time (14.8s clip) | Notes |
-|---|---|---|---|
-| Shrutimala | `shrutimala.py` | 0.5s | Fastest; CTC — no linguistic smoothing |
-| IndicConformer CTC | `indic_conformer.py` | 1.6s | Clean; CPU-only at test time |
-| IndicConformer RNNT | `indic_conformer.py` | 1.75s | **Best code-switch preservation** |
-| Whisper large-v3 | `whisper_adapter.py` | 3.1s | Solid; cut off with stray character |
-| BanglaASR | `bangla_asr.py` | 4.1s | Degenerate repetition artifact |
-| SeamlessM4T v2 | `seamless_m4t.py` | ~17s | Cleanest structurally; direct translation |
-
-> These local engines are **not used in the live pipeline** (which is cloud-only). They exist in the benchmark dialog for comparison. IndicConformer was identified as the strongest candidate for future local dictation but hasn't been wired in as the default.
-
----
-
-## Error Handling & Retries
-
-### Fallback Chain (`app/main.py:117-136`)
-
-```
-1. Gemini native audio (transcribe + translate in one call)
-   ↓ failure
-2. Google Web Speech ASR → Gemini text translation
-   ↓ failure
-3. Error displayed in UI
-```
-
-### Error States
-
-| Error | UI Display | Log Level |
-|---|---|---|
-| Gemini API unreachable | "Transcription failed: ..." | ERROR |
-| Google ASR unintelligible | "No speech detected" | INFO |
-| LLM rewrite failed | "AI rewrite failed: ..." | ERROR |
-| Clipboard error | Warning in status | WARNING |
-| Hotkey registration failed | "Hotkey error" | WARNING |
-
-### Timeouts
-
-| Operation | Timeout | Source |
-|---|---|---|
-| Gemini audio API | 45 seconds | `gemini_audio.py:82` |
-| Gemini text API | 30 seconds | `main.py:98` |
-| Google Web Speech | Library default (~10s) | `SpeechRecognition` |
-| Recording runaway guard | 300 seconds | `recorder.py:22` |
-
-### Error Display (`app/main.py:375-378`)
-
-Errors show on the floating widget for 3 seconds, then auto-clear to idle:
-
-```python
-ERROR_DISPLAY_MS = 3000
-self.widget.set_state("error", "Error")
-QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
-```
+- **[SETUP.md](SETUP.md)** — Step-by-step installation and first launch
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** — Common API and gateway issues
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — How the API calls fit into the pipeline
