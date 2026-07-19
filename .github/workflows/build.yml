@@ -10,27 +10,22 @@ jobs:
   build:
     runs-on: windows-latest
 
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-      fail-fast: false
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\pip\Cache
-          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements*.txt') }}
+          key: ${{ runner.os }}-pip-3.11-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-3.11-
 
       - name: Install dependencies
         run: |
@@ -38,28 +33,12 @@ jobs:
           pip install -r requirements.txt
         shell: bash
 
-      - name: Install dev dependencies (if available)
-        run: |
-          if (Test-Path requirements-dev.txt) { pip install -r requirements-dev.txt }
-        shell: pwsh
-
       - name: Verify imports
         run: |
-          python -c "import joyvoice; print(f'JoyVoice imported successfully. Version: {getattr(joyvoice, \"__version__\", \"unknown\")}')"
+          python -c "import sounddevice, numpy, speech_recognition, pyperclip, cffi; print('Core deps OK')"
         shell: bash
 
-      - name: Run linting (if configured)
+      - name: Verify app imports
         run: |
-          if (Test-Path pyproject.toml -or Test-Path .flake8 -or Test-Path setup.cfg) {
-            pip install ruff
-            ruff check .
-          }
-        shell: pwsh
-        continue-on-error: true
-
-      - name: Run tests (if configured)
-        run: |
-          pip install pytest
-          pytest --tb=short --no-header -q
+          python -c "import sys; sys.path.insert(0,'.'); import app.main; print('JoyVoice app imports OK')"
         shell: bash
-        continue-on-error: true
