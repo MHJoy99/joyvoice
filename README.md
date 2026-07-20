@@ -6,15 +6,16 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-1.0.0-22d3ee?style=flat-square" alt="Version 1.0.0"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.0.0-22d3ee?style=flat-square" alt="Version 2.0.0"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="#"><img src="https://img.shields.io/badge/Latency-~3.3s-22d3ee?style=flat-square" alt="Latency ~3.3s"></a>
 </p>
 
 <p align="center">
-  <strong>Floating Mic Dictation — Bengali → English Translation</strong><br>
-  Click mic &nbsp;→&nbsp; Speak Bengali &nbsp;→&nbsp; Clean English pasted into any app<br>
-  <sub>~3.3 seconds end-to-end. No GPU. No cloud Whisper bills.</sub>
+  <strong>Floating Mic Dictation — Speak Any Language, Get Clean Translations Instantly</strong><br>
+  Click mic &nbsp;→&nbsp; Speak in any of 10 languages &nbsp;→&nbsp; Clean translation pasted into any app<br>
+  <sub>~3.3 seconds end-to-end. No GPU. No local models. Pure cloud pipeline.</sub>
 </p>
 
 <hr>
@@ -23,25 +24,38 @@
 
 <blockquote>
 
-**Press `F8` → speak into your PD200X → the floating mic pulses → 3.3 seconds later clean English appears wherever your cursor is.**
+**Press `F8` → speak in your language → the floating mic pulses with a live waveform → 3.3 seconds later clean translated text appears wherever your cursor is.**
 
-That's it. No window switching. No copy-paste. Just speak and keep typing.
+That's it. No window switching. No copy-paste. No language selection. Just speak and keep typing.
 
 </blockquote>
 
 ```
-  You say (Bengali):   "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না"
-  You get (pasted):     "I won't be able to join the meeting tomorrow morning."
+  You say (Bengali):    "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না"
+  You get (pasted):      "I won't be able to join the meeting tomorrow morning."
+
+  You say (Russian):     "Я не могу присоединиться к встрече завтра утром"
+  You get (pasted):      "I can't join the meeting tomorrow morning."
+
+  You say (Chinese):     "我明天早上不能参加会议"
+  You get (pasted):      "I can't attend the meeting tomorrow morning."
+
+  You say (Arabic):      "لا أستطيع الانضمام إلى الاجتماع صباح الغد"
+  You get (pasted):      "I can't join the meeting tomorrow morning."
 ```
+
+> **Auto-detect means you never touch a language setting.** Switch from Bengali to Russian to Chinese mid-conversation — JoyVoice figures it out. Or lock a source language if you prefer.
 
 | Step | What Happens | Time |
 |:----:|:---|---:|
-| 🎙️ | Record via PD200X (16 kHz mono, float32) | — |
+| 🎙️ | Record via your mic (16 kHz mono, float32) | — |
 | 🔢 | Convert to signed int16 PCM | < 50 ms |
-| 🧠 | **Gemini 3.1 Flash Lite** transcribes + translates (single API call) | ~3.0 s |
+| 🧠 | **Gemini 3.1 Flash Lite** detects language + transcribes + translates (single API call) | ~3.0 s |
 | ✨ | Punctuation & capitalization cleanup | < 50 ms |
-| 📋 | Clipboard-safe paste via `Ctrl+V` | ~300 ms |
+| 📋 | Clipboard-safe paste via `Ctrl+V` with exponential retry | ~300 ms |
 | ✅ | **Done. Text is in your app.** | **~3.3 s** |
+
+> **Fallback chain built in.** If Gemini is unreachable, Google Web Speech API takes over automatically — zero config, zero downtime.
 
 ---
 
@@ -49,12 +63,12 @@ That's it. No window switching. No copy-paste. Just speak and keep typing.
 
 <p align="center">
   <img src="assets/desktop-mockup.png" alt="JoyVoice Desktop Mockup" width="600">
-  <br><em>Floating mic widget over your workspace — always on top, never in the way.</em>
+  <br><em>Floating glass-morphism mic widget over your workspace — always on top, never in the way.</em>
 </p>
 
 <p align="center">
   <img src="assets/how-it-works.png" alt="How It Works" width="600">
-  <br><em>Press F8 → Speak Bengali → Get clean English. That's it.</em>
+  <br><em>Press F8 → Speak any language → Get clean translation. That's it.</em>
 </p>
 
 <details>
@@ -71,7 +85,7 @@ That's it. No window switching. No copy-paste. Just speak and keep typing.
 
 ### 🪟 Option A: Download Pre-built EXE *(recommended)*
 
-> Coming soon! A single `.exe` — no Python, no venv, no dependency hell. Drop it on any Windows machine and start dictating.
+> A single `.exe` — no Python, no venv, no dependency hell. Drop it on any Windows machine and start dictating.
 
 ```
 📁 JoyVoice/
@@ -80,7 +94,7 @@ That's it. No window switching. No copy-paste. Just speak and keep typing.
    └── README.txt
 ```
 
-**[Download v1.0.0 EXE](#)** &nbsp;·&nbsp; *Standalone · Signed · Auto-update ready*
+**[Download v2.0.0 EXE](#)** &nbsp;·&nbsp; *Standalone · Auto-update ready*
 
 ### 🐍 Option B: Run from Source
 
@@ -97,7 +111,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # 4. Set your API key
-set JV_API_KEY=sk-your-gateway-key
+set JV_API_KEY=«your-bdx-market-key»
 
 # 5. Launch!
 python app\main.py
@@ -111,19 +125,43 @@ python app\main.py
 
 ## 🎯 Features
 
+### 🌐 10-Language Dictation + Translation
+
 | | Feature | Detail |
 |:---:|---|:---|
-| 🎙️ | **One-Shot Dictation** | Press `F8` → speak → result auto-pastes. No alt-tabbing. |
-| 🌐 | **Bengali → English** | Native audio transcription + translation in a single Gemini API call. |
+| 🗣️ | **10 Languages** | Bangla · English · Russian · Hindi · Spanish · Arabic · Chinese · Japanese · French · Portuguese |
+| 🔍 | **Auto-Detect Language** | Speak naturally — JoyVoice detects your language. No manual switching. |
+| 🎯 | **Target Language Selection** | Translate into any of the 10 supported languages, not just English. |
+| 🌐 | **Single API Call** | Native audio transcription + translation in one Gemini request. No text round-trip. |
 | ⚡ | **~3.3s End-to-End** | Mic to paste in under four seconds — faster than you can type. |
 | 🔄 | **Automatic Fallback** | Google Web Speech API kicks in if Gemini is unreachable. Zero config. |
-| 🎛️ | **3 Output Modes** | Translation only · Original Bengali · Both side-by-side |
-| 📝 | **5 Text Styles** | Clean English · Raw transcript · AI prompt · Formal email · Custom |
-| 🖱️ | **Always-on-Top Widget** | Dark floating mic — drag anywhere, stays above all windows. |
-| ⌨️ | **Global Hotkey** | `F8` toggle or hold-to-record. Works from any app. |
+| 🎛️ | **Dynamic Output Modes** | Source transcript only · Target translation only · Both side-by-side. Labels adapt to your selected language pair. |
+| 📝 | **5 Text Styles** | Clean English · Raw transcript · AI prompt · Formal email · Custom rewrite |
+
+### ✨ 10 UI/UX Improvements (v2.0.0)
+
+| | Feature | Detail |
+|:---:|---|:---|
+| 🪟 | **Glass-Morphism Widget** | Translucent frosted-glass mic pill with backdrop blur. Sits elegantly over any background. |
+| 📊 | **Live Waveform** | 5-bar animated audio visualization pulses while you speak — instant visual feedback. |
+| ⏱️ | **Recording Timer** | Count-up display shows elapsed recording time on the widget. |
+| 🏷️ | **Language Badge** | Compact pill badge shows current direction (e.g. `BN → EN`, `Auto → EN`). Changes live with auto-detect. |
+| 👁️ | **Live Preview** | Transcription text streams onto the widget in real-time — see what's being captured. |
+| 📏 | **Confidence Bar** | 3px coloured bar at widget bottom: green (high confidence) / yellow (medium) / red (low). Auto-fades after 3s. |
+| 🔔 | **Floating Toast** | Result appears in a toast bubble near your cursor — non-intrusive confirmation. |
+| 🔊 | **Audio Feedback** | Tactile beeps at every lifecycle transition (start/stop/success/error) via `winsound.Beep`. |
+| 🔀 | **Quick Language Switcher** | `Ctrl+Shift+L` — instantly switch language pair without opening settings. |
+| 📜 | **Right-Click History** | Last 5 dictations in widget context menu. One click to re-copy any past result. |
+
+### 🛡️ Robustness — Never Lose Text
+
+| | Feature | Detail |
+|:---:|---|:---|
+| 👁️ | **Visibility Watchdog** | 2-second timer checks widget visibility. Auto-restores if Windows hides it (virtual desktops, UAC, sleep/wake). |
+| ⌨️ | **Hotkey Health Check** | 5-second timer verifies global hotkey registration. Auto-re-registers after sleep/wake or UAC elevation. |
+| 🔁 | **Paste Retry** | Exponential backoff: 3 attempts with increasing delay. Handles focus-switch race conditions. |
+| 💾 | **History Guarantee** | Text is saved to persistent history **before** paste is attempted. Even if paste fails, your text is safe. |
 | 📋 | **Clipboard-Safe Paste** | Saves your clipboard → pastes result → restores original. No data loss. |
-| 📊 | **Built-in Benchmarks** | Compare ASR models side-by-side. Right-click → Diagnostics → Benchmark. |
-| 📜 | **Dictation History** | Every transcription saved. Search, copy, re-paste past results. |
 | 🚀 | **Launch on Startup** | Optional auto-start with Windows. Toggle in Settings. |
 | 🛡️ | **No GPU Required** | All pure Python or prebuilt wheels. Runs on integrated graphics. |
 
@@ -138,22 +176,81 @@ python app\main.py
 ### Pipeline Stages
 
 ```
-┌──────────┐    ┌──────────┐    ┌─────────────────┐    ┌──────────────────┐    ┌──────────┐
-│   🎙️    │    │   🔢     │    │      🧠         │    │   🌐 + ✨        │    │   📋     │
-│   Mic    │───▶│  PCM16   │───▶│  Gemini Audio   │───▶│  Bengali+English │───▶│  Paste   │
-│          │    │          │    │                  │    │                  │    │          │
-│ PD200X   │    │ float→   │    │ 3.1-flash-lite  │    │ Transcribe +     │    │ Ctrl+V   │
-│ 16 kHz   │    │  int16   │    │ native audio    │    │ Translate +      │    │ 300ms    │
-│ float32  │    │          │    │                  │    │ Cleanup          │    │ restore  │
-└──────────┘    └──────────┘    └───────┬──────────┘    └──────────────────┘    └──────────┘
-                                        │ on failure
+┌──────────┐    ┌──────────┐    ┌─────────────────────┐    ┌──────────────────┐    ┌──────────┐
+│   🎙️    │    │   🔢     │    │        🧠           │    │   🌐 + ✨        │    │   📋     │
+│   Mic    │───▶│  PCM16   │───▶│  Gemini 3.1 Flash    │───▶│  Multi-Language  │───▶│  Paste   │
+│          │    │          │    │  Lite                │    │                  │    │          │
+│ Any mic  │    │ float→   │    │                      │    │ Auto-detect      │    │ Ctrl+V   │
+│ 16 kHz   │    │  int16   │    │ Native audio →       │    │ source language  │    │ retry×3  │
+│ float32  │    │ < 50ms   │    │ (transcript,         │    │ Transcribe +     │    │ restore  │
+│          │    │          │    │  translation)        │    │ Translate +      │    │ clipbrd  │
+└──────────┘    └──────────┘    └───────┬──────────────┘    │ Cleanup          │    └──────────┘
+                                        │ on failure        └──────────────────┘
                                         ▼
                                  ┌─────────────────┐
                                  │  🔄  Fallback    │
                                  │  Google Web      │
                                  │  Speech API      │
+                                 │  (free, no key)  │
+                                 └────────┬────────┘
+                                          │
+                                          ▼
+                                 ┌─────────────────┐
+                                 │  Gemini Text LLM │
+                                 │  translate →     │
+                                 │  target language │
                                  └─────────────────┘
 ```
+
+### Robustness Layer
+
+```
+┌───────────────────────────────────────────────────────┐
+│  🛡️ Defense-in-Depth                                  │
+│                                                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
+│  │ Watchdog     │  │ Hotkey       │  │ Paste Retry  │ │
+│  │ 2s interval  │  │ Health Check │  │ Exponential  │ │
+│  │ Auto-restore │  │ 5s interval  │  │ Backoff ×3   │ │
+│  │ widget vis.  │  │ Re-register  │  │              │ │
+│  └──────────────┘  └──────────────┘  └──────────────┘ │
+│                                                       │
+│  ┌──────────────────────────────────────────────────┐ │
+│  │ History-Before-Paste: save text FIRST,           │ │
+│  │ then attempt paste. Never lose data.             │ │
+│  └──────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────┘
+```
+
+### UI Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  🪟 Glass-Morphism Floating Widget (200×80)              │
+│                                                          │
+│  ┌─────────┐  ┌───────┐  ┌──────┐  ┌──────────────────┐ │
+│  │ 5-Bar   │  │ Timer │  │ Badge│  │ Live Preview     │ │
+│  │Waveform │  │ 00:03 │  │BN→EN │  │ "I won't be abl…"│ │
+│  └─────────┘  └───────┘  └──────┘  └──────────────────┘ │
+│  ┌──────────────────────────────────────────────────────┐│
+│  │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  Confidence Bar (green) ││
+│  └──────────────────────────────────────────────────────┘│
+│                                                          │
+│  State animations: idle (gray) → recording (orange       │
+│  pulse) → transcribing (blue) → pasted (green scale-pop) │
+│  → error (red). Smooth QPropertyAnimation transitions.   │
+└──────────────────────────────────────────────────────────┘
+```
+
+### State Machine
+
+```
+[Idle] ──F8──▶ [Recording] ──F8──▶ [Processing] ──done──▶ [Pasting] ──done──▶ [Idle]
+                  │                    │
+                  └── retry ──────────┘  (on API failure → fallback chain)
+```
+
+Widget states: `idle` (gray), `recording` (orange pulsing), `transcribing` (blue), `pasted` (green scale-pop), `error` (red).
 
 ### Tech Stack
 
@@ -167,44 +264,79 @@ python app\main.py
 | **Clipboard** | `pyperclip` + `keyboard` | Clipboard save → paste → restore; safe for password managers |
 | **Persistence** | JSON (`%APPDATA%\JoyVoice\`) | Settings + history. Human-readable, easy to debug |
 
-### State Machine
+### Audio Feedback
 
-```
-[Idle] ──F8──▶ [Recording] ──F8──▶ [Processing] ──done──▶ [Pasting] ──done──▶ [Idle]
-                  │                    │
-                  └── retry ──────────┘  (on API failure → fallback)
-```
+Tactile beeps at every lifecycle transition so you don't need to look at the widget:
+
+| Event | Beep | When |
+|:---|:---|:---|
+| `play_start()` | 800Hz / 80ms | Recording begins |
+| `play_stop()` | 600Hz / 80ms | Recording ends |
+| `play_done()` | 1000Hz / 100ms | Transcription succeeds |
+| `play_error()` | 300Hz / 150ms | Any error (ASR fail, LLM fail, generic) |
+
+Uses `winsound.Beep` (stdlib, no deps). Silent no-op on non-Windows or Terminal Services.
+
+---
+
+## 🌍 Supported Languages
+
+10 languages for both source (auto-detect or locked) and target (translation destination):
+
+| Code | Language | Native | Google tag | Auto-Detect | Translation |
+|:---:|:---|:---|:---|:---:|:---:|
+| `auto` | Auto Detect | 🔍 | — | ✅ | — |
+| `bn` | Bangla | বাংলা | `bn-BD` | ✅ | ✅ |
+| `en` | English | English | `en-US` | ✅ | ✅ |
+| `ru` | Russian | Русский | `ru-RU` | ✅ | ✅ |
+| `hi` | Hindi | हिन्दी | `hi-IN` | ✅ | ✅ |
+| `es` | Spanish | Español | `es-ES` | ✅ | ✅ |
+| `ar` | Arabic | العربية | `ar-SA` | ✅ | ✅ |
+| `zh` | Chinese | 中文 | `zh-CN` | ✅ | ✅ |
+| `ja` | Japanese | 日本語 | `ja-JP` | ✅ | ✅ |
+| `fr` | French | Français | `fr-FR` | ✅ | ✅ |
+| `pt` | Portuguese | Português | `pt-BR` | ✅ | ✅ |
+
+> **Auto-detect is the default.** The Gemini prompt dynamically switches from "transcribe in {language}" to "detect the spoken language" when `auto` is active. Google fallback also supports native auto-detection.
+
+> **Quick switcher:** Press `Ctrl+Shift+L` anywhere to cycle language pairs without opening Settings.
 
 ---
 
 ## 🤔 Why JoyVoice?
 
-| | JoyVoice | Windows Dictation | Whisper Local | Google Translate |
+| | JoyVoice v2.0 | Windows Dictation | Whisper Local | Google Translate |
 |:---|:---:|:---:|:---:|:---:|
-| **Bengali → English** | ✅ Single step | ❌ English-only | ⚠️ Two-step (ASR + LLM) | ❌ Typed text only |
+| **10 Languages** | ✅ With auto-detect | ⚠️ Select few | ⚠️ Model-dependent | ❌ Typed text only |
+| **Auto-Detect Lang** | ✅ Default | ❌ Manual | ❌ | ❌ |
+| **Translate to Any Lang** | ✅ 10 targets | ❌ English-only | ⚠️ Two-step (ASR + LLM) | ❌ Typed only |
 | **Latency** | ~3.3s | ~2–5s | 10–30s (CPU) | N/A (not speech) |
 | **GPU Required** | ❌ No | ❌ No | ⚠️ Recommended | ❌ No |
-| **Auto-Paste** | ✅ Yes | ✅ Yes | ❌ Manual | ❌ N/A |
-| **Floating Widget** | ✅ Always-on-top | ❌ OS-level only | ❌ No UI | ❌ No |
+| **Auto-Paste** | ✅ With retry | ✅ Yes | ❌ Manual | ❌ N/A |
+| **Glass UI Widget** | ✅ Frosted glass | ❌ OS-level only | ❌ No UI | ❌ No |
+| **Live Waveform** | ✅ 5-bar | ❌ | ❌ | ❌ |
+| **Confidence Indicator** | ✅ Colour bar | ❌ | ❌ | ❌ |
+| **Audio Feedback** | ✅ 4 beeps | ❌ | ❌ | ❌ |
 | **API Cost** | ~$0.001/call | Free (built-in) | Free (local) | Free |
 | **Offline** | ❌ | ✅ | ✅ | ❌ |
 | **Setup** | 5 min | Built-in | 30+ min (model download) | Web only |
 | **Output Modes** | 3 modes + 5 styles | 1 mode | Raw transcript only | Raw text only |
-| **History** | ✅ Searchable | ❌ | ❌ | ❌ |
-| **Hotkey** | ✅ `F8` | `Win+H` | ❌ | ❌ |
+| **History** | ✅ Searchable + right-click | ❌ | ❌ | ❌ |
+| **Hotkey** | ✅ `F8` + `Ctrl+Shift+L` | `Win+H` | ❌ | ❌ |
 
-> **JoyVoice is for the Bengali speaker who needs English output *now* — in Slack, in Notion, in VS Code — without switching windows or breaking flow.** It's not a general-purpose dictation tool; it's a translation pipeline disguised as a microphone.
+> **JoyVoice v2.0 is for the multilingual speaker who needs translation output *now* — in Slack, in Notion, in VS Code — without switching windows or breaking flow.** It's not a general-purpose dictation tool; it's a translation pipeline disguised as a beautiful floating microphone.
 
 ---
 
 ## ⚙️ Settings
 
-Stored at `%APPDATA%\JoyVoice\settings.json` — 18 keys total:
+Stored at `%APPDATA%\JoyVoice\settings.json`:
 
 | Key | Default | Description |
 |:---|:---|:---|
-| `language` | `bn` | Speech language (`bn` / `en` / `auto`) |
-| `output_mode` | `translation` | `original` / `translation` / `both` |
+| `language` | `auto` | Source language (`auto` to detect, or lock to `bn`/`ru`/`zh`/etc.) |
+| `target_language` | `en` | Translation target language (any of the 10 supported codes) |
+| `output_mode` | `translation` | `original` / `translation` / `both` — labels are dynamic per language pair |
 | `text_style` | `clean_english` | `raw` / `clean_english` / `prompt_for_ai` / `formal_email` / `custom` |
 | `hotkey` | `F8` | Global toggle key |
 | `hotkey_mode` | `toggle` | `toggle` / `hold-to-record` |
@@ -215,6 +347,18 @@ Stored at `%APPDATA%\JoyVoice\settings.json` — 18 keys total:
 | `launch_on_startup` | `false` | Auto-start with Windows |
 
 Access via **right-click mic → Settings** or system tray icon.
+
+### Settings Tabs
+
+| Tab | Contents |
+|:---|:---|
+| **Output** | Source language (10 langs + auto), target language (10 langs), dynamic output mode labels, text style, cloud note |
+| **General** | Source language (mirrors Output), launch on startup, API status indicator with "Check API" button |
+| **Hotkey** | Preset + custom hotkey, toggle/hold mode |
+| **Audio** | Input device picker + refresh |
+| **Paste** | Paste/copy-only mode, delay, clipboard restore, wait-for-release |
+| **Replacements** | Phrase → Replacement table |
+| **History** | Dictation history list + copy |
 
 ---
 
@@ -230,7 +374,7 @@ Tested with Bengali audio sample, 2026-07-19:
 | gemini-3-flash | 5.1 s | Correct | ⚠️ Slower |
 | gemini-3.1-pro-low | 10.3 s | Most faithful | ❌ Too slow for dictation |
 
-> **Winner:** `gemini-3.1-flash-lite` — native audio understanding eliminates the text-roundtrip. 3.3 seconds wall-clock, mic to paste.
+> **Winner:** `gemini-3.1-flash-lite` — native audio understanding eliminates the text-roundtrip. 3.3 seconds wall-clock, mic to paste. Works across all 10 languages.
 
 ---
 
@@ -245,7 +389,12 @@ joyvoice/
 │
 ├── assets/
 │   ├── logo.svg                        ← Dark-themed wordmark
-│   └── pipeline.svg                    ← Architecture diagram
+│   ├── pipeline.svg                    ← Architecture diagram
+│   ├── desktop-mockup.png              ← App screenshot
+│   ├── how-it-works.png                ← Workflow visualization
+│   ├── features_card.png               ← Feature highlights
+│   ├── pipeline_infographic.png        ← Pipeline infographic
+│   └── comparison_before_after.png     ← Before/after comparison
 │
 ├── app/
 │   ├── main.py                         ← Qt controller, state machine, workers
@@ -253,22 +402,29 @@ joyvoice/
 │   │   └── recorder.py                 ← sounddevice InputStream (float32, 16 kHz)
 │   ├── transcription/
 │   │   ├── gemini_audio.py             ← Gemini native audio → (transcript, translation)
-│   │   ├── cloud_asr.py                ← Google Web Speech (lang: bn→bn-BD)
+│   │   ├── cloud_asr.py                ← Google Web Speech fallback (10-language auto-detect)
 │   │   ├── text_cleaner.py             ← Punctuation/capitalization cleanup
 │   │   └── whisper_engine.py           ← Legacy local Whisper (repaired, inactive)
 │   ├── storage/
 │   │   ├── settings_store.py           ← JSON persistence (%APPDATA%\JoyVoice\)
 │   │   └── history_store.py            ← Dictation history
 │   ├── ui/
-│   │   ├── floating_widget.py          ← Dark draggable always-on-top mic
+│   │   ├── floating_widget.py          ← Glass-morphism widget, waveform, toast, confidence
 │   │   ├── tray.py                     ← System tray icon + menu
-│   │   ├── settings_window.py          ← Tabbed settings dialog
+│   │   ├── settings_window.py          ← Tabbed settings dialog (7 tabs)
 │   │   ├── benchmark_dialog.py         ← ASR speed benchmark
 │   │   └── diagnostics_dialog.py       ← Device/connection diagnostics
 │   └── system/
-│       ├── hotkeys.py                  ← Global hotkey registration (F8)
-│       ├── paste.py                    ← Clipboard save → Ctrl+V → restore
+│       ├── hotkeys.py                  ← Global hotkey (F8) + quick language switcher (Ctrl+Shift+L)
+│       ├── paste.py                    ← Clipboard save → Ctrl+V (retry×3) → restore
+│       ├── sounds.py                   ← winsound.Beep audio feedback (4 events)
 │       └── startup.py                  ← Launch-on-startup toggle
+│
+├── docs/
+│   ├── SETUP.md                        ← Step-by-step installation guide
+│   ├── API.md                          ← Gateway config, model list, benchmarks
+│   ├── TROUBLESHOOTING.md              ← Common issues and fixes
+│   └── ARCHITECTURE.md                 ← Full project tree, design decisions
 │
 └── .venv/                              ← Python 3.11 virtual environment
 ```
@@ -281,8 +437,8 @@ joyvoice/
 Base URL:   https://ai.bdx.market/v1
 Auth:       Set JV_API_KEY environment variable
 
-Audio model:   gemini-3.1-flash-lite
-Text model:    gemini-3.1-flash-lite
+Audio model:   gemini-3.1-flash-lite   (native audio → transcription + translation)
+Text model:    gemini-3.1-flash-lite   (fallback translation + text cleanup)
 ```
 
 Both models are served through an OpenAI-compatible API gateway. The same key works for both endpoints — set it once and forget it.
@@ -291,6 +447,8 @@ Both models are served through an OpenAI-compatible API gateway. The same key wo
 |:---|:---|:---:|
 | `JV_API_KEY` | API gateway authentication | ✅ Yes |
 | `JV_API_BASE` | Override gateway URL | ❌ No (defaults to `ai.bdx.market`) |
+
+> **Quick setup:** `setx JV_API_KEY "your-key"` — persists across reboots, needed for Desktop shortcuts.
 
 ---
 
@@ -327,6 +485,14 @@ LLM callbacks must use `CloudLLMWorker(QThread)` with Qt signals. `QTimer.single
 
 Always launch with `run.bat` (visible console) for debugging. `pythonw.exe` swallows startup exceptions. If JoyVoice doesn't start, run from terminal first.
 
+### 💾 __pycache__ After Secret Removal
+
+If you ever remove a secret from source code, the compiled `.pyc` in `__pycache__/` still contains the old code. Always run:
+```bash
+find . -name __pycache__ -type d -exec rm -rf {} +
+```
+after rotating secrets.
+
 ---
 
 ## 🐛 Debugging Checklist
@@ -336,27 +502,9 @@ Always launch with `run.bat` (visible console) for debugging. `pythonw.exe` swal
 3. **Check logs:** `%APPDATA%\JoyVoice\joyvoice.log`
 4. **Verify venv:** `env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import app.main"`
 5. **Test ASR:** Generate synthetic audio → verify cloud transcription
-6. **Check settings:** `"language": "bn"`, `"output_mode": "translation"` in `settings.json`
-7. **Restart:** Launch via Desktop shortcut after any config change
-
----
-
-## 📚 Obsidian Knowledge Base
-
-Detailed reference notes for every pitfall and subsystem:
-
-```
-docs\joyvoice\
-├── Quick Reference.md
-├── PCM Float32 to Int16 Conversion.md
-├── PYTHONPATH Contamination.md
-├── typing_extensions Silent Google ASR Disable.md
-├── QThread for LLM Callbacks.md
-├── Bengali Language Mapping.md
-└── Gemini Native Audio Pipeline.md
-```
-
-The `joyvoice` Hermes skill auto-loads this knowledge before any debugging session.
+6. **Verify API key:** `echo %JV_API_KEY%` or `curl -s https://ai.bdx.market/v1/models -H "Authorization: Bearer %JV_API_KEY%"`
+7. **Check settings:** `%APPDATA%\JoyVoice\settings.json` — verify `language`, `target_language`, `output_mode`
+8. **Restart:** Launch via Desktop shortcut after any config change
 
 ---
 
@@ -376,7 +524,28 @@ All pure Python or prebuilt wheels. **No CUDA. No PyTorch. No local Whisper. No 
 
 ---
 
+## 📚 Documentation
+
+| Doc | Covers |
+|:---|:---|
+| `docs/SETUP.md` | Step-by-step: git clone → venv → pip install → `JV_API_KEY` → first launch |
+| `docs/API.md` | Gateway config, model list, benchmark data, request/response shapes, fallback chain |
+| `docs/TROUBLESHOOTING.md` | PYTHONPATH contamination, PCM float32→int16, typing_extensions, QThread, pythonw.exe, language mapping |
+| `docs/ARCHITECTURE.md` | Full project tree, pipeline flow, state machine, design decisions, extension points |
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] **Streaming dictation** — translate each sentence while you keep speaking (near-instant long dictation)
+- [ ] **Custom language prompt editing** — fine-tune per-language transcription prompts
+- [ ] **Auto Text Style** — detect focused app and auto-select style (Slack → professional, ChatGPT → prompt)
+- [ ] **macOS & Linux support** — port hotkey + clipboard to cross-platform backends
+- [ ] **Plugin system** — custom output formatters, custom ASR backends
+
+---
+
 <p align="center">
-  <sub>Built with ❤️ by MH Joy · Repaired & optimized 2026-07-19 with Hermes</sub><br>
-  <sub>MIT License · <a href="https://github.com/your-org/joyvoice">GitHub</a></sub>
+  <sub>Built with ❤️ by MH Joy · v2.0.0 · July 2026</sub><br>
+  <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/your-org/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a></sub>
 </p>
