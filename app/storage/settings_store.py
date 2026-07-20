@@ -16,6 +16,7 @@ logger = logging.getLogger("joyvoice.settings")
 
 DEFAULTS: dict[str, Any] = {
     "language": "bn",
+    "target_language": "en",
     "output_mode": "translation",  # original | translation
     "text_style": "clean_english",  # raw | clean_english | prompt_for_ai | professional_message | facebook_post
     "hotkey": "F8",
@@ -38,7 +39,12 @@ def load() -> dict[str, Any]:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
-            settings.update(loaded)
+            # Only merge keys that exist in DEFAULTS — filter stale local-model
+            # keys (model_size, device_preference, asr_engine, ollama_model, etc.)
+            # that the settings UI may still write.
+            for key in DEFAULTS:
+                if key in loaded:
+                    settings[key] = loaded[key]
         except Exception as exc:
             logger.warning("Could not read settings.json, using defaults: %s", exc)
     return settings
@@ -46,8 +52,11 @@ def load() -> dict[str, Any]:
 
 def save(settings: dict[str, Any]) -> None:
     path = paths.settings_path()
+    # Only persist keys defined in DEFAULTS — the settings UI may still emit
+    # stale local-model keys (model_size, asr_engine, etc.).
+    clean = {k: settings[k] for k in DEFAULTS if k in settings}
     try:
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2, ensure_ascii=False)
+            json.dump(clean, f, indent=2, ensure_ascii=False)
     except Exception as exc:
         logger.error("Could not save settings.json: %s", exc)

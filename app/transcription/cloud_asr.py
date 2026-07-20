@@ -15,6 +15,14 @@ logger = logging.getLogger("joyvoice.cloud_asr")
 GOOGLE_LANGUAGE_TAGS = {
     "bn": "bn-BD",
     "en": "en-US",
+    "ru": "ru-RU",
+    "hi": "hi-IN",
+    "es": "es-ES",
+    "ar": "ar-SA",
+    "zh": "zh-CN",
+    "ja": "ja-JP",
+    "fr": "fr-FR",
+    "pt": "pt-BR",
 }
 
 
@@ -37,7 +45,7 @@ def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
     # Wrap raw PCM bytes as an AudioData object (16 kHz, 16-bit mono).
     audio_data = sr.AudioData(audio_bytes, sample_rate=16000, sample_width=2)
 
-    lang = GOOGLE_LANGUAGE_TAGS.get(language, language) if language else "bn-BD"
+    lang = GOOGLE_LANGUAGE_TAGS.get(language, language) if language else None
     text = recognizer.recognize_google(audio_data, language=lang)
     logger.info("Google ASR (lang=%s): %s", lang, text[:80])
     return text

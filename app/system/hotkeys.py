@@ -28,11 +28,15 @@ DEFAULT_HOTKEY = "F8"
 DEFAULT_MODE = "toggle"  # "toggle" or "hold"
 
 
+LANGUAGE_SWITCHER_HOTKEY = "Ctrl+Shift+L"
+
+
 class HotkeyManager(QObject):
     toggle_activated = Signal()  # toggle mode: fire once per press
     hold_started = Signal()  # hold mode: key pressed
     hold_ended = Signal()  # hold mode: key released
     registration_error = Signal(str)
+    language_switcher_requested = Signal()  # Ctrl+Shift+L pressed
 
     def __init__(self) -> None:
         super().__init__()
@@ -40,6 +44,7 @@ class HotkeyManager(QObject):
         self.mode = DEFAULT_MODE
         self._registered = False
         self._hook_handles: list = []
+        self._ls_hook_handle = None
 
     def _clear(self) -> None:
         if keyboard is None:
@@ -74,12 +79,16 @@ class HotkeyManager(QObject):
             else:
                 self._register_toggle()
             self._registered = True
-            return None
         except Exception as exc:
             msg = f"Could not register hotkey '{self.hotkey}': {exc}"
             logger.warning(msg)
             self.registration_error.emit(msg)
             return msg
+
+        # Always register the language switcher hotkey (Ctrl+Shift+L).
+        self.register_language_switcher()
+
+        return None
 
     def _register_toggle(self) -> None:
         handle = keyboard.add_hotkey(
@@ -123,3 +132,45 @@ class HotkeyManager(QObject):
 
     def unregister(self) -> None:
         self._clear()
+        self.unregister_language_switcher()
+
+    def register_language_switcher(self) -> Optional[str]:
+        """Register Ctrl+Shift+L as a global hotkey for the language switcher popup."""
+        if keyboard is None:
+            msg = "Global hotkey backend ('keyboard' package) is unavailable"
+            logger.warning(msg)
+            return msg
+        # Clean up any previous registration first.
+        self.unregister_language_switcher()
+        try:
+            self._ls_hook_handle = keyboard.add_hotkey(
+                LANGUAGE_SWITCHER_HOTKEY,
+                lambda: self.language_switcher_requested.emit(),
+                suppress=True,
+            )
+            return None
+        except Exception as exc:
+            msg = f"Could not register language switcher hotkey '{LANGUAGE_SWITCHER_HOTKEY}': {exc}"
+            logger.warning(msg)
+            return msg
+
+    def unregister_language_switcher(self) -> None:
+        if self._ls_hook_handle is not None and keyboard is not None:
+            try:
+                keyboard.remove_hotkey(self._ls_hook_handle)
+            except Exception:
+                try:
+                    keyboard.unhook(self._ls_hook_handle)
+                except Exception:
+                    pass
+            self._ls_hook_handle = None
+
+    def check_health(self) -> Optional[str]:
+        """Verify the hotkey is still registered. Returns error message if lost, else None.
+        
+        Call this from a periodic timer — some Windows configurations
+        silently unregister global hooks after sleep/wake or UAC prompts.
+        """
+        if not self._registered:
+            return self.register(self.hotkey, self.mode)
+        return None

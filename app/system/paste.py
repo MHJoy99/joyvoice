@@ -53,14 +53,20 @@ def paste_text(
     restore_clipboard: bool = True,
     wait_for_release: bool = True,
     restore_delay_s: float = 1.5,
+    retries: int = 3,
 ) -> Optional[str]:
     """Put `text` on the clipboard and (unless copy_only) send Ctrl+V.
 
     Returns an error message on failure, else None. Never raises.
+    
+    Retries paste up to `retries` times with exponential backoff if
+    the target app doesn't accept the first Ctrl+V (common in browsers
+    and Electron apps after rapid window switches).
     """
     if not text:
         return "Nothing to paste"
 
+    # ── clipboard save (always succeeds or fails fast) ──
     previous_clip: Optional[str] = None
     try:
         previous_clip = pyperclip.paste()
@@ -81,24 +87,31 @@ def paste_text(
     if wait_for_release:
         _wait_for_keys_released()
 
-    if paste_delay_ms > 0:
-        time.sleep(paste_delay_ms / 1000.0)
+    # ── paste with retries ──
+    for attempt in range(retries):
+        if paste_delay_ms > 0 and attempt > 0:
+            time.sleep(paste_delay_ms / 1000.0 * (attempt + 1))
 
-    try:
-        keyboard.send("ctrl+v")
-    except Exception as exc:
-        return f"Paste error: {exc}"
+        try:
+            keyboard.send("ctrl+v")
+        except Exception as exc:
+            if attempt == retries - 1:
+                return f"Paste error: {exc}"
+            time.sleep(0.3)
+            continue
 
-    if restore_clipboard and previous_clip is not None:
-        def _restore():
-            time.sleep(restore_delay_s)
-            try:
-                pyperclip.copy(previous_clip)
-            except Exception:
-                pass
+        # Success — restore previous clipboard in background
+        if restore_clipboard and previous_clip is not None:
+            def _restore():
+                time.sleep(restore_delay_s)
+                try:
+                    pyperclip.copy(previous_clip)
+                except Exception:
+                    pass
 
-        import threading
+            import threading
+            threading.Thread(target=_restore, daemon=True).start()
 
-        threading.Thread(target=_restore, daemon=True).start()
+        return None
 
-    return None
+    return "Paste failed after retries"

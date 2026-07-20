@@ -18,12 +18,15 @@ import numpy as np
 # Allow `python app/main.py` (repo root not automatically on sys.path).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PySide6.QtCore import QThread, QTimer, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtWidgets import (
+    QApplication, QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+)
 
 from app.audio.recorder import Recorder
 from app.storage import history_store, paths, settings_store
 from app.system import paste as paste_module
+from app.system import sounds
 from app.system.hotkeys import HotkeyManager
 from app.transcription.cloud_asr import transcribe as cloud_asr_transcribe
 from app.transcription.gemini_audio import transcribe_and_translate
@@ -109,10 +112,11 @@ class CloudASRWorker(QThread):
     done = Signal(str, str)
     failed = Signal(str)
 
-    def __init__(self, audio_bytes: bytes, language: str | None, parent=None):
+    def __init__(self, audio_bytes: bytes, language: str | None, target_language: str, parent=None):
         super().__init__(parent)
         self._audio = audio_bytes
         self._lang = language
+        self._target_lang = target_language
 
     def run(self) -> None:
         try:
@@ -121,7 +125,8 @@ class CloudASRWorker(QThread):
                 api_base=API_BASE,
                 api_key=API_KEY,
                 model=AUDIO_MODEL,
-                language=self._lang,
+                source_language=self._lang,
+                target_language=self._target_lang,
             )
             logger.info("Gemini audio (%s): %s", AUDIO_MODEL, transcript[:80])
             self.done.emit(transcript, translation)
@@ -190,10 +195,36 @@ class AppController:
             lambda: self.widget.set_level(self.recorder.current_level())
         )
 
+        # ── robustness timers ──
+        self._visibility_timer = QTimer()
+        self._visibility_timer.setInterval(2000)  # every 2 seconds
+        self._visibility_timer.timeout.connect(self._ensure_visible)
+
+        self._hotkey_health_timer = QTimer()
+        self._hotkey_health_timer.setInterval(5000)  # every 5 seconds
+        self._hotkey_health_timer.timeout.connect(self._check_hotkey_health)
+
         self._apply_settings_to_components()
         self._wire_signals()
 
+        self._visibility_timer.start()
+        self._hotkey_health_timer.start()
+
         self.tray.show()
+
+    def _ensure_visible(self) -> None:
+        """Force the floating widget to stay visible — some Windows configs
+        hide tool windows after focus changes or UAC prompts."""
+        if not self.widget.isVisible():
+            logger.warning("Widget was hidden; forcing show")
+            self.widget.show()
+            self.widget.raise_()
+
+    def _check_hotkey_health(self) -> None:
+        """Re-register the hotkey if it was silently lost (sleep/wake/UAC)."""
+        err = self.hotkeys.check_health()
+        if err:
+            logger.warning("Hotkey health check failed: %s", err)
 
     def _apply_audio_device(self) -> None:
         device_name = self.settings.get("audio_device_name")
@@ -214,6 +245,14 @@ class AppController:
         else:
             self.widget.move(100, 100)
 
+        # Language badge
+        source = self.settings.get("language", "bn")
+        target = self.settings.get("target_language", "en")
+        if source == "auto":
+            self.widget.set_language_badge("", "")
+        else:
+            self.widget.set_language_badge(source, target)
+
         err = self.hotkeys.register(
             self.settings["hotkey"], self.settings["hotkey_mode"]
         )
@@ -232,6 +271,7 @@ class AppController:
         self.hotkeys.registration_error.connect(
             lambda msg: self.widget.set_state("error", "Hotkey error")
         )
+        self.hotkeys.language_switcher_requested.connect(self.show_language_switcher)
 
         self.tray.show_hide_requested.connect(self.toggle_widget_visibility)
         self.tray.settings_requested.connect(self.show_settings)
@@ -254,6 +294,7 @@ class AppController:
             logger.error(err)
             self._show_error(err)
             return
+        sounds.play_start()
         self.widget.set_state("recording")
         self._level_poll_timer.start()
 
@@ -262,6 +303,7 @@ class AppController:
             return
         self._level_poll_timer.stop()
         audio, err = self.recorder.stop()
+        sounds.play_stop()
         if err or audio is None:
             logger.error(err or "no audio")
             self._show_error(err or "No audio captured")
@@ -270,6 +312,7 @@ class AppController:
         self.widget.set_state("transcribing")
         language = self.settings["language"]
         language = None if language == "auto" else language
+        target_language = self.settings.get("target_language", "en")
         output_mode = self.settings.get("output_mode", "translation")
 
         self._timing = {"t0": time.monotonic(), "asr_s": None, "llm_s": 0.0}
@@ -279,7 +322,7 @@ class AppController:
             raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
         else:
             raw_bytes = audio
-        self._pending_asr = CloudASRWorker(raw_bytes, language)
+        self._pending_asr = CloudASRWorker(raw_bytes, language, target_language)
         self._pending_asr.done.connect(
             lambda transcript, translation: self._on_asr_done(
                 transcript, translation, output_mode
@@ -291,8 +334,13 @@ class AppController:
     def _on_asr_done(
         self, raw_text: str, translated_text: str, output_mode: str
     ) -> None:
+        sounds.play_done()
         if self._timing is not None:
             self._timing["asr_s"] = time.monotonic() - self._timing["t0"]
+
+        # Show a live preview on the widget immediately.
+        self.widget.set_preview(translated_text)
+        self.widget.set_confidence(raw_text)
 
         base_text = self._style_text(raw_text)
 
@@ -314,6 +362,7 @@ class AppController:
         self._timing = None
         self._pending_asr = None
         logger.error("Cloud ASR failed: %s", message)
+        sounds.play_error()
         self._show_error(f"Transcription failed: {message}")
 
     def _style_text(self, raw_text: str) -> str:
@@ -350,6 +399,15 @@ class AppController:
                 t["asr_s"] or 0.0, t["llm_s"], total,
                 AUDIO_MODEL, self.settings.get("output_mode"),
             )
+
+        # Always save to history first — text is never lost.
+        language = self.settings["language"]
+        history_store.append(
+            final_text, datetime.now(timezone.utc).isoformat(),
+            None if language == "auto" else language
+        )
+
+        # Attempt paste — clipboard save already happened above.
         err = paste_module.paste_text(
             final_text,
             copy_only=self.settings["paste_mode"] == "copy_only",
@@ -358,21 +416,22 @@ class AppController:
             wait_for_release=self.settings["wait_for_hotkey_release"],
         )
 
-        language = self.settings["language"]
-        history_store.append(
-            final_text, datetime.now(timezone.utc).isoformat(), None if language == "auto" else language
-        )
-
         if err:
-            logger.warning(err)
-            self._show_error(err)
+            logger.warning("Paste failed: %s (text saved to history)", err)
+            copy_only = self.settings["paste_mode"] == "copy_only"
+            label = "Copied to clipboard" if copy_only else "Copied (paste failed)"
+            self.widget.set_state("pasted", label)
+            QTimer.singleShot(PASTED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+            self.widget.show_toast(final_text)
             return
 
         label = "Copied" if self.settings["paste_mode"] == "copy_only" else "Pasted"
         self.widget.set_state("pasted", label)
         QTimer.singleShot(PASTED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+        self.widget.show_toast(final_text)
 
     def _show_error(self, message: str) -> None:
+        sounds.play_error()
         self.widget.set_state("error", "Error")
         self.widget.setToolTip(message)
         QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
@@ -392,6 +451,93 @@ class AppController:
         self._settings_dialog.settings_saved.connect(self.on_settings_saved)
         self._settings_dialog.exec()
 
+    def show_language_switcher(self) -> None:
+        """Show a compact language switcher popup near the floating widget."""
+        from app.ui.settings_window import LANGUAGES
+
+        dialog = QDialog(self.widget)
+        dialog.setWindowFlags(
+            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+        )
+        dialog.setFixedWidth(260)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        title = QLabel("Quick Language Switcher")
+        title.setStyleSheet("font-weight: bold; color: #cfd3da; font-size: 12px;")
+        layout.addWidget(title)
+
+        src_label = QLabel("Source language:")
+        src_label.setStyleSheet("color: #8b909a; font-size: 10px;")
+        layout.addWidget(src_label)
+
+        src_combo = QComboBox()
+        src_combo.addItem("Auto detect", "auto")
+        for code in ("bn", "en", "ru", "hi", "es", "ar", "zh", "ja", "fr", "pt"):
+            info = LANGUAGES[code]
+            src_combo.addItem(f"{info['name']} ({info['native']})", code)
+        idx = src_combo.findData(self.settings.get("language", "auto"))
+        if idx >= 0:
+            src_combo.setCurrentIndex(idx)
+        layout.addWidget(src_combo)
+
+        tgt_label = QLabel("Target language:")
+        tgt_label.setStyleSheet("color: #8b909a; font-size: 10px;")
+        layout.addWidget(tgt_label)
+
+        tgt_combo = QComboBox()
+        for code in ("en", "bn", "ru", "hi", "es", "ar", "zh", "ja", "fr", "pt"):
+            info = LANGUAGES[code]
+            tgt_combo.addItem(f"{info['name']} ({info['native']})", code)
+        idx = tgt_combo.findData(self.settings.get("target_language", "en"))
+        if idx >= 0:
+            tgt_combo.setCurrentIndex(idx)
+        layout.addWidget(tgt_combo)
+
+        btn_layout = QHBoxLayout()
+        apply_btn = QPushButton("Apply")
+        apply_btn.setStyleSheet(
+            "QPushButton { background: #2a6fe0; color: white; border: none; "
+            "border-radius: 4px; padding: 6px 18px; font-size: 11px; }"
+            "QPushButton:hover { background: #3b7ff0; }"
+        )
+
+        def _on_apply():
+            self.settings["language"] = src_combo.currentData()
+            self.settings["target_language"] = tgt_combo.currentData()
+            settings_store.save(self.settings)
+            dialog.accept()
+
+        apply_btn.clicked.connect(_on_apply)
+        btn_layout.addStretch()
+        btn_layout.addWidget(apply_btn)
+        layout.addLayout(btn_layout)
+
+        dialog.setStyleSheet(
+            "QDialog { background: #1c1f26; border: 1px solid #3a3f4b; border-radius: 8px; }"
+            "QComboBox { background: #2c313b; color: #cfd3da; border: 1px solid #3a3f4b; "
+            "border-radius: 3px; padding: 4px 8px; font-size: 11px; min-height: 20px; }"
+            "QComboBox QAbstractItemView { background: #2c313b; color: #cfd3da; "
+            "selection-background-color: #2a6fe0; border: 1px solid #3a3f4b; }"
+            "QComboBox::drop-down { border: none; }"
+        )
+
+        widget_geom = self.widget.geometry()
+        dialog.adjustSize()
+        x = widget_geom.center().x() - dialog.width() // 2
+        y = widget_geom.bottom() + 8
+        dialog.move(x, y)
+
+        def _on_change_event(event):
+            if event.type() == event.WindowDeactivate:
+                dialog.reject()
+            QDialog.changeEvent(dialog, event)
+
+        dialog.changeEvent = _on_change_event
+        dialog.exec()
+
     def on_settings_saved(self, updated_settings: dict) -> None:
         old = self.settings
         self.settings = updated_settings
@@ -408,6 +554,17 @@ class AppController:
 
         if old.get("audio_device_name") != self.settings.get("audio_device_name"):
             self._apply_audio_device()
+
+        # Update language badge if language settings changed.
+        old_source = old.get("language", "auto")
+        old_target = old.get("target_language", "en")
+        new_source = self.settings.get("language", "auto")
+        new_target = self.settings.get("target_language", "en")
+        if old_source != new_source or old_target != new_target:
+            if new_source == "auto":
+                self.widget.set_language_badge("", "")
+            else:
+                self.widget.set_language_badge(new_source, new_target)
 
     def maybe_show_first_run(self) -> None:
         if self.settings.get("first_run_complete"):

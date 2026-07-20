@@ -40,27 +40,26 @@ from app.storage import history_store
 from app.system import startup
 from app.system.hotkeys import PRESETS
 from app.system.paste import PASTE_DELAYS_MS
-from app.transcription import ai_stylist
 from app.transcription.text_cleaner import DEFAULT_REPLACEMENTS
 
 logger = logging.getLogger("joyvoice.settings_window")
 
-MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v3", "turbo"]
-LANGUAGE_LABELS = {"auto": "Auto detect", "en": "English", "bn": "Bangla"}
-DEVICE_PREF_LABELS = {"auto": "Auto (GPU if available)", "cpu": "Force CPU"}
+LANGUAGES = {
+    "bn": {"name": "Bangla", "native": "বাংলা", "google_tag": "bn-BD"},
+    "en": {"name": "English", "native": "English", "google_tag": "en-US"},
+    "ru": {"name": "Russian", "native": "Русский", "google_tag": "ru-RU"},
+    "hi": {"name": "Hindi", "native": "हिन्दी", "google_tag": "hi-IN"},
+    "es": {"name": "Spanish", "native": "Español", "google_tag": "es-ES"},
+    "ar": {"name": "Arabic", "native": "العربية", "google_tag": "ar-SA"},
+    "zh": {"name": "Chinese", "native": "中文", "google_tag": "zh-CN"},
+    "ja": {"name": "Japanese", "native": "日本語", "google_tag": "ja-JP"},
+    "fr": {"name": "French", "native": "Français", "google_tag": "fr-FR"},
+    "pt": {"name": "Portuguese", "native": "Português", "google_tag": "pt-BR"},
+}
 SYSTEM_DEFAULT_DEVICE_LABEL = "System Default"
 CTRL_SPACE_WARNING = "Conflicts with VS Code/Cursor IntelliSense (Ctrl+Space)"
 HISTORY_DISPLAY_LIMIT = 100
 
-ASR_ENGINES = [
-    ("Whisper large-v3 (default)", "whisper"),
-    ("IndicConformer RNNT (experimental)", "indic_conformer"),
-]
-OUTPUT_MODES = [
-    ("Original transcript", "original"),
-    ("English translation", "translation"),
-    ("Both (Bangla + English)", "both"),
-]
 TEXT_STYLES = [
     ("Raw", "raw", True),
     ("Clean English", "clean_english", True),
@@ -69,11 +68,6 @@ TEXT_STYLES = [
     ("Facebook post", "facebook_post", True),
 ]
 AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
-# Quality-first: Accurate (14b) is the default; Fast Draft (7b) is opt-in.
-TEXT_MODEL_PRESETS = [
-    ("Accurate — qwen2.5:14b (default)", "qwen2.5:14b"),
-    ("Fast Draft — qwen2.5:7b", "qwen2.5:7b"),
-]
 
 
 def _paste_delay_label(ms: int) -> str:
@@ -109,22 +103,32 @@ class SettingsWindow(QDialog):
         layout.addWidget(button_box)
 
     # ------------------------------------------------------------------
-    # Output (Output Mode + Text Style)
+    # Output (Source Language + Target Language + Output Mode + Text Style)
     # ------------------------------------------------------------------
     def _build_output_tab(self) -> QWidget:
         widget = QWidget()
         layout = QVBoxLayout(widget)
         form = QFormLayout()
 
-        self.asr_engine_combo = QComboBox()
-        for label, key in ASR_ENGINES:
-            self.asr_engine_combo.addItem(label, key)
-        self._set_combo_by_data(self.asr_engine_combo, self._settings.get("asr_engine", "whisper"))
-        form.addRow("ASR engine:", self.asr_engine_combo)
+        self.language_combo = QComboBox()
+        self.language_combo.addItem("Auto detect", "auto")
+        for code in ("bn", "en", "ru", "hi", "es", "ar", "zh", "ja", "fr", "pt"):
+            info = LANGUAGES[code]
+            self.language_combo.addItem(f"{info['name']} ({info['native']})", code)
+        self._set_combo_by_data(self.language_combo, self._settings.get("language", "auto"))
+        self.language_combo.currentIndexChanged.connect(self._update_output_mode_labels)
+        form.addRow("Source language:", self.language_combo)
+
+        self.target_language_combo = QComboBox()
+        for code in ("en", "bn", "ru", "hi", "es", "ar", "zh", "ja", "fr", "pt"):
+            info = LANGUAGES[code]
+            self.target_language_combo.addItem(f"{info['name']} ({info['native']})", code)
+        self._set_combo_by_data(self.target_language_combo, self._settings.get("target_language", "en"))
+        self.target_language_combo.currentIndexChanged.connect(self._update_output_mode_labels)
+        form.addRow("Translate to:", self.target_language_combo)
 
         self.output_mode_combo = QComboBox()
-        for label, key in OUTPUT_MODES:
-            self.output_mode_combo.addItem(label, key)
+        self._update_output_mode_labels()
         self._set_combo_by_data(self.output_mode_combo, self._settings.get("output_mode", "translation"))
         form.addRow("Output mode:", self.output_mode_combo)
 
@@ -143,30 +147,12 @@ class SettingsWindow(QDialog):
         self.text_style_combo.currentIndexChanged.connect(self._on_text_style_changed)
         form.addRow("Text style:", self.text_style_combo)
 
-        self.ollama_model_combo = QComboBox()
-        form.addRow("Text model:", self.ollama_model_combo)
-
         layout.addLayout(form)
 
-        ollama_row = QHBoxLayout()
-        self.ollama_status_label = QLabel("")
-        self.ollama_status_label.setWordWrap(True)
-        check_button = QPushButton("Check Ollama connection")
-        check_button.clicked.connect(self._check_ollama)
-        ollama_row.addWidget(check_button)
-        ollama_row.addWidget(self.ollama_status_label, 1)
-        layout.addLayout(ollama_row)
-
-        self._populate_ollama_models(self._settings.get("ollama_model", "qwen2.5:14b"))
-
         note = QLabel(
-            "Text model tiers: Accurate (qwen2.5:14b, default) gives the best "
-            "translation quality; Fast Draft (qwen2.5:7b) is ~2x faster with "
-            "slightly lower quality. Used for English translation (with "
-            "IndicConformer) and for the AI text styles. Everything runs locally "
-            "via Ollama -- no cloud calls.\n\n"
-            "\"Both\" output pastes the original transcript and English translation "
-            "together:\nBangla: <original>\n\nEnglish: <translation>"
+            "Audio is sent to the cloud for transcription and translation via "
+            "Gemini. No local models required — just an active internet "
+            "connection and a valid API key."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #6b7280;")
@@ -175,74 +161,48 @@ class SettingsWindow(QDialog):
 
         return widget
 
+    def _update_output_mode_labels(self) -> None:
+        src_code = self.language_combo.currentData()
+        tgt_code = self.target_language_combo.currentData() or "en"
+        if src_code == "auto":
+            src_name = "Detected language"
+        else:
+            src_name = LANGUAGES.get(src_code, LANGUAGES["bn"])["name"]
+        tgt_name = LANGUAGES.get(tgt_code, LANGUAGES["en"])["name"]
+        current_data = self.output_mode_combo.currentData()
+
+        self.output_mode_combo.blockSignals(True)
+        self.output_mode_combo.clear()
+        self.output_mode_combo.addItem(f"{src_name} transcript only", "original")
+        self.output_mode_combo.addItem(f"{tgt_name} translation only", "translation")
+        self.output_mode_combo.addItem(f"Both ({src_name} + {tgt_name})", "both")
+        self.output_mode_combo.blockSignals(False)
+
+        if current_data:
+            idx = self.output_mode_combo.findData(current_data)
+            if idx >= 0:
+                self.output_mode_combo.setCurrentIndex(idx)
+
     def _on_text_style_changed(self) -> None:
         # The text model is used for translation as well as AI styles, so it
         # stays enabled regardless of the selected style.
         pass
-
-    def _populate_ollama_models(self, current: str) -> None:
-        self.ollama_model_combo.clear()
-        for label, key in TEXT_MODEL_PRESETS:
-            self.ollama_model_combo.addItem(label, key)
-        preset_keys = {key for _, key in TEXT_MODEL_PRESETS}
-        try:
-            for name in ai_stylist.list_models():
-                if name not in preset_keys:
-                    self.ollama_model_combo.addItem(name, name)
-        except Exception as exc:
-            logger.warning("Could not list Ollama models: %s", exc)
-        if current and self.ollama_model_combo.findData(current) < 0:
-            self.ollama_model_combo.addItem(current, current)
-        self._set_combo_by_data(self.ollama_model_combo, current or "qwen2.5:14b")
-
-    def _check_ollama(self) -> None:
-        try:
-            available = ai_stylist.is_available()
-        except Exception as exc:
-            logger.warning("Ollama check failed: %s", exc)
-            available = False
-
-        if not available:
-            self.ollama_status_label.setText("✗ Ollama not reachable at localhost:11434")
-            self.ollama_status_label.setStyleSheet("color: #e74c3c;")
-            return
-
-        models = ai_stylist.list_models()
-        self._populate_ollama_models(self.ollama_model_combo.currentData())
-        if models:
-            self.ollama_status_label.setText(f"✓ Ollama reachable ({len(models)} model(s) installed)")
-            self.ollama_status_label.setStyleSheet("color: #2ecc71;")
-        else:
-            self.ollama_status_label.setText(
-                "✓ Ollama reachable, but no models installed -- run \"ollama pull qwen2.5:14b\""
-            )
-            self.ollama_status_label.setStyleSheet("color: #e67e22;")
 
     # ------------------------------------------------------------------
     # General
     # ------------------------------------------------------------------
     def _build_general_tab(self) -> QWidget:
         widget = QWidget()
-        form = QFormLayout(widget)
+        layout = QVBoxLayout(widget)
+        form = QFormLayout()
 
-        self.model_size_combo = QComboBox()
-        self.model_size_combo.addItems(MODEL_SIZES)
-        current_model = self._settings.get("model_size", "small")
-        if current_model in MODEL_SIZES:
-            self.model_size_combo.setCurrentText(current_model)
-        form.addRow("Model size:", self.model_size_combo)
-
-        self.language_combo = QComboBox()
-        for key in ("auto", "en", "bn"):
-            self.language_combo.addItem(LANGUAGE_LABELS[key], key)
-        self._set_combo_by_data(self.language_combo, self._settings.get("language", "auto"))
-        form.addRow("Language:", self.language_combo)
-
-        self.device_pref_combo = QComboBox()
-        for key in ("auto", "cpu"):
-            self.device_pref_combo.addItem(DEVICE_PREF_LABELS[key], key)
-        self._set_combo_by_data(self.device_pref_combo, self._settings.get("device_preference", "auto"))
-        form.addRow("Device preference:", self.device_pref_combo)
+        self.general_language_combo = QComboBox()
+        self.general_language_combo.addItem("Auto detect", "auto")
+        for code in ("bn", "en", "ru", "hi", "es", "ar", "zh", "ja", "fr", "pt"):
+            info = LANGUAGES[code]
+            self.general_language_combo.addItem(f"{info['name']} ({info['native']})", code)
+        self._set_combo_by_data(self.general_language_combo, self._settings.get("language", "bn"))
+        form.addRow("Source language:", self.general_language_combo)
 
         self.startup_checkbox = QCheckBox("Launch on Windows startup")
         try:
@@ -252,7 +212,61 @@ class SettingsWindow(QDialog):
             self.startup_checkbox.setChecked(bool(self._settings.get("launch_on_startup", False)))
         form.addRow(self.startup_checkbox)
 
+        layout.addLayout(form)
+
+        # API status indicator
+        api_row = QHBoxLayout()
+        self.api_status_label = QLabel("")
+        self.api_status_label.setWordWrap(True)
+        check_api_button = QPushButton("Check API")
+        check_api_button.clicked.connect(self._check_api_status)
+        api_row.addWidget(check_api_button)
+        api_row.addWidget(self.api_status_label, 1)
+        layout.addLayout(api_row)
+
+        note = QLabel(
+            "Powered by Gemini 3.1 Flash Lite via BDX.market cloud"
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #6b7280;")
+        layout.addWidget(note)
+        layout.addStretch(1)
+
         return widget
+
+    def _check_api_status(self) -> None:
+        """Check whether the BDX.market cloud API is reachable with the current API key."""
+        import json
+        import os
+        import urllib.request
+
+        api_key = os.environ.get("JV_API_KEY", "")
+        if not api_key:
+            self.api_status_label.setText("\u2717 JV_API_KEY not set in environment")
+            self.api_status_label.setStyleSheet("color: #e74c3c;")
+            return
+
+        try:
+            req = urllib.request.Request(
+                "https://ai.bdx.market/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception as exc:
+            self.api_status_label.setText(f"\u2717 API unreachable: {exc}")
+            self.api_status_label.setStyleSheet("color: #e74c3c;")
+            return
+
+        if isinstance(data, dict) and isinstance(data.get("data"), list):
+            count = len(data["data"])
+            self.api_status_label.setText(
+                f"\u2713 BDX.market API reachable ({count} model(s) available)"
+            )
+            self.api_status_label.setStyleSheet("color: #2ecc71;")
+        else:
+            self.api_status_label.setText("\u2713 BDX.market API reachable")
+            self.api_status_label.setStyleSheet("color: #2ecc71;")
 
     # ------------------------------------------------------------------
     # Hotkey
@@ -480,14 +494,11 @@ class SettingsWindow(QDialog):
     def _on_save(self) -> None:
         updated = dict(self._settings)
 
-        updated["asr_engine"] = self.asr_engine_combo.currentData()
+        updated["language"] = self.language_combo.currentData()
+        updated["target_language"] = self.target_language_combo.currentData()
         updated["output_mode"] = self.output_mode_combo.currentData()
         updated["text_style"] = self.text_style_combo.currentData()
-        updated["ollama_model"] = self.ollama_model_combo.currentData() or "qwen2.5:14b"
 
-        updated["model_size"] = self.model_size_combo.currentText()
-        updated["language"] = self.language_combo.currentData()
-        updated["device_preference"] = self.device_pref_combo.currentData()
         updated["launch_on_startup"] = self.startup_checkbox.isChecked()
         try:
             startup.set_enabled(self.startup_checkbox.isChecked())
