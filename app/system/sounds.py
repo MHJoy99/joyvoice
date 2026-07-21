@@ -34,30 +34,20 @@ def _beep(freq: int, duration_ms: int) -> None:
 
 
 def play_start() -> None:
-    """Short high-pitched beep: recording started."""
-    _beep(1200, 80)
+    """Disabled."""
+    pass
 
 
 def play_stop() -> None:
-    """Short low-pitched beep: recording stopped."""
-    _beep(600, 80)
+    """Disabled."""
+    pass
 
 
 def play_done() -> None:
-    """Two ascending beeps: transcription + paste complete."""
-    if not _HAS_WINSOUND:
-        return
-
-    def _play() -> None:
-        try:
-            winsound.Beep(800, 80)
-            winsound.Beep(1200, 100)
-        except Exception:
-            pass
-
-    threading.Thread(target=_play, daemon=True).start()
+    """Disabled."""
+    pass
 
 
 def play_error() -> None:
-    """Single long low beep: error occurred."""
-    _beep(300, 300)
+    """Disabled."""
+    pass

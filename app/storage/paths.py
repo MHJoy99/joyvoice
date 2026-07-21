@@ -60,6 +60,11 @@ def log_path() -> Path:
     return data_dir() / "joyvoice.log"
 
 
+def usage_path() -> Path:
+    """Append-only JSONL of per-request token + latency telemetry."""
+    return data_dir() / "usage.jsonl"
+
+
 def icon_path() -> Path:
     """Bundled icon; may not exist (callers must handle that)."""
     if getattr(sys, "frozen", False):

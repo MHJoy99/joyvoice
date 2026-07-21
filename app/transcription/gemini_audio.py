@@ -6,8 +6,11 @@ import base64
 import io
 import json
 import re
+import time
 import urllib.request
 import wave
+
+from app.storage import usage_store
 
 # ── Language definitions ──────────────────────────────────────────────────────
 LANGUAGES = {
@@ -73,6 +76,8 @@ LANGUAGES = {
     },
 }
 
+_VALID_CODES = set(LANGUAGES.keys())
+
 
 def _wav_base64(pcm16: bytes) -> str:
     buffer = io.BytesIO()
@@ -84,16 +89,22 @@ def _wav_base64(pcm16: bytes) -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def _parse_result(content: str) -> tuple[str, str]:
+def _parse_result(content: str) -> tuple[str, str, str | None]:
     match = re.search(r"\{.*\}", content, re.DOTALL)
     if not match:
         raise ValueError("Gemini returned no JSON result")
     result = json.loads(match.group())
     transcript = str(result.get("transcript", "")).strip()
     translation = str(result.get("translation", "")).strip()
+    raw_override = result.get("target_override", None)
+    override = None
+    if raw_override is not None and str(raw_override).strip().lower() not in ("", "null", "none"):
+        code = str(raw_override).strip().lower()
+        if code in _VALID_CODES:
+            override = code
     if not transcript or not translation:
         raise ValueError("Gemini returned an incomplete audio result")
-    return transcript, translation
+    return transcript, translation, override
 
 
 def transcribe_and_translate(
@@ -104,8 +115,8 @@ def transcribe_and_translate(
     model: str,
     source_language: str = "bn",
     target_language: str = "en",
-) -> tuple[str, str]:
-    """Return a faithful transcript and translation in one call.
+) -> tuple[str, str, str | None]:
+    """Return a faithful transcript, translation, and optional target override.
 
     Args:
         pcm16: Raw PCM int16 mono audio at 16 kHz.
@@ -113,32 +124,69 @@ def transcribe_and_translate(
         api_key: API key.
         model: Model name (e.g. 'gemini-3.1-flash-lite').
         source_language: Language code from LANGUAGES dict (default 'bn').
-        target_language: Language code for the translation (default 'en').
+        target_language: Default language code for the translation (default 'en').
 
     Returns:
-        (transcript_in_source_language, translation_in_target_language) tuple.
+        (transcript, translation, target_override_or_None)
+        transcript has trailing override commands stripped when possible.
+        translation is in the effective target language (override or default).
     """
+    t0 = time.monotonic()
     src = LANGUAGES.get(source_language, LANGUAGES["bn"])
     tgt = LANGUAGES.get(target_language, LANGUAGES["en"])
     target_name = tgt["name"]
     target_native = tgt["native"]
+    lang_list = ", ".join(
+        f'{code}={info["name"]} ({info["native"]})' for code, info in LANGUAGES.items()
+    )
 
     if source_language and source_language != "auto":
         language_hint = src["hint"]
         source_name = src["name"]
         source_native = src["native"]
         transcript_instruction = (
-            f"Write the transcript in {source_name} ({source_native}) faithfully"
+            f"Transcribe the audio faithfully, preserving code-switching — write each "
+            f"word in its original language and script ({source_name} words in "
+            f"{source_native}, English words in English, etc.)"
         )
     else:
-        language_hint = "Detect the spoken language — it may be any language including Bengali, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, or Portuguese. The speaker may code-switch."
-        transcript_instruction = "Write the transcript in the detected language faithfully"
+        language_hint = (
+            "Detect the spoken language — it may be any language including Bengali, "
+            "English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, "
+            "or Portuguese. The speaker may code-switch."
+        )
+        transcript_instruction = (
+            "Transcribe the audio faithfully, preserving code-switching — write each "
+            "word in its original script"
+        )
     prompt = (
         f"{language_hint} Listen to the original audio carefully. Return JSON only with "
-        f'keys "transcript" and "translation". {transcript_instruction} '
-        f"— preserve every intended word, name, number, and "
-        f"technical term. Do not guess, summarize, or add meaning. Provide a faithful, "
-        f"natural translation in {target_name} ({target_native})."
+        f'keys "transcript", "translation", and "target_override". {transcript_instruction} '
+        f"— preserve every intended word, name, number, and technical term. Do not guess, "
+        f"summarize, or add meaning.\n\n"
+        f"ENDING RULES (critical):\n"
+        f"- Both transcript and translation must end on a complete sentence with proper "
+        f"terminal punctuation (. ! ? or CJK equivalents).\n"
+        f"- Never end with ellipsis (... or ……).\n"
+        f"- Do not invent polite filler endings.\n"
+        f"- If the speaker stops mid-thought, end at the last complete sentence — cut the "
+        f"dangling unfinished fragment instead of inventing the rest.\n\n"
+        f"ONE-SHOT TARGET OVERRIDE (important):\n"
+        f"- Default translation language is {target_name} ({target_native}), code "
+        f'"{target_language}".\n'
+        f"- If the speaker ends with an explicit instruction to output/paste/translate "
+        f"into a different language (examples: 'paste this in Russian', 'give me the "
+        f"Russian', 'in Bengali please', 'বাংলায় দাও', 'по-русски', or a trailing language "
+        f"name like 'Russian' / 'Japanese'), then:\n"
+        f"  1) set target_override to that language code\n"
+        f"  2) put the translation in that override language\n"
+        f"  3) REMOVE the command phrase from transcript (do not include the command words)\n"
+        f"- If there is no such end-of-utterance command, set target_override to null and "
+        f"translate into {target_name} ({target_native}).\n"
+        f"- Do NOT treat content mentions as overrides (e.g. 'I want to learn Russian' or "
+        f"'Russian market is big' must keep target_override=null).\n"
+        f"- Allowed language codes: {lang_list}.\n"
+        f'JSON shape example: {{"transcript":"...","translation":"...","target_override":null}}'
     )
     payload = json.dumps(
         {
@@ -155,7 +203,8 @@ def transcribe_and_translate(
                     ],
                 }
             ],
-            "max_tokens": 700,
+            # transcript + translation JSON; long speech was truncating mid-sentence.
+            "max_tokens": 1600,
             "temperature": 0,
         }
     ).encode("utf-8")
@@ -167,6 +216,29 @@ def transcribe_and_translate(
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=45) as response:
+    with urllib.request.urlopen(request, timeout=60) as response:
         result = json.loads(response.read())
+    latency_s = time.monotonic() - t0
+    usage = usage_store.extract_usage(result)
+    usage_store.append(
+        {
+            "kind": "audio",
+            "model": model,
+            "source_language": source_language,
+            "target_language": target_language,
+            "latency_s": round(latency_s, 3),
+            "audio_bytes": len(pcm16),
+            **usage,
+        }
+    )
+    logger_msg = (
+        f"usage audio model={model} latency={latency_s:.2f}s "
+        f"prompt={usage.get('prompt_tokens')} completion={usage.get('completion_tokens')} "
+        f"total={usage.get('total_tokens')}"
+    )
+    try:
+        import logging
+        logging.getLogger("joyvoice.gemini_audio").info(logger_msg)
+    except Exception:
+        pass
     return _parse_result(result["choices"][0]["message"]["content"])

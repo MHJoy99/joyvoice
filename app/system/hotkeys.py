@@ -31,12 +31,16 @@ DEFAULT_MODE = "toggle"  # "toggle" or "hold"
 LANGUAGE_SWITCHER_HOTKEY = "Ctrl+Shift+L"
 
 
+CANCEL_HOTKEY = "esc"
+
+
 class HotkeyManager(QObject):
     toggle_activated = Signal()  # toggle mode: fire once per press
     hold_started = Signal()  # hold mode: key pressed
     hold_ended = Signal()  # hold mode: key released
     registration_error = Signal(str)
     language_switcher_requested = Signal()  # Ctrl+Shift+L pressed
+    cancel_requested = Signal()  # Esc pressed — discard recording / in-flight ASR
 
     def __init__(self) -> None:
         super().__init__()
@@ -45,6 +49,7 @@ class HotkeyManager(QObject):
         self._registered = False
         self._hook_handles: list = []
         self._ls_hook_handle = None
+        self._cancel_hook_handle = None
 
     def _clear(self) -> None:
         if keyboard is None:
@@ -87,6 +92,8 @@ class HotkeyManager(QObject):
 
         # Always register the language switcher hotkey (Ctrl+Shift+L).
         self.register_language_switcher()
+        # Always register Esc for cancel-while-recording / cancel-while-transcribing.
+        self.register_cancel_hotkey()
 
         return None
 
@@ -133,6 +140,7 @@ class HotkeyManager(QObject):
     def unregister(self) -> None:
         self._clear()
         self.unregister_language_switcher()
+        self.unregister_cancel_hotkey()
 
     def register_language_switcher(self) -> Optional[str]:
         """Register Ctrl+Shift+L as a global hotkey for the language switcher popup."""
@@ -164,6 +172,36 @@ class HotkeyManager(QObject):
                 except Exception:
                     pass
             self._ls_hook_handle = None
+
+    def register_cancel_hotkey(self) -> Optional[str]:
+        """Register Esc as a global cancel hotkey (discard recording / in-flight job)."""
+        if keyboard is None:
+            msg = "Global hotkey backend ('keyboard' package) is unavailable"
+            logger.warning(msg)
+            return msg
+        self.unregister_cancel_hotkey()
+        try:
+            self._cancel_hook_handle = keyboard.add_hotkey(
+                CANCEL_HOTKEY,
+                lambda: self.cancel_requested.emit(),
+                suppress=False,  # do not steal Esc from other apps when idle
+            )
+            return None
+        except Exception as exc:
+            msg = f"Could not register cancel hotkey '{CANCEL_HOTKEY}': {exc}"
+            logger.warning(msg)
+            return msg
+
+    def unregister_cancel_hotkey(self) -> None:
+        if self._cancel_hook_handle is not None and keyboard is not None:
+            try:
+                keyboard.remove_hotkey(self._cancel_hook_handle)
+            except Exception:
+                try:
+                    keyboard.unhook(self._cancel_hook_handle)
+                except Exception:
+                    pass
+            self._cancel_hook_handle = None
 
     def check_health(self) -> Optional[str]:
         """Verify the hotkey is still registered. Returns error message if lost, else None.

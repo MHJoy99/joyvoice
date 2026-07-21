@@ -6,6 +6,7 @@ Rules (deliberately conservative -- never rewrite meaning):
   Bangla reduplication ("বড় বড়") is meaningful and must never be collapsed.
 - Apply user-defined word-boundary, case-insensitive replacements.
 - Normalize whitespace and capitalize the first letter.
+- Trim dangling open endings (ellipsis / incomplete final fragment).
 """
 
 from __future__ import annotations
@@ -16,6 +17,22 @@ FILLERS = {"um", "uh", "umm", "uhh", "hmm", "erm", "ah"}
 
 _LATIN_WORD_RE = re.compile(r"^[A-Za-z']+$")
 _TOKEN_RE = re.compile(r"\S+")
+
+# Terminal sentence enders across Latin / CJK / common scripts.
+_SENTENCE_END_RE = re.compile(r"[.!?。！？…]+")
+_TRAILING_ELLIPSIS_RE = re.compile(r"(?:\.{2,}|…{1,}|……+)\s*$")
+# Soft polite filler tails models invent when they run out of audio.
+_SOFT_TAIL_RE = re.compile(
+    r"(?:,?\s*)(?:"
+    r"please(?:\s+be\s+(?:kind|good))?|"
+    r"be\s+(?:kind|good)|"
+    r"okay\??|"
+    r"пожалуйста(?:,?\s*будь\s+добр(?:а|ый|ые)?)?|"
+    r"будь\s+добр(?:а|ый)?|"
+    r"どうぞ|お願いします"
+    r")\s*$",
+    re.IGNORECASE,
+)
 
 
 def _remove_fillers(text: str) -> str:
@@ -67,6 +84,69 @@ def _normalize_whitespace(text: str) -> str:
     return text
 
 
+def trim_dangling_tail(text: str) -> str:
+    """Remove open/truncated endings without inventing missing words.
+
+    Prefer cutting a dangling unfinished fragment over leaving ellipsis or
+    soft polite filler that models append when the utterance ends mid-thought.
+    """
+    if not text or not text.strip():
+        return ""
+
+    cleaned = text.strip()
+    cleaned = _TRAILING_ELLIPSIS_RE.sub("", cleaned).rstrip(" ,;:-")
+    cleaned = _SOFT_TAIL_RE.sub("", cleaned).rstrip(" ,;:-")
+    cleaned = _TRAILING_ELLIPSIS_RE.sub("", cleaned).rstrip(" ,;:-")
+
+    if not cleaned:
+        return text.strip()
+
+    # Already ends on a real sentence closer — keep.
+    if cleaned[-1] in ".!?。！？":
+        return cleaned
+
+    # Find the last complete sentence boundary and drop the dangling tail.
+    last_end = None
+    for m in _SENTENCE_END_RE.finditer(cleaned):
+        # Bare ellipsis is not a real close.
+        if set(m.group(0)) <= {".", "…"} and "。" not in m.group(0) and "!" not in m.group(0) and "?" not in m.group(0) and "！" not in m.group(0) and "？" not in m.group(0):
+            # Allow a true single "..." only if followed by more text (handled by loop).
+            if m.group(0) in {"...", "…", "……", ".."}:
+                continue
+        last_end = m.end()
+
+    if last_end is None:
+        # No complete sentence at all — keep as-is (short phrases are fine).
+        return cleaned
+
+    tail = cleaned[last_end:].strip(" ,;:-")
+    if not tail:
+        return cleaned[:last_end].rstrip()
+
+    # Drop short dangling tails (incomplete final clause / mid-word leftovers).
+    # Keep longer tails only if they already look finished (shouldn't reach here).
+    tail_words = re.findall(r"\S+", tail)
+    if len(tail) <= 80 or len(tail_words) <= 12:
+        return cleaned[:last_end].rstrip()
+
+    return cleaned
+
+
+def finalize_ending(text: str) -> str:
+    """Trim dangling open lines, then ensure a clean terminal stop if needed."""
+    cleaned = trim_dangling_tail(text)
+    if not cleaned:
+        return ""
+    if cleaned[-1] not in ".!?。！？":
+        # Short title-like strings: leave unpunctuated.
+        words = re.findall(r"\S+", cleaned)
+        if len(words) <= 3 and len(cleaned) <= 24:
+            return cleaned
+        # Prefer a full stop over inventing content.
+        cleaned = cleaned.rstrip(" ,;:-") + "."
+    return cleaned
+
+
 DEFAULT_REPLACEMENTS: dict[str, str] = {
     "bdx tree": "BDX",
     "bdx market": "BDX Market",
@@ -86,4 +166,5 @@ def clean_text(raw_text: str, replacements: dict[str, str] | None = None) -> str
     text = _collapse_repeats(text)
     text = _apply_replacements(text, replacements)
     text = _normalize_whitespace(text)
+    text = finalize_ending(text)
     return text

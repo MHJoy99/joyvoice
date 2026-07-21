@@ -3,6 +3,47 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.1.0 — Spoken override, cancel, ending cleanup, usage logs (2026-07-21)
+
+Cloud pipeline quality-of-life release. Production path stays Gemini 3.1 Flash Lite.
+
+### Spoken one-shot target override
+- End an utterance with a language command (`paste in Russian`, `Give me the Russian`,
+  `বাংলায় দাও`, trailing `Russian` / `Japanese`, phonetic `রাশিয়ান-এ ট্রান্সলেট…`)
+  to force **this paste only** into that language without changing settings.
+- Gemini JSON field `target_override` + local detector (`command_override.py`).
+- Dual detect on source transcript **and** English translation (command often only
+  appears cleanly after EN translation).
+- **Always** force text retranslate on override — never trust audio-model translation
+  alone when an override is set (fixed EN-paste-with-override-detected bug).
+- Command phrase stripped from both transcript and translation before paste.
+- Toast + temporary badge flash: `Override → RU`.
+
+### Cancel
+- **Esc** (global, non-suppressing) or widget right-click **Cancel**.
+- Recording: discard audio, no API call.
+- Transcribing: invalidate job id / ignore late worker results — no paste, no history.
+- Accidental F8 tap &lt; 0.35s treated as cancel.
+- F8 remains start / stop-and-process only.
+
+### Ending cleanup
+- Prefer **cut dangling open lines** over inventing missing words.
+- `text_cleaner.finalize_ending`: strip `...` / `……`, soft polite tails
+  (`пожалуйста, будь добр`, please, okay…), drop incomplete final clauses,
+  ensure a real terminal stop when needed.
+- Prompt rules on audio + retranslate: complete sentences, no ellipsis, no filler tails.
+- Higher token budgets: audio JSON 1600, rewrite 1200 (short caps were truncating CJK).
+
+### Usage telemetry
+- Append-only `%APPDATA%\JoyVoice\usage.jsonl` with per-request tokens + latency
+  (audio, text rewrite, end-to-end pipeline). Never raises into the dictation path.
+- Log lines also include `usage … tokens=prompt/completion/total`.
+
+### Files
+- New: `app/transcription/command_override.py`, `app/storage/usage_store.py`
+- Updated: `main.py`, `gemini_audio.py`, `text_cleaner.py`, `hotkeys.py`,
+  `floating_widget.py`, `paths.py`, `sounds.py`
+
 ## MVP (initial commit)
 
 A local, offline voice-dictation layer for Windows: press **F8** (toggle or

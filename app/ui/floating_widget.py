@@ -2,7 +2,7 @@
 recording timer, language badge, confidence indicator, and smooth
 animated state transitions.
 
-States: idle, recording, transcribing, pasted, error.
+States: idle, recording, transcribing, pasted, error, cancelled.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ STATE_COLORS = {
     "transcribing": QColor("#2a6fe0"),
     "pasted": QColor("#2ecc71"),
     "error": QColor("#e74c3c"),
+    "cancelled": QColor("#8b8fa3"),
 }
 
 STATE_LABELS = {
@@ -38,14 +39,16 @@ STATE_LABELS = {
     "transcribing": "Transcribing...",
     "pasted": "Pasted",
     "error": "Error",
+    "cancelled": "Cancelled",
 }
 
 WIDTH = 200
 HEIGHT = 80
 
-# Glass morphism colours
-GLASS_BG = QColor(20, 22, 30, 217)        # rgba(20,22,30,0.85)
-GLASS_BORDER = QColor(255, 255, 255, 20)   # rgba(255,255,255,0.08)
+# Glass morphism colours — opaque enough for dark-mode visibility
+GLASS_BG = QColor(18, 20, 26, 242)         # rgba(18,20,26,0.95) — near-solid
+GLASS_BORDER = QColor(255, 255, 255, 45)    # rgba(255,255,255,0.18) — visible edge
+GLASS_HIGHLIGHT = QColor(255, 255, 255, 12) # top-edge subtle highlight
 
 # Waveform bar count
 WAVEFORM_BARS = 5
@@ -57,6 +60,7 @@ class FloatingWidget(QWidget):
     diagnostics_requested = Signal()
     benchmark_requested = Signal()
     quit_requested = Signal()
+    cancel_requested = Signal()
     ai_model_start_requested = Signal()
     ai_model_stop_requested = Signal()
 
@@ -318,6 +322,13 @@ class FloatingWidget(QWidget):
         painter.setPen(QPen(GLASS_BORDER, 1))
         painter.drawRoundedRect(rect, radius, radius)
 
+        # Subtle top-edge highlight — makes the pill pop on any dark background
+        if self._state == "idle":
+            highlight_rect = QRectF(rect.x() + 8, rect.y() + 1, rect.width() - 16, 4)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(GLASS_HIGHLIGHT))
+            painter.drawRoundedRect(highlight_rect, 2, 2)
+
         accent = self._accent_color
 
         # Accent border edge glow when recording/transcribing
@@ -460,6 +471,10 @@ class FloatingWidget(QWidget):
                     return _copy
 
                 menu.addAction(label, _make_copy_action())
+
+        if self._state in ("recording", "transcribing"):
+            menu.addAction("Cancel", self.cancel_requested.emit)
+            menu.addSeparator()
 
         if entries:
             menu.addSeparator()
