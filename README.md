@@ -537,15 +537,43 @@ All pure Python or prebuilt wheels. **No CUDA. No PyTorch. No local Whisper. No 
 
 ## 🗺️ Roadmap
 
-- [ ] **Streaming dictation** — translate each sentence while you keep speaking (near-instant long dictation)
-- [ ] **Custom language prompt editing** — fine-tune per-language transcription prompts
-- [ ] **Auto Text Style** — detect focused app and auto-select style (Slack → professional, ChatGPT → prompt)
-- [ ] **macOS & Linux support** — port hotkey + clipboard to cross-platform backends
-- [ ] **Plugin system** — custom output formatters, custom ASR backends
+*Keep what works. Ship only what is faster **and** better. Production stays on the proven cloud path until a challenger wins both.*
+
+### ✅ Shipped (v2.1.0)
+- [x] 10-language cloud dictation + auto-detect
+- [x] Spoken one-shot target override (`… Russian` / `বাংলায় দাও`)
+- [x] Cancel mid-record / mid-transcribe (Esc)
+- [x] Dangling-end cleanup (cut open lines, don’t invent)
+- [x] Durable usage telemetry (`usage.jsonl` — tokens + latency)
+- [x] Windows portable EXE release
+
+### 🔜 Near term — make it *feel* instant
+- [ ] **Faster model bake-off** on BDX.market — same real BN/EN clips, pick winners only if ≤ half current latency **and** quality holds
+- [ ] **Sentence-stream pipeline** — VAD-split while speaking; translate completed sentences in the background; stop = only the tail remains
+- [ ] **Usage dashboard** — simple local report of per-day tokens, cost ballpark, p50/p90 paste time
+- [ ] **Bare language cue hardening** — trailing single word (`Russian` / `Japanese`) first-class, zero false positives mid-sentence
+
+### 🧭 Medium term — smarter than a dictation box
+- [ ] **Context-aware style** — focused app picks style (Chat → prompt, Slack → casual, email → professional)
+- [ ] **Personal lexicon** — brands, people, BDX terms always correct without settings babysitting
+- [ ] **Cross-platform** — macOS / Linux hotkey + paste backends
+- [ ] **Plugin outputs** — custom formatters, post-hooks, optional Hermes/agent handoff
+
+### 🚀 Long term — the hard problems
+- [ ] **True simultaneous mode** — continuous partials on screen while still talking; final paste is a polish, not a wait
+- [ ] **Multi-speaker / meeting mode** — diarize, clean, translate per speaker without losing who said what
+- [ ] **Offline-capable dual path** — local fallback that still feels good when the cloud is gone
+
+### 🏁 Final boss — almost impossible, still achievable
+
+> **The Ghost Interpreter**  
+> JoyVoice becomes an *invisible* OS layer: you speak in mixed Bangla/English/whatever, it understands **intent + context + target app**, and the right text (or action) lands **before the sentence feels finished** — sub-second, multi-language, personal-lexicon perfect, zero UI babysitting.  
+> Not “another STT app.” A permanent simultaneous interpreter for your whole digital life.  
+> Path: streaming VAD → edge partials → BDX fast audio models → personal memory/lexicon → app-aware paste/actions. Hard as hell. Not magic. **Buildable.**
 
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by MH Joy · v2.0.0 · July 2026</sub><br>
-  <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/your-org/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a></sub>
+  <sub>Built with ❤️ by MH Joy · v2.1.0 · July 2026</sub><br>
+  <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.1.0">v2.1.0 Release</a></sub>
 </p>
