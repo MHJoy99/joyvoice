@@ -881,11 +881,7 @@ Text endpoint:   POST /chat/completions  (standard chat completion)
 Models endpoint: GET  /models            (list available models)
 ```
 
-**Available models** (through this gateway):
-- `gemini-3.1-flash-lite` ⭐ (default — best latency/quality for audio)
-- `gemini-3.5-flash-low`
-- `gemini-3-flash`
-- `gemini-3.1-pro-low`
+**Available models:** The live gateway catalog is documented in `docs/API.md` and currently contains 63 models (queried 2026-07-22). The catalog is dynamic; query `GET /models` for the authoritative current list.
 
 **Default model:** `gemini-3.1-flash-lite` for both audio and text. ~3.3s end-to-end.
 

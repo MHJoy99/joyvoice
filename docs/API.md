@@ -478,7 +478,75 @@ GOOGLE_LANGUAGE_TAGS = {
 
 ## Available Models
 
-JoyVoice uses a single model family for all cloud calls. Both audio and text requests use `gemini-3.1-flash-lite` — the gateway routes to the appropriate backend based on content type.
+The gateway currently exposes the following **63 models**. This is a live catalog snapshot queried from `GET /models` on 2026-07-22; availability can change independently of JoyVoice releases.
+
+### Gateway Catalog
+
+| Model |
+|:---|
+| `go-glm-5.1` |
+| `gemini-3-flash` |
+| `gemini-3.6-flash-high` |
+| `go-kimi-k2.7-code` |
+| `claude-sonnet-4-6` |
+| `claude-opus-4-6-thinking` |
+| `zen-claude-sonnet-5` |
+| `go-minimax-m2.5` |
+| `go-kimi-k3` |
+| `go-mimo-v2.5` |
+| `gpt-image-2` |
+| `grok-4.20-0309-non-reasoning` |
+| `zen-deepseek-v4-flash-free` |
+| `go-mimo-v2-pro` |
+| `grok-imagine-video` |
+| `zen-gpt-5.4-mini` |
+| `zen-nemotron-3-ultra-free` |
+| `gpt-5.4` |
+| `zen-hy3-free` |
+| `go-qwen3.6-plus` |
+| `grok-imagine-image` |
+| `go-hy3-preview` |
+| `gpt-5.4-mini` |
+| `grok-imagine-video-1.5-preview` |
+| `gemini-3-flash-agent` |
+| `gemini-3.1-flash-image` |
+| `go-qwen3.7-max` |
+| `gpt-5.3-codex-spark` |
+| `gpt-5.6-sol` |
+| `go-glm-5.2` |
+| `zen-mimo-v2.5-free` |
+| `go-minimax-m3` |
+| `go-kimi-k2.5` |
+| `grok-3-mini` |
+| `grok-composer-2.5-fast` |
+| `gemini-pro-agent` |
+| `go-minimax-m2.7` |
+| `go-deepseek-v4-pro` |
+| `go-deepseek-v4-flash` |
+| `go-qwen3.7-plus` |
+| `codex-auto-review` |
+| `grok-build-0.1` |
+| `grok-4.20-multi-agent-0309` |
+| `gpt-oss-120b-medium` |
+| `go-mimo-v2.5-pro` |
+| `gpt-image-1.5` |
+| `grok-4.20-0309-reasoning` |
+| `go-qwen3.5-plus` |
+| `gpt-5.6-luna` |
+| `gemini-3.1-pro-low` |
+| `go-glm-5` |
+| `go-grok-4.5` |
+| `gpt-5.5` |
+| `gpt-5.6-terra` |
+| `grok-3-mini-fast` |
+| `gemini-3.1-flash-lite` |
+| `go-kimi-k2.6` |
+| `grok-4.5` |
+| `grok-4.3` |
+| `gemini-3.5-flash-extra-low` |
+| `go-mimo-v2-omni` |
+| `grok-imagine-image-quality` |
+| `gemini-3.5-flash-low` |
 
 ### Currently Active
 
@@ -496,7 +564,7 @@ JoyVoice uses a single model family for all cloud calls. Both audio and text req
 
 ### Other Models (Benchmarked but Not Active)
 
-All accessed through the same `ai.bdx.market` gateway:
+The following models have been benchmarked by JoyVoice, but the gateway catalog above is the authoritative availability list:
 
 | Model | Audio Latency | Quality | Status |
 |:---|---:|:---|:---|
