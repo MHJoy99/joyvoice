@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Primary SEO Meta Tags -->
+    <title>JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows</title>
+    <meta name="title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows">
+    <meta name="description" content="Ultra-low latency AI floating mic dictation & speech translation software for Windows 10/11. Speak in 10 languages (Bangla, Hindi, Russian, Arabic, etc.), get clean translated text auto-pasted in ~3.3s. Zero GPU required.">
+    <meta name="keywords" content="Bangla voice typing, JoyVoice, Gemini voice dictation, speech translation Windows 11, floating mic app, voice to text auto paste, speech to text bangla english, open source voice typing, zero gpu dictation">
+    <meta name="author" content="MH Joy">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://github.com/MHJoy99/joyvoice">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://github.com/MHJoy99/joyvoice">
+    <meta property="og:title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation">
+    <meta property="og:description" content="Speak in any of 10 languages. Get clean translated text pasted directly into your application in ~3.3s. Zero GPU required.">
+    <meta property="og:image" content="assets/desktop-mockup.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://github.com/MHJoy99/joyvoice">
+    <meta property="twitter:title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation">
+    <meta property="twitter:description" content="Ultra-low latency floating mic dictation software for Windows. Speak Bangla, Russian, Hindi, Spanish, or Arabic — get instant clean translations.">
+    <meta property="twitter:image" content="assets/desktop-mockup.png">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "JoyVoice",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Windows 10, Windows 11",
+      "softwareVersion": "2.1.0",
+      "description": "Ultra-low latency AI floating mic dictation and real-time speech translation tool for Windows powered by Gemini 3.1 Flash Lite.",
+      "license": "https://opensource.org/licenses/MIT",
+      "author": {
+        "@type": "Person",
+        "name": "MH Joy"
+      }
+    }
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface-color: rgba(22, 28, 45, 0.7);
+            --surface-border: rgba(255, 255, 255, 0.1);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-cyan: #22d3ee;
+            --accent-orange: #e0622a;
+            --accent-blue: #2a6fe0;
+            --accent-green: #2ecc71;
+            --font-heading: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(34, 211, 238, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(224, 98, 42, 0.08) 0%, transparent 40%);
+        }
+
+        header {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: var(--font-heading);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        nav a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-left: 24px;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        nav a:hover {
+            color: var(--accent-cyan);
+        }
+
+        .hero {
+            max-width: 1000px;
+            margin: 60px auto 40px auto;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(34, 211, 238, 0.1);
+            border: 1px solid rgba(34, 211, 238, 0.3);
+            border-radius: 999px;
+            color: var(--accent-cyan);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: 52px;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 20px;
+            letter-spacing: -0.02em;
+        }
+
+        h1 span {
+            background: linear-gradient(135deg, #22d3ee 0%, #3b82f6 50%, #e0622a 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 20px;
+            color: var(--text-secondary);
+            max-width: 760px;
+            margin: 0 auto 36px auto;
+        }
+
+        .cta-group {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 16px;
+            text-decoration: none;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            color: #0b0f19;
+            box-shadow: 0 10px 25px -5px rgba(34, 211, 238, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px rgba(34, 211, 238, 0.6);
+        }
+
+        .btn-secondary {
+            background: var(--surface-color);
+            color: var(--text-primary);
+            border: 1px solid var(--surface-border);
+            backdrop-filter: blur(12px);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        /* Glass Widget Demo Simulation */
+        .demo-section {
+            max-width: 900px;
+            margin: 60px auto;
+            padding: 32px;
+            background: var(--surface-color);
+            border: 1px solid var(--surface-border);
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        .widget-pill-demo {
+            width: 260px;
+            height: 90px;
+            margin: 20px auto;
+            background: rgba(18, 24, 38, 0.85);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 45px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            transition: all 0.3s ease;
+        }
+
+        .widget-pill-demo.recording {
+            border-color: var(--accent-orange);
+            box-shadow: 0 0 25px rgba(224, 98, 42, 0.4);
+        }
+
+        .widget-pill-demo.processing {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 25px rgba(42, 111, 224, 0.4);
+        }
+
+        .widget-pill-demo.pasted {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 25px rgba(46, 204, 113, 0.4);
+        }
+
+        .waveform-bars {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            height: 24px;
+            margin-bottom: 4px;
+        }
+
+        .bar {
+            width: 5px;
+            background: var(--accent-cyan);
+            border-radius: 3px;
+            height: 10px;
+            transition: height 0.15s ease;
+        }
+
+        .recording .bar {
+            background: var(--accent-orange);
+            animation: pulse-wave 0.6s infinite alternate ease-in-out;
+        }
+
+        .bar:nth-child(1) { animation-delay: 0.1s; }
+        .bar:nth-child(2) { animation-delay: 0.25s; }
+        .bar:nth-child(3) { animation-delay: 0.4s; }
+        .bar:nth-child(4) { animation-delay: 0.2s; }
+        .bar:nth-child(5) { animation-delay: 0.3s; }
+
+        @keyframes pulse-wave {
+            0% { height: 6px; }
+            100% { height: 28px; }
+        }
+
+        .widget-status {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .demo-output-box {
+            background: rgba(10, 14, 23, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 24px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 16px;
+            text-align: left;
+            min-height: 80px;
+            color: var(--accent-cyan);
+        }
+
+        .lang-selector-bar {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .lang-chip {
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .lang-chip.active, .lang-chip:hover {
+            background: rgba(34, 211, 238, 0.15);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        /* Features Grid */
+        .features-grid {
+            max-width: 1100px;
+            margin: 80px auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            padding: 0 20px;
+        }
+
+        .feature-card {
+            background: var(--surface-color);
+            border: 1px solid var(--surface-border);
+            border-radius: 20px;
+            padding: 32px;
+            backdrop-filter: blur(12px);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(34, 211, 238, 0.4);
+        }
+
+        .feature-icon {
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+
+        .feature-card h3 {
+            font-family: var(--font-heading);
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        footer {
+            max-width: 1200px;
+            margin: 80px auto 40px auto;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            border-top: 1px solid var(--surface-border);
+            padding-top: 32px;
+        }
+
+        footer a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="#" class="logo-container">
+            🎙️ Joy<span class="logo-badge">Voice</span>
+        </a>
+        <nav>
+            <a href="#features">Features</a>
+            <a href="#demo">Live Simulator</a>
+            <a href="#install">Install Guide</a>
+            <a href="llms.txt">llms.txt</a>
+            <a href="https://github.com/MHJoy99/joyvoice" id="nav-github-link">GitHub Repository</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="badge-pill">⚡ Powered by Gemini 3.1 Flash Lite · Zero GPU Burden</div>
+            <h1>Speak Any Language.<br><span>Get Clean Translations Instantly.</span></h1>
+            <p>JoyVoice is an open-source Windows floating microphone dictation app. Press <code>F8</code>, speak in any of 10 languages (Bangla, Hindi, Russian, Arabic, etc.), and clean translated text appears directly wherever your cursor is in ~3.3 seconds.</p>
+            <div class="cta-group">
+                <button class="btn btn-primary" id="run-local-cta" onclick="location.href='#install'">⚡ Run Directly From Folder</button>
+                <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.1.0" class="btn btn-secondary" id="download-exe-cta">🪟 Download Windows EXE</a>
+            </div>
+        </section>
+
+        <!-- Live Widget Simulator -->
+        <section class="demo-section" id="demo">
+            <h2 style="font-family: var(--font-heading); margin-bottom: 8px;">Interactive Dictation Simulator</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">Pick a language and click "Simulate F8 Press" to see JoyVoice in action.</p>
+
+            <div class="lang-selector-bar" id="lang-bar">
+                <div class="lang-chip active" data-lang="bn" onclick="selectLang(this)">বাংলা (Bangla)</div>
+                <div class="lang-chip" data-lang="ru" onclick="selectLang(this)">Русский (Russian)</div>
+                <div class="lang-chip" data-lang="zh" onclick="selectLang(this)">中文 (Chinese)</div>
+                <div class="lang-chip" data-lang="ar" onclick="selectLang(this)">العربية (Arabic)</div>
+                <div class="lang-chip" data-lang="es" onclick="selectLang(this)">Español (Spanish)</div>
+            </div>
+
+            <div class="widget-pill-demo" id="widget-demo">
+                <div class="waveform-bars">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
+                <div class="widget-status" id="widget-status-text">Press F8 to Record</div>
+            </div>
+
+            <button class="btn btn-primary" style="margin-top: 10px;" id="sim-f8-btn" onclick="runSimulatedDictation()">🎙️ Press F8 (Simulate Speech)</button>
+
+            <div class="demo-output-box" id="demo-output-text">
+                > Spoken Speech: "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না"<br>
+                > Pasted Result: "I won't be able to join the meeting tomorrow morning."
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section class="features-grid" id="features">
+            <div class="feature-card">
+                <div class="feature-icon">🌐</div>
+                <h3>10-Language Dictation</h3>
+                <p>Speak Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, or Portuguese with instant auto-language detection.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>Gemini Native Audio</h3>
+                <p>Uses Gemini 3.1 Flash Lite native audio understanding to transcribe and translate in a single API call (~3.0s wall-clock time).</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🪟</div>
+                <h3>Glass-Morphism Pill</h3>
+                <p>Sleek 200×80px translucent floating microphone widget with live 5-bar waveform pulse and state animations.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📋</div>
+                <h3>Clipboard-Safe Paste</h3>
+                <p>Saves your clipboard, sends <code>Ctrl+V</code> with exponential backoff retry, and restores original clipboard contents intact.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Zero GPU Overhead</h3>
+                <p>Pure cloud pipeline running on integrated graphics. No heavy local model downloads, no VRAM consumption.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <h3>Built-in Fallback Chain</h3>
+                <p>Automatic failover to free Google Web Speech API if the primary audio API is temporarily offline.</p>
+            </div>
+        </section>
+
+        <!-- Installation Section -->
+        <section class="demo-section" id="install" style="text-align: left;">
+            <h2 style="font-family: var(--font-heading); margin-bottom: 16px;">⚡ Run Directly From Local Folder</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px;">If you have cloned or downloaded this repository into <code>C:\Users\Administrator\VoiceFloat\joyvoice</code>:</p>
+            
+            <pre style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 12px; border: 1px solid var(--surface-border); overflow-x: auto; color: var(--accent-cyan);">
+cd C:\Users\Administrator\VoiceFloat\joyvoice
+.venv\Scripts\activate
+set JV_API_KEY=your_api_key
+run.bat</pre>
+
+            <p style="margin-top: 16px; color: var(--text-secondary);">Or download the prebuilt <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.1.0" style="color: var(--accent-cyan);">JoyVoice.exe (v2.1.0)</a> for zero-config Windows launch.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Built with ❤️ by MH Joy · Open Source under MIT License · <a href="llms.txt">llms.txt Specification</a></p>
+    </footer>
+
+    <script>
+        const simData = {
+            bn: {
+                spoken: "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না",
+                pasted: "I won't be able to join the meeting tomorrow morning."
+            },
+            ru: {
+                spoken: "Я не могу присоединиться к встрече завтра утром",
+                pasted: "I can't join the meeting tomorrow morning."
+            },
+            zh: {
+                spoken: "我明天早上不能参加会议",
+                pasted: "I can't attend the meeting tomorrow morning."
+            },
+            ar: {
+                spoken: "لا أستطيع الانضمام إلى الاجتماع صباح الغد",
+                pasted: "I can't join the meeting tomorrow morning."
+            },
+            es: {
+                spoken: "No puedo unirme a la reunión mañana por la mañana",
+                pasted: "I cannot join the meeting tomorrow morning."
+            }
+        };
+
+        let currentLang = 'bn';
+
+        function selectLang(el) {
+            document.querySelectorAll('.lang-chip').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            currentLang = el.getAttribute('data-lang');
+            document.getElementById('demo-output-text').innerHTML = 
+                `> Spoken Speech: "${simData[currentLang].spoken}"<br>` +
+                `> Pasted Result: "${simData[currentLang].pasted}"`;
+        }
+
+        function runSimulatedDictation() {
+            const widget = document.getElementById('widget-demo');
+            const status = document.getElementById('widget-status-text');
+            const output = document.getElementById('demo-output-text');
+            const btn = document.getElementById('sim-f8-btn');
+
+            btn.disabled = true;
+            widget.className = 'widget-pill-demo recording';
+            status.textContent = 'Recording Speech...';
+            output.innerHTML = `> Recording mic input (${currentLang.toUpperCase()})...`;
+
+            setTimeout(() => {
+                widget.className = 'widget-pill-demo processing';
+                status.textContent = 'Gemini 3.1 Flash Processing...';
+                output.innerHTML = `> Gemini 3.1 Flash Lite API Call in flight (~3.0s)...`;
+            }, 1800);
+
+            setTimeout(() => {
+                widget.className = 'widget-pill-demo pasted';
+                status.textContent = 'Pasted via Ctrl+V!';
+                output.innerHTML = 
+                    `> Spoken Speech: "${simData[currentLang].spoken}"<br>` +
+                    `> Clean Output: "${simData[currentLang].pasted}"<br>` +
+                    `> ✅ Auto-pasted into active window in 3.3s.`;
+            }, 3600);
+
+            setTimeout(() => {
+                widget.className = 'widget-pill-demo';
+                status.textContent = 'Press F8 to Record';
+                btn.disabled = false;
+            }, 5500);
+        }
+    </script>
+</body>
+</html>

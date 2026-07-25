@@ -1,0 +1,98 @@
+# JoyVoice: AI Floating Mic Dictation & Speech Translation for Windows
+
+> JoyVoice is an open-source, ultra-low latency (~3.3s) floating microphone dictation and real-time speech translation application for Windows 10/11. Powered by Gemini 3.1 Flash Lite native audio understanding, JoyVoice allows users to press a global hotkey (F8), speak in any of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and automatically paste clean, polished translated text into any active Windows application.
+
+## Overview & Purpose
+
+JoyVoice solves the friction of cross-application multilingual typing and voice dictation. Unlike heavy local Whisper models requiring expensive GPUs or built-in OS dictation tools restricted to single languages, JoyVoice provides a lightweight, GPU-free, cloud-accelerated dictation pipeline packaged inside a sleek glass-morphism desktop widget.
+
+### Key Highlights
+- **Zero Local GPU Overhead:** Runs effortlessly on integrated graphics; all ASR and neural translation execute via cloud API.
+- **Native Audio Understanding:** Uses Gemini 3.1 Flash Lite in native audio mode (single API call for both transcription and translation in ~3.0 seconds).
+- **Automatic Language Detection:** Speak naturally in any supported language without manual toggle; JoyVoice identifies the source language instantly.
+- **Direct Clipboard-Safe Paste:** Automatically pastes output into the focused window (Slack, Notion, VS Code, Word, Chrome) using `Ctrl+V` with exponential backoff retry and clipboard preservation.
+- **Robust Fallback Engine:** Automatic failover to Google Web Speech API + Gemini Text LLM if the primary audio API is temporarily unavailable.
+
+---
+
+## Direct Execution Guide (Run from this Folder)
+
+To run JoyVoice directly from this directory (`C:\Users\Administrator\VoiceFloat\joyvoice`):
+
+1. **Environment Setup:** Ensure Python 3.11 is installed.
+2. **Virtual Environment:**
+   ```cmd
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
+3. **Install Dependencies:**
+   ```cmd
+   pip install -r requirements.txt
+   ```
+4. **Configure API Key:**
+   ```cmd
+   set JV_API_KEY=your_bdx_market_api_key
+   ```
+5. **Launch Application:**
+   ```cmd
+   run.bat
+   ```
+   *Alternatively, execute directly via Python:*
+   ```cmd
+   .venv\Scripts\python app\main.py
+   ```
+
+---
+
+## Supported Languages
+
+- **Bangla (`bn`)** - বাংলা (Bangladeshi Bengali with code-switching support)
+- **English (`en`)** - English (US/UK)
+- **Russian (`ru`)** - Русский
+- **Hindi (`hi`)** - हिन्दी
+- **Spanish (`es`)** - Español
+- **Arabic (`ar`)** - العربية
+- **Chinese (`zh`)** - 中文 (Mandarin)
+- **Japanese (`ja`)** - 日本語
+- **French (`fr`)** - Français
+- **Portuguese (`pt`)** - Português
+
+---
+
+## Primary Documentation Links
+
+- [Project README](file:///C:/Users/Administrator/VoiceFloat/joyvoice/README.md) - Main documentation, feature overview, and visual guides.
+- [Setup & Installation Guide](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/SETUP.md) - Step-by-step installation instructions for local development and EXE usage.
+- [Architecture & Design](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/ARCHITECTURE.md) - Complete system architecture, state machine, and signal flow documentation.
+- [API Gateway Reference](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/API.md) - Gateway specifications, model configuration, and endpoint usage.
+- [Troubleshooting & Pitfalls](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/TROUBLESHOOTING.md) - Known edge cases, environment setup, and resolution steps.
+- [SEO & Discovery Strategy](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/SEO_AND_DISCOVERY.md) - Search engine, AEO, and AGO optimization strategy.
+- [AEO FAQ Reference](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/FAQ.md) - Direct Q&A pairs for answer engines and search engines.
+
+---
+
+## System Architecture Summary
+
+```
+Microphone (16 kHz float32)
+   └── float32 -> int16 PCM conversion (<50ms)
+       └── Base64 WAV Payload
+           └── Gemini 3.1 Flash Lite API Call (~3.0s)
+               ├── Primary Output: Clean Translation / Transcript
+               └── Fallback: Google Web Speech API -> Gemini Text LLM
+                   └── Rule-based Text Cleaner (text_cleaner.py)
+                       └── History Store Persistence (%APPDATA%\JoyVoice\history.json)
+                           └── Clipboard Safe Auto-Paste (Ctrl+V with retry x3)
+```
+
+---
+
+## Technical Specifications
+
+- **OS Compatibility:** Windows 10, Windows 11 (Win32 APIs for global hotkeys & clipboard automation)
+- **Python Version:** Python 3.11.9
+- **GUI Framework:** PySide6 (Qt 6.7+)
+- **Audio Capture:** sounddevice (WASAPI PortAudio)
+- **Settings Store:** `%APPDATA%\JoyVoice\settings.json`
+- **History Store:** `%APPDATA%\JoyVoice\history.json`
+- **Log File:** `%APPDATA%\JoyVoice\joyvoice.log`

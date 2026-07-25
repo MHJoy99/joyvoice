@@ -10,12 +10,15 @@
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="#"><img src="https://img.shields.io/badge/Latency-~3.3s-22d3ee?style=flat-square" alt="Latency ~3.3s"></a>
+  <a href="llms.txt"><img src="https://img.shields.io/badge/AGO-llms.txt-22d3ee?style=flat-square" alt="llms.txt compliant"></a>
+  <a href="docs/SEO_AND_DISCOVERY.md"><img src="https://img.shields.io/badge/AEO-Verified-22d3ee?style=flat-square" alt="AEO Verified"></a>
+  <a href="docs/FAQ.md"><img src="https://img.shields.io/badge/GPU-Zero%20Required-22d3ee?style=flat-square" alt="Zero GPU Required"></a>
 </p>
 
 <p align="center">
   <strong>Floating Mic Dictation — Speak Any Language, Get Clean Translations Instantly</strong><br>
   Click mic &nbsp;→&nbsp; Speak in any of 10 languages &nbsp;→&nbsp; Clean translation pasted into any app<br>
-  <sub>~3.3 seconds end-to-end. No GPU. No local models. Pure cloud pipeline.</sub>
+  <sub>~3.3 seconds end-to-end. No GPU. No local models. Pure cloud pipeline powered by Gemini 3.1 Flash Lite.</sub>
 </p>
 
 <hr>
@@ -81,7 +84,29 @@ That's it. No window switching. No copy-paste. No language selection. Just speak
 
 ---
 
-## 📦 Install
+## ⚡ Direct Local Execution (Run Directly From This Folder)
+
+If you have downloaded or cloned this repository into your local folder (`C:\Users\Administrator\VoiceFloat\joyvoice`), you can run JoyVoice immediately without rebuilding or downloading extra tools:
+
+```cmd
+:: 1. Open Command Prompt in this folder
+cd C:\Users\Administrator\VoiceFloat\joyvoice
+
+:: 2. Activate the pre-configured virtual environment
+.venv\Scripts\activate
+
+:: 3. Set your API Key
+set JV_API_KEY=your_bdx_market_api_key
+
+:: 4. Launch JoyVoice!
+run.bat
+```
+
+> **💡 Quick Desktop Launcher:** Double-click `run.bat` or create a Windows Desktop shortcut to `run.bat` to launch JoyVoice in one click at any time.
+
+---
+
+## 📦 Installation & Setup Options
 
 ### 🪟 Option A: Download Pre-built EXE *(recommended)*
 
@@ -94,13 +119,13 @@ That's it. No window switching. No copy-paste. No language selection. Just speak
    └── README.txt
 ```
 
-**[Download v2.0.0 EXE](#)** &nbsp;·&nbsp; *Standalone · Auto-update ready*
+**[Download v2.1.0 EXE](#)** &nbsp;·&nbsp; *Standalone · Auto-update ready*
 
 ### 🐍 Option B: Run from Source
 
 ```bash
 # 1. Clone
-git clone https://github.com/your-org/joyvoice.git
+git clone https://github.com/MHJoy99/joyvoice.git
 cd joyvoice
 
 # 2. Create Python 3.11 venv
@@ -111,7 +136,7 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # 4. Set your API key
-set JV_API_KEY=«your-bdx-market-key»
+set JV_API_KEY=your_bdx_market_api_key
 
 # 5. Launch!
 python app\main.py
@@ -524,14 +549,38 @@ All pure Python or prebuilt wheels. **No CUDA. No PyTorch. No local Whisper. No 
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation & Discoverability Index
 
-| Doc | Covers |
+| Document | Purpose / Audience |
 |:---|:---|
-| `docs/SETUP.md` | Step-by-step: git clone → venv → pip install → `JV_API_KEY` → first launch |
-| `docs/API.md` | Gateway config, model list, benchmark data, request/response shapes, fallback chain |
-| `docs/TROUBLESHOOTING.md` | PYTHONPATH contamination, PCM float32→int16, typing_extensions, QThread, pythonw.exe, language mapping |
-| `docs/ARCHITECTURE.md` | Full project tree, pipeline flow, state machine, design decisions, extension points |
+| [`llms.txt`](llms.txt) | **AGO Standard:** AI Model & LLM RAG Indexing Specification ([llmstxt.org](https://llmstxt.org/)) |
+| [`llms-full.txt`](llms-full.txt) | **AGO Full Context:** Complete concatenated repository reference for AI assistants |
+| [`schema.json`](schema.json) | **Schema.org Data:** Machine-readable JSON-LD software metadata for search engines |
+| [`docs/SEO_AND_DISCOVERY.md`](docs/SEO_AND_DISCOVERY.md) | **SEO & AEO Strategy:** Tri-channel discoverability blueprint & distribution roadmap |
+| [`docs/FAQ.md`](docs/FAQ.md) | **AEO Direct Answers:** Standalone Q&A index optimized for answer engines |
+| [`docs/SETUP.md`](docs/SETUP.md) | Step-by-step: git clone → venv → pip install → `JV_API_KEY` → first launch |
+| [`docs/API.md`](docs/API.md) | Gateway config, model list, benchmark data, request/response shapes, fallback chain |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | PYTHONPATH contamination, PCM float32→int16, typing_extensions, QThread, pythonw.exe |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Full project tree, pipeline flow, state machine, design decisions, extension points |
+
+---
+
+## 🤖 Answer Engine & Search FAQ (AEO)
+
+<details open>
+<summary><strong>Q: What is JoyVoice and how does it work?</strong></summary>
+<p>JoyVoice is an open-source Windows dictation tool that converts speech in 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese) into clean, translated text in ~3.3 seconds. Pressing <code>F8</code> captures audio, sends it to Gemini 3.1 Flash Lite via a single API request, cleans up punctuation, and pastes the result directly into your focused application.</p>
+</details>
+
+<details open>
+<summary><strong>Q: Does JoyVoice need an NVIDIA GPU?</strong></summary>
+<p>No. JoyVoice uses lightweight cloud endpoints for speech processing and translation. It requires 0% GPU resources and runs smoothly on integrated graphics under Windows 10 and Windows 11.</p>
+</details>
+
+<details open>
+<summary><strong>Q: How do I run JoyVoice from this directory?</strong></summary>
+<p>Open Command Prompt in <code>C:\Users\Administrator\VoiceFloat\joyvoice</code>, activate the environment with <code>.venv\Scripts\activate</code>, set your key with <code>set JV_API_KEY=your_key</code>, and launch <code>run.bat</code>.</p>
+</details>
 
 ---
 
@@ -546,6 +595,7 @@ All pure Python or prebuilt wheels. **No CUDA. No PyTorch. No local Whisper. No 
 - [x] Dangling-end cleanup (cut open lines, don’t invent)
 - [x] Durable usage telemetry (`usage.jsonl` — tokens + latency)
 - [x] Windows portable EXE release
+- [x] Tri-channel SEO, AEO, and AGO optimization (`llms.txt`, `schema.json`, `FAQ.md`)
 
 ### 🔜 Near term — make it *feel* instant
 - [ ] **Faster model bake-off** on BDX.market — same real BN/EN clips, pick winners only if ≤ half current latency **and** quality holds
@@ -577,3 +627,21 @@ All pure Python or prebuilt wheels. **No CUDA. No PyTorch. No local Whisper. No 
   <sub>Built with ❤️ by MH Joy · v2.1.0 · July 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.1.0">v2.1.0 Release</a></sub>
 </p>
+
+<!-- Schema.org Microdata for Search Engines & Answer Engines -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "JoyVoice",
+  "description": "Ultra-low latency AI floating microphone dictation and real-time speech translation software for Windows powered by Gemini 3.1 Flash Lite.",
+  "operatingSystem": "Windows 10, Windows 11",
+  "applicationCategory": "ProductivityApplication",
+  "softwareVersion": "2.1.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "author": {
+    "@type": "Person",
+    "name": "MH Joy"
+  }
+}
+</script>

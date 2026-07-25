@@ -15,23 +15,29 @@ build/
 
 # PyInstaller
 *.manifest
-*.exe (if applicable)
+*.exe
 
-# Whisper model cache (portable/dev mode)
+# Whisper model cache / local storage
 models/
 data/
-
-# Portable-mode marker (per-machine choice, not part of the repo)
-portable.txt
-
-# Logs
-*.log
-logs/
 
 # Environment / secrets
 .env
 .env.*
 *.env
+secrets.json
+keys.json
+private/
+*.pem
+*.key
+usage.jsonl
+
+# Logs
+*.log
+logs/
+
+# Portable-mode marker
+portable.txt
 
 # Temp files
 *.tmp
@@ -66,17 +72,12 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Benchmark scratch output (repo root)
+# Benchmark scratch output
 bench_results*.json
 bench_new*.json
 
-# AppData runtime (JoyVoice data folder — per-machine)
-# %APPDATA%/JoyVoice/
+# AppData runtime
 JoyVoice/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# Windows
-$RECYCLE.BIN/
 release/
+$RECYCLE.BIN/
+.ipynb_checkpoints/

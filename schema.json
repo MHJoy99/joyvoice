@@ -1,0 +1,115 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://github.com/MHJoy99/joyvoice#software",
+      "name": "JoyVoice",
+      "alternateName": ["JoyVoice AI Floating Mic", "JoyVoice Dictation"],
+      "description": "Ultra-low latency AI floating microphone dictation and real-time speech translation tool for Windows 10/11 powered by Gemini 3.1 Flash Lite.",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Windows 10, Windows 11",
+      "softwareVersion": "2.1.0",
+      "license": "https://opensource.org/licenses/MIT",
+      "programmingLanguage": "Python 3.11",
+      "author": {
+        "@type": "Person",
+        "name": "MH Joy"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0.00",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
+      "featureList": [
+        "10-Language Dictation & Speech Translation (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese)",
+        "Automatic Speech Language Detection",
+        "Single Gemini 3.1 Flash Lite API Call for Transcription + Translation (~3.3s end-to-end)",
+        "Glass-Morphism Floating Microphone Pill Widget with Live Waveform Animation",
+        "Automatic Clipboard-Safe Paste into Any Focused Windows Application (Slack, Notion, VS Code, Word, Chrome)",
+        "Zero Local GPU Requirement",
+        "Automatic Fallback to Google Web Speech API"
+      ]
+    },
+    {
+      "@type": "HowTo",
+      "@id": "https://github.com/MHJoy99/joyvoice#howto",
+      "name": "How to Install and Run JoyVoice Directly from Folder",
+      "description": "Step-by-step instructions to run JoyVoice AI floating dictation software directly from your local repository folder.",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "name": "Open Terminal in Repository Directory",
+          "text": "Open Command Prompt or PowerShell and navigate to C:\\Users\\Administrator\\VoiceFloat\\joyvoice."
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Activate Python Virtual Environment",
+          "text": "Run '.venv\\Scripts\\activate' to activate the isolated Python 3.11 environment."
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Set API Gateway Key",
+          "text": "Execute 'set JV_API_KEY=your_api_key' to authenticate with the Gemini API gateway."
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Launch JoyVoice",
+          "text": "Execute 'run.bat' or '.venv\\Scripts\\python app\\main.py' to open the floating mic widget."
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Dictate Text via Hotkey",
+          "text": "Press F8 to begin speaking in any supported language. Press F8 again to paste translated text into your focused application."
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://github.com/MHJoy99/joyvoice#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is JoyVoice?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice is an open-source Windows desktop application that captures spoken voice input in 10 languages (including Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, and Portuguese) and automatically pastes clean, formatted translated text directly into whatever application currently has cursor focus."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does JoyVoice require a graphics card (GPU)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. JoyVoice relies entirely on cloud API endpoints (Gemini 3.1 Flash Lite) for native audio transcription and translation. It runs smoothly on any basic Windows 10/11 laptop or PC with integrated graphics."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How fast is JoyVoice speech translation?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice achieves an end-to-end latency of approximately 3.3 seconds from microphone stop to text paste, using a single Gemini native audio API call."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What languages does JoyVoice support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice supports 10 languages for both source dictation and translation: Bangla (Bangladeshi Bengali), English, Russian, Hindi, Spanish, Arabic, Chinese (Mandarin), Japanese, French, and Portuguese."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I run JoyVoice from this directory?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Open Command Prompt in this folder, activate the venv with '.venv\\Scripts\\activate', set your API key with 'set JV_API_KEY=your_key', and execute 'run.bat'."
+          }
+        }
+      ]
+    }
+  ]
+}

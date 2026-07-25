@@ -3,6 +3,19 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.1.2 — Full Tri-Channel SEO, AEO & AGO Discoverability (2026-07-26)
+
+Major discoverability and GitHub ecosystem release establishing 10/10 standards for search engines, AI answer engines, and LLM RAG indexers.
+
+### Discoverability & Standards
+- **AGO Standard (`llms.txt` & `llms-full.txt`)**: Added root-level `llms.txt` ([llmstxt.org](https://llmstxt.org/)) and `llms-full.txt` providing structured context, architecture, and folder execution guides for AI assistants.
+- **Structured Data (`schema.json`)**: Added Schema.org `@graph` metadata combining `SoftwareApplication`, `HowTo`, and `FAQPage`.
+- **Responsive Landing Page (`index.html`)**: Created glass-morphism web landing page with interactive dictation simulator, language switcher, Google Fonts, and full OpenGraph/Twitter Card meta tags.
+- **AEO Direct Answers (`docs/FAQ.md`)**: Created standalone FAQ reference containing snippet-ready Q&A pairs for Perplexity, ChatGPT Search, Bing Copilot, and Google AI Overviews.
+- **Python Package Metadata (`pyproject.toml`)**: Added PEP 621 standardized configuration with Trove classifiers, keywords, and project URLs.
+- **Search Engine Indexing (`robots.txt` & `sitemap.xml`)**: Added crawler directives allowing AI bots (`GPTBot`, `PerplexityBot`, `ClaudeBot`) and XML sitemap index.
+- **GitHub Ecosystem (`.github/`)**: Added `SECURITY.md`, `CODE_OF_CONDUCT.md`, `PULL_REQUEST_TEMPLATE.md`, and issue templates for bugs and features.
+
 ## v2.1.1 — AI Text Styles Execution Fix (2026-07-26)
 
 Bug fix release connecting cloud LLM text rewriting to the main execution flow.

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "joyvoice"
+version = "2.1.0"
+description = "Ultra-low latency AI floating mic dictation and real-time speech translation software for Windows powered by Gemini 3.1 Flash Lite."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "MH Joy", email = "mhjoy99@github.com" }
+]
+keywords = [
+    "voice-dictation",
+    "speech-to-text",
+    "speech-translation",
+    "gemini-flash",
+    "bangla-asr",
+    "windows-dictation",
+    "pyside6",
+    "floating-widget",
+    "multilingual-dictation",
+    "zero-gpu"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Office/Business",
+    "Topic :: Utilities"
+]
+dependencies = [
+    "PySide6>=6.7.0",
+    "sounddevice>=0.5.0",
+    "numpy>=1.26.0",
+    "pyperclip>=1.9.0",
+    "keyboard>=0.13.5",
+    "SpeechRecognition>=3.17.0",
+    "typing_extensions>=4.16.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/MHJoy99/joyvoice"
+Documentation = "https://github.com/MHJoy99/joyvoice#readme"
+Repository = "https://github.com/MHJoy99/joyvoice.git"
+"Issue Tracker" = "https://github.com/MHJoy99/joyvoice/issues"
+"Changelog" = "https://github.com/MHJoy99/joyvoice/blob/master/CHANGELOG.md"
+"LLM Specification" = "https://github.com/MHJoy99/joyvoice/blob/master/llms.txt"

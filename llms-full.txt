@@ -1,0 +1,99 @@
+# JoyVoice Full System Reference & Documentation Index
+
+> Complete repository map and detailed technical context for AI models, LLM indexing agents, and Answer Generation Optimization (AGO).
+
+## Repository Metadata
+
+- **Name:** JoyVoice
+- **Repository Path:** `C:\Users\Administrator\VoiceFloat\joyvoice`
+- **License:** MIT License
+- **Target Platform:** Windows 10 / Windows 11 (64-bit)
+- **Primary Language:** Python 3.11
+- **UI Architecture:** PySide6 (Qt 6.7) floating glass-morphism widget
+- **Audio Capture:** WASAPI via `sounddevice` (16,000 Hz, mono float32)
+- **Cloud Models:** `gemini-3.1-flash-lite` (native audio mode), Google Web Speech API (fallback)
+- **Settings Path:** `%APPDATA%\JoyVoice\settings.json`
+- **History Path:** `%APPDATA%\JoyVoice\history.json`
+- **Log File Path:** `%APPDATA%\JoyVoice\joyvoice.log`
+
+---
+
+## 1. Executive Summary & Value Proposition
+
+JoyVoice is designed for professionals, developers, and multilingual creators who communicate across languages and software applications. The application addresses three core friction points in desktop voice input:
+
+1. **Language Barrier in Real-Time Dictation:** Translating spoken thoughts into English or another target language usually requires typing into web translators and copying results. JoyVoice translates directly from speech into active text fields in under 3.5 seconds.
+2. **Resource Consumption of Local ASR Models:** Local Whisper installations demand heavy GPU memory (VRAM), long initialization times, and high CPU loads. JoyVoice uses lightweight cloud endpoints, achieving superior speed (~3.3s) with 0% GPU load.
+3. **App Integration & Clipboard Fragility:** Standard voice dictation tools often misfire when pasting or erase existing clipboard contents. JoyVoice implements a defense-in-depth paste mechanism that backs up existing clipboard data, sends `Ctrl+V` with exponential backoff retries, and restores the original clipboard.
+
+---
+
+## 2. Directory & Module Map
+
+### Core Entry Points
+- `app/main.py` - Application Controller (`AppController`), Qt event queue management, QThread workers (`CloudASRWorker`, `CloudLLMWorker`), signal-slot wiring, watchdog timers, and state transitions.
+- `run.bat` - Windows Batch script launcher running Python in a visible console for error surfacing.
+- `joyvoice.py` - Legacy standalone single-file Tkinter fallback dictation script.
+
+### Audio Subsystem (`app/audio/`)
+- `app/audio/recorder.py` - sounddevice InputStream manager capturing float32 16kHz mono audio. Computes RMS peak levels for live waveform UI animation.
+- `app/audio/decode.py` - PyAV audio decoder utility for benchmark file conversion.
+
+### Transcription & AI Subsystem (`app/transcription/`)
+- `app/transcription/gemini_audio.py` - Gemini 3.1 Flash Lite native audio API integration. Converts float32 audio to int16 PCM base64 WAV payload and sends JSON schema structured prompt.
+- `app/transcription/cloud_asr.py` - Google Web Speech API fallback module via `SpeechRecognition`.
+- `app/transcription/text_cleaner.py` - Deterministic text cleanup rules: filler word removal, stutter collapse, custom word replacement table, whitespace normalization.
+
+### Storage & Persistence (`app/storage/`)
+- `app/storage/paths.py` - Cross-platform path resolver for `%APPDATA%\JoyVoice\`.
+- `app/storage/settings_store.py` - JSON settings store with key whitelisting and defaults.
+- `app/storage/history_store.py` - Rolling 500-entry JSON dictation history file.
+
+### User Interface Subsystem (`app/ui/`)
+- `app/ui/floating_widget.py` - Glass-morphism translucent frameless widget (200x80px) with 5 visual state animations (idle, recording, transcribing, pasted, error), 5 live waveform bars, confidence color bar, live preview label, and context menu.
+- `app/ui/settings_window.py` - 7-tabbed configuration dialog for Output, General, Hotkey, Audio Device, Paste behavior, Replacements, and History.
+- `app/ui/tray.py` - Windows system tray icon and menu integration.
+
+### System Integration Subsystem (`app/system/`)
+- `app/system/hotkeys.py` - Win32 global hotkey hook listener for F8 toggle/hold and Ctrl+Shift+L language switcher.
+- `app/system/paste.py` - Clipboard preservation, paste command dispatch, retry backoff logic.
+- `app/system/sounds.py` - Non-blocking system beeps via `winsound.Beep`.
+- `app/system/startup.py` - Registry auto-start manager (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`).
+
+---
+
+## 3. Detailed Data Flow & Pipeline
+
+1. **User Activation:** Press `F8` (Global Hotkey). `HotkeyManager` emits `toggle_activated` signal.
+2. **State Transition:** `AppController` sets state to `recording`. Audio feedback sound `play_start()` triggers (800Hz beep).
+3. **Audio Capture:** `Recorder.start()` captures 16,000 Hz float32 mono stream from selected microphone. A 40ms Qt timer updates live audio levels on `FloatingWidget`.
+4. **User Deactivation:** Press `F8` again. `Recorder.stop()` returns float32 numpy array.
+5. **PCM Conversion:** `AppController` clips float32 audio `[-1.0, 1.0]` and converts to signed 16-bit PCM (`int16`) bytes in `< 50ms`.
+6. **Cloud API Dispatch:** `CloudASRWorker` (QThread) encodes PCM to WAV base64 and posts to `https://ai.bdx.market/v1/chat/completions` requesting `gemini-3.1-flash-lite`.
+7. **Processing & Fallback:**
+   - **Primary:** Gemini native audio API responds with raw transcript and target translation in JSON format (~3.0s).
+   - **Fallback:** If Gemini times out or returns an error, `CloudASRWorker` falls back to Google Web Speech API for transcript, followed by Gemini Text LLM for translation.
+8. **Text Formatting & Cleanup:** `text_cleaner.clean_text()` applies rule-based fixes and user replacement tables.
+9. **History Save:** Result is committed to `%APPDATA%\JoyVoice\history.json` before clipboard interaction (ensuring 0% data loss).
+10. **Auto-Paste:** `app.system.paste.paste_text()` backs up existing clipboard, copies cleaned text, fires `Ctrl+V` with up to 3 retries, and restores original clipboard.
+11. **UI Feedback:** Floating widget displays green `pasted` state with scale-pop animation for 1.2s and plays completion chime `play_done()`.
+
+---
+
+## 4. How to Run JoyVoice Directly from this Folder
+
+```cmd
+:: 1. Navigate to directory
+cd C:\Users\Administrator\VoiceFloat\joyvoice
+
+:: 2. Activate virtual environment
+.venv\Scripts\activate
+
+:: 3. Set API Key
+set JV_API_KEY=your_bdx_market_api_key
+
+:: 4. Run application
+run.bat
+```
+
+For full environment troubleshooting, refer to `docs/TROUBLESHOOTING.md`.

@@ -1,0 +1,28 @@
+# JoyVoice Robots.txt - Search Engine & AI Crawler Indexing Policy
+User-agent: *
+Allow: /
+Allow: /README.md
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /schema.json
+Allow: /docs/
+Allow: /assets/
+Allow: /index.html
+
+# AI Crawler Allow Directives
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://github.com/MHJoy99/joyvoice/blob/master/sitemap.xml
