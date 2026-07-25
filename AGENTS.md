@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> *Last updated 2026-07-20 — cloud pipeline with 10-language support, glass-morphism widget, and full robustness features.*
+> *Last updated 2026-07-26 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, and full robustness features.*
 
 ---
 

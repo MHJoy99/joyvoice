@@ -5,7 +5,7 @@ source of truth for project context; nothing here should be lost. Companion
 docs: [CHANGELOG.md](../CHANGELOG.md), [model-research.md](model-research.md),
 [bengali-asr-benchmark.md](bengali-asr-benchmark.md).
 
-Last updated: 2026-07-02.
+Last updated: 2026-07-26.
 
 ---
 

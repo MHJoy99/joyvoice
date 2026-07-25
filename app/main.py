@@ -626,6 +626,13 @@ class AppController:
             final_text = f"{base_text}\n\n{translation}"
         else:
             final_text = translation
+
+        style = self.settings.get("text_style", "clean_english")
+        if style in AI_TEXT_STYLES:
+            logger.info("Triggering AI text style rewrite (%s)", style)
+            self._run_llm(final_text, style)
+            return
+
         self._finish_paste(final_text)
 
     def _on_asr_failed(self, message: str, job_id: int) -> None:
@@ -648,6 +655,8 @@ class AppController:
         self._job_id += 1
         job_id = self._job_id
         self._active_job_id = job_id
+        if self._timing is not None:
+            self._timing["llm_t0"] = time.monotonic()
         target = self.settings.get("target_language", "en")
         self._pending_llm = CloudLLMWorker(text, style, target_language=target, job_id=job_id)
         self._pending_llm.done.connect(
@@ -664,6 +673,7 @@ class AppController:
         self._pending_llm = None
         if self._timing is not None and "llm_t0" in self._timing:
             self._timing["llm_s"] = time.monotonic() - self._timing.pop("llm_t0")
+        self.widget.set_preview(rewritten_text)
         self._finish_paste(rewritten_text)
 
     def _on_llm_failed(self, message: str, job_id: int) -> None:
@@ -686,7 +696,7 @@ class AppController:
             total = time.monotonic() - t["t0"]
             logger.info(
                 "Pipeline latency: asr=%.2fs, llm=%.2fs, total=%.2fs (model=%s, mode=%s)",
-                t["asr_s"] or 0.0, t["llm_s"], total,
+                t["asr_s"] or 0.0, t.get("llm_s", 0.0), total,
                 AUDIO_MODEL, self.settings.get("output_mode"),
             )
             # Durable end-to-end timing (complements per-request usage.jsonl).
@@ -698,7 +708,7 @@ class AppController:
                         "model": AUDIO_MODEL,
                         "output_mode": self.settings.get("output_mode"),
                         "asr_s": t["asr_s"],
-                        "llm_s": t["llm_s"],
+                        "llm_s": t.get("llm_s", 0.0),
                         "latency_s": round(total, 3),
                         "output_chars": len(final_text),
                     }

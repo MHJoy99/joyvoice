@@ -3,6 +3,15 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.1.1 — AI Text Styles Execution Fix (2026-07-26)
+
+Bug fix release connecting cloud LLM text rewriting to the main execution flow.
+
+### AI Text Styles Execution
+- **Fixed uninvoked AI styles**: Wired `_run_llm()` into `AppController._on_asr_done()` when `text_style` is set to `prompt_for_ai`, `professional_message`, or `facebook_post`.
+- **Live preview update**: Connected widget preview update (`set_preview`) upon completion of `CloudLLMWorker`.
+- **Latency logging safety**: Added `llm_t0` timestamp recording in `_run_llm` and safe `t.get("llm_s", 0.0)` dictionary lookup for non-LLM pipeline runs.
+
 ## v2.1.0 — Spoken override, cancel, ending cleanup, usage logs (2026-07-21)
 
 Cloud pipeline quality-of-life release. Production path stays Gemini 3.1 Flash Lite.
