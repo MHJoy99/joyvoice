@@ -278,9 +278,10 @@ User presses F8 (or clicks mic)
 │  - lang: bn-BD (mapped from "bn") │  Free, no API key
 │  - Return: transcript        │  Bengali transcript only
 │         ↓                    │
-│  Fallback: Gemini Text LLM   │  cloud_llm_rewrite("translate_to_english")
+│  Fallback: Gemini Text LLM   │  cloud_llm_rewrite("translate_to_target")
 │  - POST /chat/completions   │  Same gateway, text-only mode
-│  - Return: translation       │  English output
+│  - System Prompt Enforced    │  "role": "system" direct translator (no commentary)
+│  - Return: translation       │  Clean translated output
 └──────┬───────────────────────┘
        │  Result: (transcript, translation) OR error
        ▼
@@ -334,14 +335,14 @@ User presses F8 (or clicks mic)
 
 ### Latency Budget
 
-| Stage | Time | Where |
-|:---|---:|:---|
-| 🎙️ Recording | — | User-controlled (press F8 to start, press again to stop) |
-| 🔢 PCM Conversion | < 50 ms | `app/main.py` `stop_recording()` |
-| 🧠 Gemini Audio API | ~3.0 s | Network + model inference |
-| ✨ Text Cleanup | < 50 ms | `app/transcription/text_cleaner.py` |
-| 📋 Paste + Restore | ~300 ms | `app/system/paste.py` (delay + Ctrl+V + restore) |
-| **Total (post-recording)** | **~3.3 s** | Mic stop to text in app |
+| Stage                      |       Time | Where                                                    |
+| :------------------------- | ---------: | :------------------------------------------------------- |
+| 🎙️ Recording               |          — | User-controlled (press F8 to start, press again to stop) |
+| 🔢 PCM Conversion          |    < 50 ms | `app/main.py` `stop_recording()`                         |
+| 🧠 Gemini Audio API        |     ~3.0 s | Network + model inference                                |
+| ✨ Text Cleanup            |    < 50 ms | `app/transcription/text_cleaner.py`                      |
+| 📋 Paste + Restore         |    ~300 ms | `app/system/paste.py` (delay + Ctrl+V + restore)         |
+| **Total (post-recording)** | **~3.3 s** | Mic stop to text in app                                  |
 
 ---
 
@@ -372,23 +373,23 @@ User presses F8 (or clicks mic)
 
 ### Widget States
 
-| State | Accent Color | Duration | Trigger | Visual |
-|:---|:---|:---|:---|:---|
-| `idle` | Dark gray `#3a3f4b` | — | Ready, waiting for input | Glass pill, no accent border |
-| `recording` | Orange `#e0622a` | Until F8 press | Hotkey toggle or mic click | Glowing accent border, animated waveform bars (5 bars), MM:SS timer, gentle pulse animation |
-| `transcribing` | Blue `#2a6fe0` | ~3.3 s | Recording stopped, API call in flight | Accent border, status label, confidence bar hidden |
-| `pasted` | Green `#2ecc71` | 1.2 s | Text successfully pasted | Scale pop animation (1.0→1.05→1.0), toast near cursor |
-| `error` | Red `#e74c3c` | 3.0 s | API failure or other error | Error label, tooltip with error message |
+| State          | Accent Color        | Duration       | Trigger                               | Visual                                                                                      |
+| :------------- | :------------------ | :------------- | :------------------------------------ | :------------------------------------------------------------------------------------------ |
+| `idle`         | Dark gray `#3a3f4b` | —              | Ready, waiting for input              | Glass pill, no accent border                                                                |
+| `recording`    | Orange `#e0622a`    | Until F8 press | Hotkey toggle or mic click            | Glowing accent border, animated waveform bars (5 bars), MM:SS timer, gentle pulse animation |
+| `transcribing` | Blue `#2a6fe0`      | ~3.3 s         | Recording stopped, API call in flight | Accent border, status label, confidence bar hidden                                          |
+| `pasted`       | Green `#2ecc71`     | 1.2 s          | Text successfully pasted              | Scale pop animation (1.0→1.05→1.0), toast near cursor                                       |
+| `error`        | Red `#e74c3c`       | 3.0 s          | API failure or other error            | Error label, tooltip with error message                                                     |
 
 ### Confidence Indicator
 
 After transcription, a thin colored bar (3px) appears at the bottom of the widget:
 
-| Color | Meaning | Condition |
-|:---|:---|:---|
-| 🔴 Red | Poor quality | Empty text, < 5 chars |
-| 🟡 Yellow | Uncertain | < 10 chars, or > 30% unusual characters |
-| 🟢 Green | Good quality | > 20 chars, mostly normal text |
+| Color     | Meaning      | Condition                               |
+| :-------- | :----------- | :-------------------------------------- |
+| 🔴 Red    | Poor quality | Empty text, < 5 chars                   |
+| 🟡 Yellow | Uncertain    | < 10 chars, or > 30% unusual characters |
+| 🟢 Green  | Good quality | > 20 chars, mostly normal text          |
 
 Bar auto-fades after 3 seconds.
 
@@ -461,12 +462,14 @@ JoyVoice uses a **Qt signal-slot architecture** with `QThread` workers for all b
 Qt's signal-slot mechanism requires a Qt event loop to deliver signals across thread boundaries. Plain Python `threading.Thread` has no event loop, so signals emitted from a plain thread are **silently lost**. `QThread` integrates with Qt's event system correctly.
 
 **Incorrect (original, now fixed):**
+
 ```python
 # ❌ Plain thread — QTimer.singleShot() never fires (no event loop)
 threading.Thread(target=_worker, daemon=True).start()
 ```
 
 **Correct (current):**
+
 ```python
 # ✅ QThread with Qt signals — thread-safe delivery
 class CloudLLMWorker(QThread):
@@ -565,18 +568,18 @@ Click any entry → pyperclip.copy(text) → "Copied!" tooltip
 
 **The brain of JoyVoice.** Wires together all subsystems into a single state machine.
 
-| Responsibility | Implementation |
-|:---|:---|
-| **State machine** | `on_toggle()` → `start_recording()` / `stop_recording()` |
-| **Audio pipeline** | Float32→int16 conversion, dispatches to `CloudASRWorker` |
-| **Worker threads** | `CloudASRWorker(QThread)` for Gemini audio, `CloudLLMWorker(QThread)` for text LLM |
-| **Settings bridge** | Reads `settings_store`, applies to recorder/hotkeys/widget |
-| **Signal wiring** | Connects widget clicks, hotkey events, tray menu actions |
-| **Timing** | Logs per-stage latency (ASR, LLM, total) to `joyvoice.log` |
-| **History** | Appends every dictation to `history_store` |
-| **Robustness** | Visibility timer (2s), hotkey health timer (5s) |
-| **Language switcher** | `Ctrl+Shift+L` popup for source/target language selection |
-| **First-run** | Detects first launch, doesn't auto-show settings (legacy behavior removed) |
+| Responsibility        | Implementation                                                                     |
+| :-------------------- | :--------------------------------------------------------------------------------- |
+| **State machine**     | `on_toggle()` → `start_recording()` / `stop_recording()`                           |
+| **Audio pipeline**    | Float32→int16 conversion, dispatches to `CloudASRWorker`                           |
+| **Worker threads**    | `CloudASRWorker(QThread)` for Gemini audio, `CloudLLMWorker(QThread)` for text LLM |
+| **Settings bridge**   | Reads `settings_store`, applies to recorder/hotkeys/widget                         |
+| **Signal wiring**     | Connects widget clicks, hotkey events, tray menu actions                           |
+| **Timing**            | Logs per-stage latency (ASR, LLM, total) to `joyvoice.log`                         |
+| **History**           | Appends every dictation to `history_store`                                         |
+| **Robustness**        | Visibility timer (2s), hotkey health timer (5s)                                    |
+| **Language switcher** | `Ctrl+Shift+L` popup for source/target language selection                          |
+| **First-run**         | Detects first launch, doesn't auto-show settings (legacy behavior removed)         |
 
 **Key constants:**
 
@@ -667,13 +670,13 @@ def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
 
 **WASAPI audio capture via sounddevice.** Produces float32 numpy arrays.
 
-| Detail | Value |
-|:---|:---|
-| Sample rate | 16,000 Hz |
-| Channels | 1 (mono) |
-| Format | `float32` (normalized `[-1.0, +1.0]`) |
-| Max duration | 300 seconds (runaway guard) |
-| Callback | Thread-safe peak level → `current_level()` (0.0–1.0) |
+| Detail       | Value                                                |
+| :----------- | :--------------------------------------------------- |
+| Sample rate  | 16,000 Hz                                            |
+| Channels     | 1 (mono)                                             |
+| Format       | `float32` (normalized `[-1.0, +1.0]`)                |
+| Max duration | 300 seconds (runaway guard)                          |
+| Callback     | Thread-safe peak level → `current_level()` (0.0–1.0) |
 
 ```python
 class Recorder:
@@ -693,21 +696,21 @@ class Recorder:
 
 **The user-facing UI.** A glass-morphism, draggable, always-on-top pill with waveform animation.
 
-| Feature | Implementation |
-|:---|:---|
-| **Frameless** | `Qt.FramelessWindowHint` + custom rounded-rect paint |
-| **Always-on-top** | `Qt.WindowStaysOnTopHint` |
-| **No focus stealing** | `Qt.WindowDoesNotAcceptFocus` + `WA_ShowWithoutActivating` + `Qt.NoFocus` |
-| **Drag** | `mousePressEvent` / `mouseMoveEvent` tracking offset |
-| **Glass morphism** | Translucent background (`rgba(20,22,30,0.85)`) + subtle border (`rgba(255,255,255,0.08)`) |
-| **Waveform** | 5 animated bars, phase-offset independently, driven by `_display_level` |
-| **Recording timer** | MM:SS format, updates at 40ms via `_level_anim_timer` |
-| **Confidence bar** | 3px colored bar at widget bottom, auto-fades after 3s |
-| **Toast** | Frameless popup near cursor showing first line of pasted text, fades out |
-| **Preview** | Shows first 50 chars of translation during processing |
-| **Language badge** | Small pill showing "BN → EN" (or appropriate codes) |
-| **5 visual states** | Color-coded with animated transitions (QPropertyAnimation) |
-| **Right-click menu** | History (last 5), Settings, Diagnostics, Benchmark, AI Model, Quit |
+| Feature               | Implementation                                                                            |
+| :-------------------- | :---------------------------------------------------------------------------------------- |
+| **Frameless**         | `Qt.FramelessWindowHint` + custom rounded-rect paint                                      |
+| **Always-on-top**     | `Qt.WindowStaysOnTopHint`                                                                 |
+| **No focus stealing** | `Qt.WindowDoesNotAcceptFocus` + `WA_ShowWithoutActivating` + `Qt.NoFocus`                 |
+| **Drag**              | `mousePressEvent` / `mouseMoveEvent` tracking offset                                      |
+| **Glass morphism**    | Translucent background (`rgba(20,22,30,0.85)`) + subtle border (`rgba(255,255,255,0.08)`) |
+| **Waveform**          | 5 animated bars, phase-offset independently, driven by `_display_level`                   |
+| **Recording timer**   | MM:SS format, updates at 40ms via `_level_anim_timer`                                     |
+| **Confidence bar**    | 3px colored bar at widget bottom, auto-fades after 3s                                     |
+| **Toast**             | Frameless popup near cursor showing first line of pasted text, fades out                  |
+| **Preview**           | Shows first 50 chars of translation during processing                                     |
+| **Language badge**    | Small pill showing "BN → EN" (or appropriate codes)                                       |
+| **5 visual states**   | Color-coded with animated transitions (QPropertyAnimation)                                |
+| **Right-click menu**  | History (last 5), Settings, Diagnostics, Benchmark, AI Model, Quit                        |
 
 **Signals emitted:**
 
@@ -726,13 +729,13 @@ class FloatingWidget(QWidget):
 
 Registers system-wide hotkeys via the `keyboard` library.
 
-| Hotkey | Function | Mode |
-|:---|:---|:---|
-| **F8** (default) | Toggle recording | `toggle`: press to start, press again to stop & process |
-| **F8** (alt) | Hold-to-record | `hold`: hold to record, release to stop & process |
-| **Ctrl+Alt+Space** | Alternate preset | Toggle or hold |
-| **Ctrl+Space** | Alternate preset | Toggle or hold (⚠️ collides with VS Code IntelliSense) |
-| **Ctrl+Shift+L** | Language switcher | Opens compact language popup near widget |
+| Hotkey             | Function          | Mode                                                    |
+| :----------------- | :---------------- | :------------------------------------------------------ |
+| **F8** (default)   | Toggle recording  | `toggle`: press to start, press again to stop & process |
+| **F8** (alt)       | Hold-to-record    | `hold`: hold to record, release to stop & process       |
+| **Ctrl+Alt+Space** | Alternate preset  | Toggle or hold                                          |
+| **Ctrl+Space**     | Alternate preset  | Toggle or hold (⚠️ collides with VS Code IntelliSense)  |
+| **Ctrl+Shift+L**   | Language switcher | Opens compact language popup near widget                |
 
 **Health check:** A 5-second timer re-verifies hotkey registration. Some Windows configurations silently unregister global hooks after sleep/wake or UAC prompts.
 
@@ -766,12 +769,12 @@ def paste_text(
 
 Plays short system beeps for user feedback:
 
-| Function | When | Purpose |
-|:---|:---|:---|
-| `play_start()` | Recording begins | Confirms mic is active |
-| `play_stop()` | Recording ends | Confirms capture complete |
-| `play_done()` | Transcription succeeds | Confirms text is ready |
-| `play_error()` | Any error | Alerts user to check widget |
+| Function       | When                   | Purpose                     |
+| :------------- | :--------------------- | :-------------------------- |
+| `play_start()` | Recording begins       | Confirms mic is active      |
+| `play_stop()`  | Recording ends         | Confirms capture complete   |
+| `play_done()`  | Transcription succeeds | Confirms text is ready      |
+| `play_error()` | Any error              | Alerts user to check widget |
 
 ### `app/storage/settings_store.py` — Settings Persistence (~62 lines)
 
@@ -779,10 +782,10 @@ Plain JSON at `%APPDATA%\JoyVoice\settings.json`. Filters out stale keys from le
 
 ### `app/storage/paths.py` — Path Resolution (~68 lines)
 
-| Mode | Config Path | Trigger |
-|:---|:---|:---|
-| **Normal** | `%APPDATA%\JoyVoice\` | Default |
-| **Portable** | `<app dir>\data\` | `portable.txt` exists next to app |
+| Mode         | Config Path           | Trigger                           |
+| :----------- | :-------------------- | :-------------------------------- |
+| **Normal**   | `%APPDATA%\JoyVoice\` | Default                           |
+| **Portable** | `<app dir>\data\`     | `portable.txt` exists next to app |
 
 ---
 
@@ -792,33 +795,33 @@ All settings, their types, defaults, and descriptions.
 
 ### Settings Keys
 
-| Key | Type | Default | Description |
-|:---|:---|:---|:---|
-| `language` | `str` | `"bn"` | Source speech language. Values: `"auto"`, `"bn"`, `"en"`, `"ru"`, `"hi"`, `"es"`, `"ar"`, `"zh"`, `"ja"`, `"fr"`, `"pt"`. `"auto"` lets Gemini detect. |
-| `target_language` | `str` | `"en"` | Translation target language. Same value set as `language`. |
-| `output_mode` | `str` | `"translation"` | What to paste: `"original"` (source), `"translation"` (target), `"both"` (source + blank line + target) |
-| `text_style` | `str` | `"clean_english"` | Text processing: `"raw"`, `"clean_english"`, `"prompt_for_ai"`, `"professional_message"`, `"facebook_post"` |
-| `hotkey` | `str` | `"F8"` | Global toggle hotkey. Presets: `"F8"`, `"Ctrl+Alt+Space"`, `"Ctrl+Space"` |
-| `hotkey_mode` | `str` | `"toggle"` | `"toggle"` (press start, press stop) or `"hold"` (hold to record) |
-| `audio_device_name` | `str \| None` | `null` | Specific microphone name. `null` = system default. From `Recorder.list_input_devices()`. |
-| `paste_mode` | `str` | `"paste"` | `"paste"` (auto Ctrl+V) or `"copy_only"` (clipboard only, manual paste) |
-| `paste_delay_ms` | `int` | `300` | Milliseconds to wait before sending Ctrl+V |
-| `restore_clipboard` | `bool` | `true` | Restore original clipboard after pasting |
-| `wait_for_hotkey_release` | `bool` | `true` | Block paste until hotkey keys are physically released |
-| `replacements` | `dict[str,str]` | `{...}` | Custom word/phrase substitutions (case-insensitive, word-boundary) |
-| `widget_pos` | `list[int] \| None` | `null` | Saved widget position `[x, y]`. Auto-saved on quit. `null` = default (100, 100). |
-| `first_run_complete` | `bool` | `false` | Set to `true` after first launch. Controls first-run behavior. |
+| Key                       | Type                | Default           | Description                                                                                                                                            |
+| :------------------------ | :------------------ | :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `language`                | `str`               | `"bn"`            | Source speech language. Values: `"auto"`, `"bn"`, `"en"`, `"ru"`, `"hi"`, `"es"`, `"ar"`, `"zh"`, `"ja"`, `"fr"`, `"pt"`. `"auto"` lets Gemini detect. |
+| `target_language`         | `str`               | `"en"`            | Translation target language. Same value set as `language`.                                                                                             |
+| `output_mode`             | `str`               | `"translation"`   | What to paste: `"original"` (source), `"translation"` (target), `"both"` (source + blank line + target)                                                |
+| `text_style`              | `str`               | `"clean_english"` | Text processing: `"raw"`, `"clean_english"`, `"prompt_for_ai"`, `"professional_message"`, `"facebook_post"`                                            |
+| `hotkey`                  | `str`               | `"F8"`            | Global toggle hotkey. Presets: `"F8"`, `"Ctrl+Alt+Space"`, `"Ctrl+Space"`                                                                              |
+| `hotkey_mode`             | `str`               | `"toggle"`        | `"toggle"` (press start, press stop) or `"hold"` (hold to record)                                                                                      |
+| `audio_device_name`       | `str \| None`       | `null`            | Specific microphone name. `null` = system default. From `Recorder.list_input_devices()`.                                                               |
+| `paste_mode`              | `str`               | `"paste"`         | `"paste"` (auto Ctrl+V) or `"copy_only"` (clipboard only, manual paste)                                                                                |
+| `paste_delay_ms`          | `int`               | `300`             | Milliseconds to wait before sending Ctrl+V                                                                                                             |
+| `restore_clipboard`       | `bool`              | `true`            | Restore original clipboard after pasting                                                                                                               |
+| `wait_for_hotkey_release` | `bool`              | `true`            | Block paste until hotkey keys are physically released                                                                                                  |
+| `replacements`            | `dict[str,str]`     | `{...}`           | Custom word/phrase substitutions (case-insensitive, word-boundary)                                                                                     |
+| `widget_pos`              | `list[int] \| None` | `null`            | Saved widget position `[x, y]`. Auto-saved on quit. `null` = default (100, 100).                                                                       |
+| `first_run_complete`      | `bool`              | `false`           | Set to `true` after first launch. Controls first-run behavior.                                                                                         |
 
 ### Replacement Dictionary Defaults
 
 ```json
 {
-    "bdx tree": "BDX",
-    "bdx market": "BDX Market",
-    "mh joy gamers hub": "MHJoyGamersHub",
-    "sellar": "seller",
-    "giftcard": "gift card",
-    "one crore": "1 crore"
+  "bdx tree": "BDX",
+  "bdx market": "BDX Market",
+  "mh joy gamers hub": "MHJoyGamersHub",
+  "sellar": "seller",
+  "giftcard": "gift card",
+  "one crore": "1 crore"
 }
 ```
 
@@ -847,20 +850,20 @@ All settings, their types, defaults, and descriptions.
 
 ## Tech Stack
 
-| Layer | Technology | Why |
-|:---|---|:---|
-| **UI Framework** | PySide6 (Qt 6) | Native Windows look, system tray, global hotkeys, signal-slot threading, property animation |
-| **Audio Capture** | `sounddevice` (PortAudio) | Direct WASAPI access, float32 buffers, low latency, device enumeration |
-| **Primary ASR + Translation** | Gemini 3.1 Flash Lite | Native audio mode — single API call for transcript + translation in any language pair |
-| **Fallback ASR** | Google Web Speech API | Free, no API key required. 80+ languages. Accessed via `SpeechRecognition` library. |
-| **Text LLM** | Gemini 3.1 Flash Lite | Same model, text-only mode. Used for AI text styles and fallback translation. |
-| **API Gateway** | OpenAI-compatible (`ai.bdx.market/v1`) | Single endpoint for both audio and text models. Standard `/chat/completions`. |
-| **Clipboard** | `pyperclip` + `keyboard` | Save → paste Ctrl+V → restore. Retry up to 3× with backoff. |
-| **Hotkeys** | `keyboard` library | System-wide hook registration. Works from any app. Health-check timer. |
-| **Persistence** | JSON (`%APPDATA%\JoyVoice\`) | Settings + history. Human-readable, easy to debug, trivial to hand-edit. |
-| **Logging** | Python `logging` | Console (when launched with `run.bat`) + file (`joyvoice.log`), UTF-8 encoded, per-stage latency. |
-| **Audio Feedback** | `app/system/sounds.py` | Start/stop/done/error beeps for user awareness without looking at the widget. |
-| **Packaging** | PyInstaller (`--onedir`) | ~116 MB folder with embedded Python runtime, Qt, and all deps. Just distribute the folder. |
+| Layer                         | Technology                             | Why                                                                                               |
+| :---------------------------- | -------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| **UI Framework**              | PySide6 (Qt 6)                         | Native Windows look, system tray, global hotkeys, signal-slot threading, property animation       |
+| **Audio Capture**             | `sounddevice` (PortAudio)              | Direct WASAPI access, float32 buffers, low latency, device enumeration                            |
+| **Primary ASR + Translation** | Gemini 3.1 Flash Lite                  | Native audio mode — single API call for transcript + translation in any language pair             |
+| **Fallback ASR**              | Google Web Speech API                  | Free, no API key required. 80+ languages. Accessed via `SpeechRecognition` library.               |
+| **Text LLM**                  | Gemini 3.1 Flash Lite                  | Same model, text-only mode. Used for AI text styles and fallback translation.                     |
+| **API Gateway**               | OpenAI-compatible (`ai.bdx.market/v1`) | Single endpoint for both audio and text models. Standard `/chat/completions`.                     |
+| **Clipboard**                 | `pyperclip` + `keyboard`               | Save → paste Ctrl+V → restore. Retry up to 3× with backoff.                                       |
+| **Hotkeys**                   | `keyboard` library                     | System-wide hook registration. Works from any app. Health-check timer.                            |
+| **Persistence**               | JSON (`%APPDATA%\JoyVoice\`)           | Settings + history. Human-readable, easy to debug, trivial to hand-edit.                          |
+| **Logging**                   | Python `logging`                       | Console (when launched with `run.bat`) + file (`joyvoice.log`), UTF-8 encoded, per-stage latency. |
+| **Audio Feedback**            | `app/system/sounds.py`                 | Start/stop/done/error beeps for user awareness without looking at the widget.                     |
+| **Packaging**                 | PyInstaller (`--onedir`)               | ~116 MB folder with embedded Python runtime, Qt, and all deps. Just distribute the folder.        |
 
 ---
 
@@ -904,19 +907,19 @@ The `build_exe.bat` uses `--onedir` (folder-based EXE, ~116 MB). `--onefile` pro
 
 ## Extension Points
 
-| What | Where | How |
-|:---|:---|:---|
-| **New source/target language** | `app/transcription/gemini_audio.py` `LANGUAGES` dict | Add a new language code with name, native name, Google BCP-47 tag, and language hint |
-| **New Google ASR language** | `app/transcription/cloud_asr.py` `GOOGLE_LANGUAGE_TAGS` | Add mapping (e.g., `"ko": "ko-KR"`) |
-| **New ASR engine** | `app/transcription/engines/` | Implement `BaseEngine` interface, register in `registry.py` |
-| **New translation engine** | `app/transcription/translation_engines/` | Implement `BaseTranslationEngine`, register in `registry.py` |
-| **New text style** | `app/main.py` `STYLE_PROMPTS` dict | Add entry with prompt template — AI styles run through `CloudLLMWorker` |
-| **New output mode** | `app/main.py` `_on_asr_done()` | Handle new mode in output selection logic |
-| **New UI panel** | `app/ui/` | Create widget, wire signals in `AppController` |
-| **New hotkey** | `app/system/hotkeys.py` `PRESETS` list | Add to presets; user can then select in Settings |
-| **Custom gateway** | Environment | Set `JV_API_BASE` to override `https://ai.bdx.market/v1` |
-| **Custom replacement** | Settings → Replacements tab | Add word/phrase → replacement pairs |
-| **New sound effect** | `app/system/sounds.py` | Add function, call from `AppController` at appropriate pipeline stage |
+| What                           | Where                                                   | How                                                                                  |
+| :----------------------------- | :------------------------------------------------------ | :----------------------------------------------------------------------------------- |
+| **New source/target language** | `app/transcription/gemini_audio.py` `LANGUAGES` dict    | Add a new language code with name, native name, Google BCP-47 tag, and language hint |
+| **New Google ASR language**    | `app/transcription/cloud_asr.py` `GOOGLE_LANGUAGE_TAGS` | Add mapping (e.g., `"ko": "ko-KR"`)                                                  |
+| **New ASR engine**             | `app/transcription/engines/`                            | Implement `BaseEngine` interface, register in `registry.py`                          |
+| **New translation engine**     | `app/transcription/translation_engines/`                | Implement `BaseTranslationEngine`, register in `registry.py`                         |
+| **New text style**             | `app/main.py` `STYLE_PROMPTS` dict                      | Add entry with prompt template — AI styles run through `CloudLLMWorker`              |
+| **New output mode**            | `app/main.py` `_on_asr_done()`                          | Handle new mode in output selection logic                                            |
+| **New UI panel**               | `app/ui/`                                               | Create widget, wire signals in `AppController`                                       |
+| **New hotkey**                 | `app/system/hotkeys.py` `PRESETS` list                  | Add to presets; user can then select in Settings                                     |
+| **Custom gateway**             | Environment                                             | Set `JV_API_BASE` to override `https://ai.bdx.market/v1`                             |
+| **Custom replacement**         | Settings → Replacements tab                             | Add word/phrase → replacement pairs                                                  |
+| **New sound effect**           | `app/system/sounds.py`                                  | Add function, call from `AppController` at appropriate pipeline stage                |
 
 ---
 

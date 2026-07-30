@@ -459,11 +459,11 @@ joyvoice/
 ## 🔧 API Gateway
 
 ```
-Base URL:   https://ai.bdx.market/v1
+Base URL:   https://gpt.bdx.market/v1
 Auth:       Set JV_API_KEY environment variable
 
-Audio model:   gemini-3.1-flash-lite   (native audio → transcription + translation)
-Text model:    gemini-3.1-flash-lite   (fallback translation + text cleanup)
+Speech input:  Google Web Speech       (Sub2API does not relay OpenAI input_audio)
+Text model:    gemini-2.5-flash-lite   (fallback translation + text cleanup)
 ```
 
 Both models are served through an OpenAI-compatible API gateway. The same key works for both endpoints — set it once and forget it.

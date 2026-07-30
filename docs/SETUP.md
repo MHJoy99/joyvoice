@@ -133,7 +133,8 @@ $env:JV_API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 | Variable | Required | Default | Description |
 |:---|:---:|:---|:---|
 | `JV_API_KEY` | ✅ Yes | — | API gateway authentication key |
-| `JV_API_BASE` | ❌ No | `https://ai.bdx.market/v1` | Override the gateway base URL (e.g., for self-hosted proxies) |
+| `JV_API_BASE` | ❌ No | `https://gpt.bdx.market/v1` | Override the gateway base URL (e.g., for self-hosted proxies) |
+| `JV_NATIVE_AUDIO` | ❌ No | `false` on `gpt.bdx.market` | Enable native Gemini audio only when the selected gateway supports OpenAI `input_audio`. |
 
 ### Verify the Key
 

@@ -225,7 +225,7 @@ class SettingsWindow(QDialog):
         layout.addLayout(api_row)
 
         note = QLabel(
-            "Powered by Gemini 3.1 Flash Lite via BDX.market cloud"
+            "Powered by Gemini 2.5 Flash Lite via BDX.market cloud"
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #6b7280;")
@@ -241,6 +241,9 @@ class SettingsWindow(QDialog):
         import urllib.request
 
         api_key = os.environ.get("JV_API_KEY", "")
+        api_base = os.environ.get(
+            "JV_API_BASE", "https://gpt.bdx.market/v1"
+        ).rstrip("/")
         if not api_key:
             self.api_status_label.setText("\u2717 JV_API_KEY not set in environment")
             self.api_status_label.setStyleSheet("color: #e74c3c;")
@@ -248,7 +251,7 @@ class SettingsWindow(QDialog):
 
         try:
             req = urllib.request.Request(
-                "https://ai.bdx.market/v1/models",
+                f"{api_base}/models",
                 headers={"Authorization": f"Bearer {api_key}"},
             )
             with urllib.request.urlopen(req, timeout=10) as resp:
