@@ -73,14 +73,14 @@ If `JV_API_KEY` is empty or not set:
 ### Endpoint
 
 ```
-POST https://ai.bdx.market/v1/chat/completions
+POST https://gpt.bdx.market/v1/chat/completions
 ```
 
 ### Request Headers
 
 ```http
 POST /v1/chat/completions HTTP/1.1
-Host: ai.bdx.market
+Host: gpt.bdx.market
 Authorization: Bearer sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Content-Type: application/json
 ```
@@ -232,7 +232,7 @@ All errors trigger the **fallback chain** (see below).
 ### Endpoint
 
 ```
-POST https://ai.bdx.market/v1/chat/completions
+POST https://gpt.bdx.market/v1/chat/completions
 ```
 
 Same endpoint as audio — the gateway routes to the appropriate backend based on content type and model.
@@ -424,9 +424,9 @@ When the primary Gemini audio model is unreachable, JoyVoice automatically falls
 
 | Stage               | API                   |         Auth          | Latency | Output                                 |
 | :------------------ | :-------------------- | :-------------------: | ------: | :------------------------------------- |
-| **1. Gemini Audio** | `ai.bdx.market/v1`    | `JV_API_KEY` required |  ~3.0 s | Transcript + Translation (single call) |
+| **1. Gemini Audio** | `gpt.bdx.market/v1`   | `JV_API_KEY` required |  ~3.0 s | Transcript + Translation (single call) |
 | **2. Google ASR**   | Google Speech servers |    ❌ None (free)     |  ~2.5 s | Transcript only (source language)      |
-| **3. Gemini Text**  | `ai.bdx.market/v1`    | `JV_API_KEY` required |  ~0.5 s | Translation (target language)          |
+| **3. Gemini Text**  | `gpt.bdx.market/v1`   | `JV_API_KEY` required |  ~0.5 s | Translation (target language)          |
 
 ### Fallback Behavior Notes
 
