@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.egg-info/
+
+# PowerShell artifacts
+$(*
 .venv/
 venv/
 .eggs/
