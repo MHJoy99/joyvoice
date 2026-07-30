@@ -120,7 +120,7 @@ def transcribe_and_translate(
 
     Args:
         pcm16: Raw PCM int16 mono audio at 16 kHz.
-        api_base: API base URL (e.g. 'https://ai.bdx.market/v1').
+        api_base: API base URL (e.g. 'https://gpt.bdx.market/v1').
         api_key: API key.
         model: Model name (e.g. 'gemini-3.1-flash-lite').
         source_language: Language code from LANGUAGES dict (default 'bn').

@@ -611,7 +611,7 @@ AUDIO_MODEL = "gemini-3.1-flash-lite"  # For native audio
 
 ## Benchmark Results
 
-Tested with a Bengali audio sample on 2026-07-19. All models accessed through the same `ai.bdx.market` gateway with identical prompts.
+Tested with a Bengali audio sample on 2026-07-19. All models accessed through the same `gpt.bdx.market` gateway with identical prompts.
 
 ### Audio Transcription + Translation Benchmarks
 
