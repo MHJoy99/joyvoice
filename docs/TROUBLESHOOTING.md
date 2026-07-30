@@ -434,7 +434,7 @@ If blank or wrong:
 - Check `JV_API_BASE` — if set, ensure it points to the correct gateway
 - Try a test API call:
   ```bash
-  curl -H "Authorization: Bearer %JV_API_KEY%" https://ai.bdx.market/v1/models
+  curl -H "Authorization: Bearer %JV_API_KEY%" https://gpt.bdx.market/v1/models
   ```
 
 ### 7b: Empty Transcript
@@ -486,7 +486,7 @@ type %APPDATA%\JoyVoice\settings.json | findstr language
 **Possible causes:**
 
 1. **Network issue** — API gateway unreachable. Check your internet connection.
-2. **Firewall** — `ai.bdx.market` may be blocked. Test: `ping ai.bdx.market`
+2. **Firewall** — `gpt.bdx.market` may be blocked. Test: `ping gpt.bdx.market`
 3. **API gateway down** — Check gateway status with your provider.
 4. **Audio too long** — If recording exceeds 60+ seconds, the API payload may be very large. Gemini audio has a 45-second timeout.
 5. **The 45-second timeout should trigger eventually** — if it doesn't, the request may have hung in `urllib`.
@@ -495,7 +495,7 @@ type %APPDATA%\JoyVoice\settings.json | findstr language
 
 ```bash
 # Test gateway connectivity:
-curl -I https://ai.bdx.market/v1/models
+curl -I https://gpt.bdx.market/v1/models
 
 # Check log for timeout:
 type %APPDATA%\JoyVoice\joyvoice.log | findstr timeout

@@ -463,15 +463,15 @@ Base URL:   https://gpt.bdx.market/v1
 Auth:       Set JV_API_KEY environment variable
 
 Speech input:  Google Web Speech       (Sub2API does not relay OpenAI input_audio)
-Text model:    gemini-2.5-flash-lite   (fallback translation + text cleanup)
+Text model:    gemini-3.6-flash        (fallback translation + text cleanup)
 ```
 
 Both models are served through an OpenAI-compatible API gateway. The same key works for both endpoints — set it once and forget it.
 
-| Env Variable  | Purpose                    |              Required               |
-| :------------ | :------------------------- | :---------------------------------: |
-| `JV_API_KEY`  | API gateway authentication |               ✅ Yes                |
-| `JV_API_BASE` | Override gateway URL       | ❌ No (defaults to `ai.bdx.market`) |
+| Env Variable  | Purpose                    |               Required               |
+| :------------ | :------------------------- | :----------------------------------: |
+| `JV_API_KEY`  | API gateway authentication |                ✅ Yes                |
+| `JV_API_BASE` | Override gateway URL       | ❌ No (defaults to `gpt.bdx.market`) |
 
 > **Quick setup:** `setx JV_API_KEY "your-key"` — persists across reboots, needed for Desktop shortcuts.
 
@@ -529,7 +529,7 @@ after rotating secrets.
 3. **Check logs:** `%APPDATA%\JoyVoice\joyvoice.log`
 4. **Verify venv:** `env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import app.main"`
 5. **Test ASR:** Generate synthetic audio → verify cloud transcription
-6. **Verify API key:** `echo %JV_API_KEY%` or `curl -s https://ai.bdx.market/v1/models -H "Authorization: Bearer %JV_API_KEY%"`
+6. **Verify API key:** `echo %JV_API_KEY%` or `curl -s https://gpt.bdx.market/v1/models -H "Authorization: Bearer %JV_API_KEY%"`
 7. **Check settings:** `%APPDATA%\JoyVoice\settings.json` — verify `language`, `target_language`, `output_mode`
 8. **Restart:** Launch via Desktop shortcut after any config change
 
@@ -630,24 +630,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by MH Joy · v2.1.0 · July 2026</sub><br>
-  <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.1.0">v2.1.0 Release</a></sub>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.1.3 · July 2026</sub><br>
+  <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>
-
-<!-- Schema.org Microdata for Search Engines & Answer Engines -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "JoyVoice",
-  "description": "Ultra-low latency AI floating microphone dictation and real-time speech translation software for Windows powered by Gemini 3.1 Flash Lite.",
-  "operatingSystem": "Windows 10, Windows 11",
-  "applicationCategory": "ProductivityApplication",
-  "softwareVersion": "2.1.0",
-  "license": "https://opensource.org/licenses/MIT",
-  "author": {
-    "@type": "Person",
-    "name": "MH Joy"
-  }
-}
-</script>

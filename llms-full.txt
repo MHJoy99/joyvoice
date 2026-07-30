@@ -11,7 +11,7 @@
 - **Primary Language:** Python 3.11
 - **UI Architecture:** PySide6 (Qt 6.7) floating glass-morphism widget
 - **Audio Capture:** WASAPI via `sounddevice` (16,000 Hz, mono float32)
-- **Cloud Models:** `gemini-3.1-flash-lite` (native audio mode), Google Web Speech API (fallback)
+- **Cloud Models:** `gemini-3.6-flash` (native audio mode), Google Web Speech API (fallback)
 - **Settings Path:** `%APPDATA%\JoyVoice\settings.json`
 - **History Path:** `%APPDATA%\JoyVoice\history.json`
 - **Log File Path:** `%APPDATA%\JoyVoice\joyvoice.log`
@@ -69,7 +69,7 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 3. **Audio Capture:** `Recorder.start()` captures 16,000 Hz float32 mono stream from selected microphone. A 40ms Qt timer updates live audio levels on `FloatingWidget`.
 4. **User Deactivation:** Press `F8` again. `Recorder.stop()` returns float32 numpy array.
 5. **PCM Conversion:** `AppController` clips float32 audio `[-1.0, 1.0]` and converts to signed 16-bit PCM (`int16`) bytes in `< 50ms`.
-6. **Cloud API Dispatch:** `CloudASRWorker` (QThread) encodes PCM to WAV base64 and posts to `https://ai.bdx.market/v1/chat/completions` requesting `gemini-3.1-flash-lite`.
+6. **Cloud API Dispatch:** `CloudASRWorker` (QThread) encodes PCM to WAV base64 and posts to `https://gpt.bdx.market/v1/chat/completions` requesting `gemini-3.6-flash`.
 7. **Processing & Fallback:**
    - **Primary:** Gemini native audio API responds with raw transcript and target translation in JSON format (~3.0s).
    - **Fallback:** If Gemini times out or returns an error, `CloudASRWorker` falls back to Google Web Speech API for transcript, followed by Gemini Text LLM for translation.

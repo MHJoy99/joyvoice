@@ -585,9 +585,9 @@ Click any entry → pyperclip.copy(text) → "Copied!" tooltip
 
 ```python
 API_KEY = os.environ.get("JV_API_KEY", "")
-API_BASE = "https://ai.bdx.market/v1"
-FAST_MODEL = "gemini-3.1-flash-lite"   # For text LLM calls
-AUDIO_MODEL = "gemini-3.1-flash-lite"  # For native audio
+API_BASE = "https://gpt.bdx.market/v1"
+FAST_MODEL = "gemini-3.6-flash"   # For text LLM calls
+AUDIO_MODEL = "gemini-3.6-flash"  # For native audio
 
 PASTED_DISPLAY_MS = 1200
 ERROR_DISPLAY_MS = 3000
@@ -850,20 +850,20 @@ All settings, their types, defaults, and descriptions.
 
 ## Tech Stack
 
-| Layer                         | Technology                             | Why                                                                                               |
-| :---------------------------- | -------------------------------------- | :------------------------------------------------------------------------------------------------ |
-| **UI Framework**              | PySide6 (Qt 6)                         | Native Windows look, system tray, global hotkeys, signal-slot threading, property animation       |
-| **Audio Capture**             | `sounddevice` (PortAudio)              | Direct WASAPI access, float32 buffers, low latency, device enumeration                            |
-| **Primary ASR + Translation** | Gemini 3.1 Flash Lite                  | Native audio mode — single API call for transcript + translation in any language pair             |
-| **Fallback ASR**              | Google Web Speech API                  | Free, no API key required. 80+ languages. Accessed via `SpeechRecognition` library.               |
-| **Text LLM**                  | Gemini 3.1 Flash Lite                  | Same model, text-only mode. Used for AI text styles and fallback translation.                     |
-| **API Gateway**               | OpenAI-compatible (`ai.bdx.market/v1`) | Single endpoint for both audio and text models. Standard `/chat/completions`.                     |
-| **Clipboard**                 | `pyperclip` + `keyboard`               | Save → paste Ctrl+V → restore. Retry up to 3× with backoff.                                       |
-| **Hotkeys**                   | `keyboard` library                     | System-wide hook registration. Works from any app. Health-check timer.                            |
-| **Persistence**               | JSON (`%APPDATA%\JoyVoice\`)           | Settings + history. Human-readable, easy to debug, trivial to hand-edit.                          |
-| **Logging**                   | Python `logging`                       | Console (when launched with `run.bat`) + file (`joyvoice.log`), UTF-8 encoded, per-stage latency. |
-| **Audio Feedback**            | `app/system/sounds.py`                 | Start/stop/done/error beeps for user awareness without looking at the widget.                     |
-| **Packaging**                 | PyInstaller (`--onedir`)               | ~116 MB folder with embedded Python runtime, Qt, and all deps. Just distribute the folder.        |
+| Layer                         | Technology                              | Why                                                                                               |
+| :---------------------------- | --------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| **UI Framework**              | PySide6 (Qt 6)                          | Native Windows look, system tray, global hotkeys, signal-slot threading, property animation       |
+| **Audio Capture**             | `sounddevice` (PortAudio)               | Direct WASAPI access, float32 buffers, low latency, device enumeration                            |
+| **Primary ASR + Translation** | Gemini 3.1 Flash Lite                   | Native audio mode — single API call for transcript + translation in any language pair             |
+| **Fallback ASR**              | Google Web Speech API                   | Free, no API key required. 80+ languages. Accessed via `SpeechRecognition` library.               |
+| **Text LLM**                  | Gemini 3.1 Flash Lite                   | Same model, text-only mode. Used for AI text styles and fallback translation.                     |
+| **API Gateway**               | OpenAI-compatible (`gpt.bdx.market/v1`) | Single endpoint for both audio and text models. Standard `/chat/completions`.                     |
+| **Clipboard**                 | `pyperclip` + `keyboard`                | Save → paste Ctrl+V → restore. Retry up to 3× with backoff.                                       |
+| **Hotkeys**                   | `keyboard` library                      | System-wide hook registration. Works from any app. Health-check timer.                            |
+| **Persistence**               | JSON (`%APPDATA%\JoyVoice\`)            | Settings + history. Human-readable, easy to debug, trivial to hand-edit.                          |
+| **Logging**                   | Python `logging`                        | Console (when launched with `run.bat`) + file (`joyvoice.log`), UTF-8 encoded, per-stage latency. |
+| **Audio Feedback**            | `app/system/sounds.py`                  | Start/stop/done/error beeps for user awareness without looking at the widget.                     |
+| **Packaging**                 | PyInstaller (`--onedir`)                | ~116 MB folder with embedded Python runtime, Qt, and all deps. Just distribute the folder.        |
 
 ---
 
@@ -917,7 +917,7 @@ The `build_exe.bat` uses `--onedir` (folder-based EXE, ~116 MB). `--onefile` pro
 | **New output mode**            | `app/main.py` `_on_asr_done()`                          | Handle new mode in output selection logic                                            |
 | **New UI panel**               | `app/ui/`                                               | Create widget, wire signals in `AppController`                                       |
 | **New hotkey**                 | `app/system/hotkeys.py` `PRESETS` list                  | Add to presets; user can then select in Settings                                     |
-| **Custom gateway**             | Environment                                             | Set `JV_API_BASE` to override `https://ai.bdx.market/v1`                             |
+| **Custom gateway**             | Environment                                             | Set `JV_API_BASE` to override `https://gpt.bdx.market/v1`                            |
 | **Custom replacement**         | Settings → Replacements tab                             | Add word/phrase → replacement pairs                                                  |
 | **New sound effect**           | `app/system/sounds.py`                                  | Add function, call from `AppController` at appropriate pipeline stage                |
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JoyVoice — one-file cloud dictation app. Zero local models, zero GPU.
 
-Record → Google Web Speech (free ASR) → gemini-3.1-flash-lite → paste.
+Record → Google Web Speech (free ASR) → gemini-3.6-flash → paste.
 Double-click run.bat or:  python joyvoice.py
 """
 
@@ -24,8 +24,8 @@ from typing import Any
 
 # ── Config ──────────────────────────────────────────────────────────────────
 API_KEY = os.environ.get("JV_API_KEY", "")
-API_BASE = "https://ai.bdx.market/v1"
-FAST_MODEL = "gemini-3.1-flash-lite"
+API_BASE = "https://gpt.bdx.market/v1"
+FAST_MODEL = "gemini-3.6-flash"
 
 DATA_DIR = pathlib.Path(os.environ.get("APPDATA", ".")) / "JoyVoice"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -111,7 +111,7 @@ def transcribe_google(audio_bytes: bytes, lang: str = "bn-BD") -> str:
     log.info("ASR (lang=%s): %s", lang, text[:80])
     return text.strip()
 
-# ── Cloud LLM (ai.bdx.market) ──────────────────────────────────────────────
+# ── Cloud LLM (gpt.bdx.market) ──────────────────────────────────────────────
 def llm_rewrite(text: str, style: str = "translate_to_english") -> str:
     prompt = STYLE_PROMPTS.get(style, STYLE_PROMPTS["translate_to_english"]).format(text=text)
     payload = json.dumps({
