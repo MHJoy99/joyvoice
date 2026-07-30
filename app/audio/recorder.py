@@ -58,13 +58,16 @@ class Recorder:
             self._level = 0.0
 
         def callback(indata, frames, time_info, status):
-            if self._frames_captured >= SAMPLE_RATE * MAX_SECONDS:
-                return
-            self._chunks.append(indata.copy())
-            self._frames_captured += frames
-            peak = float(np.abs(indata).max()) if indata.size else 0.0
-            with self._level_lock:
-                self._level = peak
+            try:
+                if self._frames_captured >= SAMPLE_RATE * MAX_SECONDS:
+                    return
+                self._chunks.append(indata.copy())
+                self._frames_captured += frames
+                peak = float(np.abs(indata).max()) if indata.size else 0.0
+                with self._level_lock:
+                    self._level = peak
+            except Exception:
+                pass  # never let PortAudio C callback raise
 
         try:
             self._stream = sd.InputStream(

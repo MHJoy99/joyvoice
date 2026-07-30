@@ -98,9 +98,15 @@ class HotkeyManager(QObject):
         return None
 
     def _register_toggle(self) -> None:
+        def _safe_emit_toggle():
+            try:
+                self.toggle_activated.emit()
+            except Exception:
+                pass
+
         handle = keyboard.add_hotkey(
             self.hotkey,
-            lambda: self.toggle_activated.emit(),
+            _safe_emit_toggle,
             suppress=True,
         )
         self._hook_handles.append(handle)

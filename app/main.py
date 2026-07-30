@@ -267,6 +267,29 @@ class CloudLLMWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class PasteWorker(QThread):
+    done = Signal(object)  # err or None
+
+    def __init__(self, text: str, settings: dict, parent=None):
+        super().__init__(parent)
+        self._text = text
+        self._settings = settings
+
+    def run(self) -> None:
+        try:
+            err = paste_module.paste_text(
+                self._text,
+                mode=self._settings.get("paste_mode", "paste"),
+                delay_ms=self._settings.get("paste_delay_ms", 300),
+                restore=self._settings.get("restore_clipboard", True),
+                wait_for_release=self._settings.get("wait_for_hotkey_release", True),
+            )
+            self.done.emit(err)
+        except Exception as exc:
+            logger.error("Async paste error: %s", exc)
+            self.done.emit(str(exc))
+
+
 AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
 
 logging.basicConfig(
@@ -760,15 +783,14 @@ class AppController:
             None if language == "auto" else language
         )
 
-        # Attempt paste — clipboard save already happened above.
-        err = paste_module.paste_text(
-            final_text,
-            copy_only=self.settings["paste_mode"] == "copy_only",
-            paste_delay_ms=self.settings["paste_delay_ms"],
-            restore_clipboard=self.settings["restore_clipboard"],
-            wait_for_release=self.settings["wait_for_hotkey_release"],
+        # Defer clipboard paste to background worker to prevent GUI thread freezes.
+        self._paste_worker = PasteWorker(final_text, self.settings)
+        self._paste_worker.done.connect(
+            safe_slot(lambda err: self._on_paste_complete(err, final_text))
         )
+        self._paste_worker.start()
 
+    def _on_paste_complete(self, err: str | None, final_text: str) -> None:
         # Restore language badge to settings (clear one-shot override flash).
         source = self.settings.get("language", "bn")
         target = self.settings.get("target_language", "en")
@@ -784,7 +806,7 @@ class AppController:
             copy_only = self.settings["paste_mode"] == "copy_only"
             label = "Copied to clipboard" if copy_only else "Copied (paste failed)"
             self.widget.set_state("pasted", label)
-            QTimer.singleShot(PASTED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+            QTimer.singleShot(PASTED_DISPLAY_MS, safe_slot(lambda: self.widget.set_state("idle")))
             self.widget.show_toast(final_text)
             return
 
@@ -950,6 +972,9 @@ class AppController:
 
 
 def main() -> int:
+    from app.crash_guard import install as install_crash_guard, safe_slot
+    install_crash_guard(crash_log_path=str(paths.log_path()))
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
@@ -957,7 +982,7 @@ def main() -> int:
     controller.widget.show()
 
     app.aboutToQuit.connect(controller.shutdown)
-    QTimer.singleShot(0, controller.maybe_show_first_run)
+    QTimer.singleShot(0, safe_slot(controller.maybe_show_first_run))
     return app.exec()
 
 
