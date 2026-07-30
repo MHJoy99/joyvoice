@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-07-26 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, and full robustness features._
+> _Last updated 2026-07-31 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, and opt-in global microphone/session muting (pycaw + comtypes) with crash recovery._
 
 ---
 
@@ -36,6 +36,7 @@ Zero local models. Zero GPU. Pure cloud pipeline.
 | **Log file**          | `%APPDATA%\JoyVoice\joyvoice.log`                                      |
 | **Benchmark data**    | `%APPDATA%\JoyVoice\benchmarks.json`                                   |
 | **Benchmark clips**   | `%APPDATA%\JoyVoice\benchmark_clips\`                                  |
+| **Muted sessions**    | `%APPDATA%\JoyVoice\muted_pids.json` (crash-recovery state, transient) |
 | **Entry point**       | `app/main.py` (AppController class)                                    |
 | **Standalone script** | `joyvoice.py` (Tkinter fallback, single-file)                          |
 | **Run script**        | `run.bat` (visible console, debuggable)                                |
@@ -151,13 +152,14 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### `app/system/` — OS Integration
 
-| File                     | Lines | Purpose                                                                                                                                                                                                                                                |
-| :----------------------- | :---: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/system/__init__.py` |   0   | Package init                                                                                                                                                                                                                                           |
-| `app/system/hotkeys.py`  |  176  | **Global hotkey manager.** Toggle mode (F8 press=start, press=stop) and hold mode (hold F8=record, release=stop). Language switcher on Ctrl+Shift+L. `check_health()` for re-registration after sleep/UAC. PRESETS: F8, Ctrl+Alt+Space, Ctrl+Space     |
-| `app/system/paste.py`    |  117  | **Clipboard-safe paste.** Saves clipboard → copies text → sends Ctrl+V (via `keyboard.send()`) → restores original clipboard. 3 retries with exponential backoff. Configurable delay. Key-release wait. Copy-only mode. Thread-based clipboard restore |
-| `app/system/sounds.py`   |  63   | Audio feedback via `winsound.Beep()`. `play_start()` (1200Hz, 80ms), `play_stop()` (600Hz, 80ms), `play_done()` (800→1200Hz), `play_error()` (300Hz, 300ms). Daemon-threaded                                                                           |
-| `app/system/startup.py`  |  44   | Windows launch-on-startup via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. `JoyVoice` registry value                                                                                                                                          |
+| File                      | Lines | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| :------------------------ | :---: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/system/__init__.py`  |   0   | Package init                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `app/system/hotkeys.py`   |  176  | **Global hotkey manager.** Toggle mode (F8 press=start, press=stop) and hold mode (hold F8=record, release=stop). Language switcher on Ctrl+Shift+L. `check_health()` for re-registration after sleep/UAC. PRESETS: F8, Ctrl+Alt+Space, Ctrl+Space                                                                                                                                                                                                        |
+| `app/system/paste.py`     |  117  | **Clipboard-safe paste.** Saves clipboard → copies text → sends Ctrl+V (via `keyboard.send()`) → restores original clipboard. 3 retries with exponential backoff. Configurable delay. Key-release wait. Copy-only mode. Thread-based clipboard restore                                                                                                                                                                                                    |
+| `app/system/sounds.py`    |  63   | Audio feedback via `winsound.Beep()`. `play_start()` (1200Hz, 80ms), `play_stop()` (600Hz, 80ms), `play_done()` (800→1200Hz), `play_error()` (300Hz, 300ms). Daemon-threaded                                                                                                                                                                                                                                                                              |
+| `app/system/mic_muter.py` |  257  | **Global session muter (opt-in).** `MicMuter` + `get_mic_muter()` singleton. Mutes all other apps' **capture** (microphone) audio sessions (Discord/Zoom/Teams/Chrome) via pycaw `SimpleAudioVolume.SetMute` on the capture device endpoint while recording, unmutes on stop. Per-session error isolation, COM apartment init tracking, disk-backed crash recovery (`muted_pids.json`, 1h max age), `atexit` restoration. No-op if pycaw/comtypes missing |
+| `app/system/startup.py`   |  44   | Windows launch-on-startup via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. `JoyVoice` registry value                                                                                                                                                                                                                                                                                                                                             |
 
 ### `docs/` — Documentation
 
@@ -362,6 +364,7 @@ Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 | `paste_delay_ms`          | `300`             | `int`             | Delay before pasting in ms. Options: 0, 300, 700, 1000                                                      |
 | `restore_clipboard`       | `true`            | `bool`            | Restore original clipboard after paste                                                                      |
 | `wait_for_hotkey_release` | `true`            | `bool`            | Wait for hotkey keys to be released before pasting                                                          |
+| `mute_other_apps`         | `false`           | `bool`            | Opt-in: mute other apps' audio sessions (Discord/Zoom/etc.) while recording, restore on stop                |
 | `replacements`            | (6 defaults)      | `dict[str,str]`   | Word-boundary, case-insensitive text substitutions                                                          |
 | `widget_pos`              | `null`            | `[int,int]\|null` | Saved widget position [x, y], or null for default (100, 100)                                                |
 | `first_run_complete`      | `false`           | `bool`            | Whether first-run flow has been shown                                                                       |
@@ -689,6 +692,16 @@ Before sending Ctrl+V, `paste.py._wait_for_keys_released()` polls for up to 2 se
 
 After any error, the widget automatically returns to idle state after `ERROR_DISPLAY_MS` (3000ms). The pipeline is always ready for the next dictation attempt.
 
+### Global Session Muting (opt-in, `mute_other_apps`)
+
+When `mute_other_apps` is enabled, `app/system/mic_muter.py` mutes the **capture** (microphone) audio sessions of all other applications (Discord, Zoom, Teams, Chrome, etc.) while JoyVoice is recording, so those apps stop transmitting the user's microphone audio, and restores them when recording stops or fails. Sessions are enumerated on the capture device endpoint (`EDataFlow.eCapture`), not render — muting render would only silence what the user hears, not stop the other app from transmitting.
+
+- **Opt-in only:** defaults to `false`; toggled via the "Mute other applications while recording" checkbox in Settings.
+- **Self-exclusion:** skips JoyVoice's own PID; skips sessions already muted; per-session errors are isolated so one bad session can't abort the pass.
+- **Crash recovery:** muted PIDs are persisted to `%APPDATA%\JoyVoice\muted_pids.json`. On startup `recover_leftovers()` un-mutes any leftovers from a previous crash/abrupt exit. Recovery state older than 1 hour is discarded as stale. An `atexit` handler also un-mutes on clean shutdown.
+- **COM safety:** each pass tracks its own `CoInitialize`/`CoUninitialize` apartment lifecycle.
+- **Graceful degradation:** if `pycaw`/`comtypes` are not installed, `HAS_PYCAW` is `False` and all muting calls are safe no-ops (a warning is logged once at import).
+
 ---
 
 ## 12. VERIFICATION CHECKLIST
@@ -747,6 +760,8 @@ Complete list with versions and WHY each is needed:
 | `keyboard`          | ≥ 0.13      | 0.13.x | Global hotkey hooks — keyboard.add_hotkey() for toggle mode, keyboard.hook_key() for hold mode, keyboard.send("ctrl+v") for paste, keyboard.is_pressed() for key-release detection       |
 | `SpeechRecognition` | ≥ 3.17      | 3.17   | Google Web Speech API fallback — sr.Recognizer().recognize_google(). Free, no API key, 80+ languages                                                                                     |
 | `typing_extensions` | ≥ 4.16      | 4.16   | **Required by SpeechRecognition.** Without it, recognize_google() silently fails. NOT optional despite the name                                                                          |
+| `pycaw`             | ≥ 20240210  | —      | Windows Core Audio API wrapper — enumerates audio sessions and mutes/unmutes other apps' `SimpleAudioVolume` while recording (opt-in `mute_other_apps`). Gracefully disabled if absent   |
+| `comtypes`          | ≥ 1.4.0     | —      | COM bindings required by `pycaw` — `CoInitialize`/`CoUninitialize` apartment management for audio session calls                                                                          |
 | `cffi`              | ≥ 1.16      | —      | Transitive dependency of `sounddevice` on Windows (PortAudio C library bindings)                                                                                                         |
 
 **All packages are pure Python or have prebuilt Windows wheels.** No CUDA. No PyTorch. No local Whisper. No Ollama. No GPU required.

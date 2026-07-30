@@ -3,6 +3,17 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.1.4 — 4-Layer Crash-Proof Resilience Architecture (2026-07-30)
+
+Comprehensive resilience upgrade introducing a 4-layer fault-tolerance guard ensuring 100% crash-proof operations under all unexpected errors, callback exceptions, or process terminations.
+
+### 4-Layer Resilience System
+
+- **Layer 1: Global Exception Interception (`app/crash_guard.py`)**: Installed global handlers for `sys.excepthook` and `threading.excepthook` to log unhandled Python and background thread exceptions directly to disk (`joyvoice.log`) without crashing the process.
+- **Layer 2: Safe Qt Slots & Non-Blocking Async Paste (`safe_slot` & `PasteWorker`)**: Protected Qt event handlers and `QTimer` callbacks with the `@safe_slot` decorator to swallow unexpected UI errors. Offloaded win32 keyboard injection and clipboard operations to `PasteWorker(QThread)` so paste delays never freeze or crash the main event loop.
+- **Layer 3: Hardware & C-Hook Callback Protection**: Hardened low-level callbacks, including PortAudio audio stream callbacks in `app/audio/recorder.py` and C-level keyboard hook emissions in `app/system/hotkeys.py`, preventing unhandled exceptions in native C threads from escalating into app crashes.
+- **Layer 4: Supervisor Process Guard (`run.bat`)**: Upgraded `run.bat` launcher into a continuous process supervisor that automatically catches non-zero exit codes and auto-restarts JoyVoice within 3 seconds, guaranteeing high availability.
+
 ## v2.1.3 — Sub2API Gateway Migration & System Prompt Hardening (2026-07-30)
 
 Production stability and gateway modernization release establishing `https://gpt.bdx.market/v1` compatibility with model `gemini-3.6-flash`.

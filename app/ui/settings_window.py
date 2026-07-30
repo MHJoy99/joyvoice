@@ -334,6 +334,11 @@ class SettingsWindow(QDialog):
 
         self.audio_device_combo = QComboBox()
         form.addRow("Input device:", self.audio_device_combo)
+
+        self.mute_others_checkbox = QCheckBox("Mute other applications while recording (Discord, Zoom, etc.)")
+        self.mute_others_checkbox.setChecked(bool(self._settings.get("mute_other_apps", False)))
+        form.addRow(self.mute_others_checkbox)
+
         layout.addLayout(form)
 
         refresh_button = QPushButton("Refresh")
@@ -513,6 +518,7 @@ class SettingsWindow(QDialog):
         updated["hotkey_mode"] = "hold" if self.mode_hold_radio.isChecked() else "toggle"
 
         updated["audio_device_name"] = self.audio_device_combo.currentData()
+        updated["mute_other_apps"] = self.mute_others_checkbox.isChecked()
 
         updated["paste_mode"] = "copy_only" if self.paste_mode_copy_radio.isChecked() else "paste"
         updated["paste_delay_ms"] = self.paste_delay_combo.currentData()

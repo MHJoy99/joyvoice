@@ -26,6 +26,9 @@ DEFAULTS: dict[str, Any] = {
     "paste_delay_ms": 300,
     "restore_clipboard": True,
     "wait_for_hotkey_release": True,
+    "mute_other_apps": False,  # Mute other apps (Discord/Zoom/etc) while recording
+    "call_mute_virtual_device": None,  # str | None — VB-Cable/VoiceMeeter device name
+    "call_mute_hotkeys": None,  # dict[str,str] | None — custom hotkeys per app
     "replacements": dict(DEFAULT_REPLACEMENTS),
     "widget_pos": None,  # [x, y] or None
     "first_run_complete": False,

@@ -24,10 +24,14 @@ from PySide6.QtWidgets import (
 )
 
 from app.audio.recorder import Recorder
+from app.audio.exclusive_recorder import ExclusiveRecorder
 from app.storage import history_store, paths, settings_store
 from app.system import paste as paste_module
 from app.system import sounds
 from app.system.hotkeys import HotkeyManager
+from app.system.mic_muter import get_mic_muter
+from app.system.call_mute import get_call_mute_manager
+from app.crash_guard import safe_slot
 from app.transcription.cloud_asr import transcribe as cloud_asr_transcribe
 from app.transcription.command_override import (
     resolve_effective_target,
@@ -279,9 +283,9 @@ class PasteWorker(QThread):
         try:
             err = paste_module.paste_text(
                 self._text,
-                mode=self._settings.get("paste_mode", "paste"),
-                delay_ms=self._settings.get("paste_delay_ms", 300),
-                restore=self._settings.get("restore_clipboard", True),
+                copy_only=self._settings.get("paste_mode", "paste") == "copy_only",
+                paste_delay_ms=self._settings.get("paste_delay_ms", 300),
+                restore_clipboard=self._settings.get("restore_clipboard", True),
                 wait_for_release=self._settings.get("wait_for_hotkey_release", True),
             )
             self.done.emit(err)
@@ -314,6 +318,8 @@ class AppController:
 
         self.widget = FloatingWidget()
         self.recorder = Recorder()
+        self._exclusive_recorder = ExclusiveRecorder()
+        self._using_exclusive = False
         self.hotkeys = HotkeyManager()
         self.tray = TrayIcon(self.widget)
         self._settings_dialog: SettingsWindow | None = None
@@ -332,9 +338,7 @@ class AppController:
 
         self._level_poll_timer = QTimer()
         self._level_poll_timer.setInterval(40)
-        self._level_poll_timer.timeout.connect(
-            lambda: self.widget.set_level(self.recorder.current_level())
-        )
+        self._level_poll_timer.timeout.connect(self._poll_level)
 
         # ── robustness timers ──
         self._visibility_timer = QTimer()
@@ -345,6 +349,24 @@ class AppController:
         self._hotkey_health_timer.setInterval(5000)  # every 5 seconds
         self._hotkey_health_timer.timeout.connect(self._check_hotkey_health)
 
+        # Initialize mic muter crash recovery
+        get_mic_muter().set_state_file(paths.muted_pids_path())
+        get_mic_muter().recover_leftovers()
+
+        # Configure call mute manager
+        cmm = get_call_mute_manager()
+        cmm.set_state_file(paths.data_dir() / "call_mute_state.json")
+        mute_mode = self.settings.get("mute_other_apps", False)
+        if mute_mode is True:
+            mute_mode = "hotkey"  # backward compat
+        elif mute_mode is False:
+            mute_mode = "off"
+        cmm.configure(
+            mode=mute_mode,
+            virtual_device=self.settings.get("call_mute_virtual_device"),
+            hotkeys=self.settings.get("call_mute_hotkeys"),
+        )
+
         self._apply_settings_to_components()
         self._wire_signals()
 
@@ -352,6 +374,10 @@ class AppController:
         self._hotkey_health_timer.start()
 
         self.tray.show()
+
+    def _poll_level(self) -> None:
+        """Poll the recorder's audio level for the waveform display."""
+        self.widget.set_level(self.recorder.current_level())
 
     def _ensure_visible(self) -> None:
         """Force the floating widget to stay visible — some Windows configs
@@ -446,10 +472,12 @@ class AppController:
         sounds.play_start()
         self.widget.set_state("recording")
         self._level_poll_timer.start()
+        get_call_mute_manager().engage()
 
     def stop_recording(self) -> None:
         if not self.recorder.is_recording() and self._phase != "recording":
             return
+        get_call_mute_manager().release()
         self._level_poll_timer.stop()
         audio, err = self.recorder.stop()
         sounds.play_stop()
@@ -528,6 +556,7 @@ class AppController:
             return
 
         if self._phase == "recording" or self.recorder.is_recording():
+            get_call_mute_manager().release()
             self._level_poll_timer.stop()
             try:
                 self.recorder.stop()
@@ -951,6 +980,22 @@ class AppController:
             else:
                 self.widget.set_language_badge(new_source, new_target)
 
+        # Reconfigure call mute manager if mute settings changed
+        if (old.get("mute_other_apps") != self.settings.get("mute_other_apps")
+                or old.get("call_mute_virtual_device") != self.settings.get("call_mute_virtual_device")
+                or old.get("call_mute_hotkeys") != self.settings.get("call_mute_hotkeys")):
+            cmm = get_call_mute_manager()
+            mute_mode = self.settings.get("mute_other_apps", False)
+            if mute_mode is True:
+                mute_mode = "hotkey"
+            elif mute_mode is False:
+                mute_mode = "off"
+            cmm.configure(
+                mode=mute_mode,
+                virtual_device=self.settings.get("call_mute_virtual_device"),
+                hotkeys=self.settings.get("call_mute_hotkeys"),
+            )
+
     def maybe_show_first_run(self) -> None:
         if self.settings.get("first_run_complete"):
             return
@@ -967,12 +1012,13 @@ class AppController:
         self.settings["widget_pos"] = pos
         settings_store.save(self.settings)
         self.hotkeys.unregister()
+        get_call_mute_manager().release()
         if self.recorder.is_recording():
             self.recorder.stop()
 
 
 def main() -> int:
-    from app.crash_guard import install as install_crash_guard, safe_slot
+    from app.crash_guard import install as install_crash_guard
     install_crash_guard(crash_log_path=str(paths.log_path()))
 
     app = QApplication(sys.argv)

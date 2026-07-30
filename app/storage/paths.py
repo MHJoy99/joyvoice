@@ -65,6 +65,11 @@ def usage_path() -> Path:
     return data_dir() / "usage.jsonl"
 
 
+def muted_pids_path() -> Path:
+    """Disk backup path for active muted audio sessions (for crash recovery)."""
+    return data_dir() / "muted_pids.json"
+
+
 def icon_path() -> Path:
     """Bundled icon; may not exist (callers must handle that)."""
     if getattr(sys, "frozen", False):
