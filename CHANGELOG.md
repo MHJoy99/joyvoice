@@ -3,11 +3,27 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.1.3 — Sub2API Gateway Migration & System Prompt Hardening (2026-07-30)
+
+Production stability and gateway modernization release establishing `https://gpt.bdx.market/v1` compatibility with model `gemini-3.6-flash`.
+
+### Sub2API Gateway & Model Upgrade
+
+- **API Base Migration**: Updated primary default API gateway from `ai.bdx.market` to `https://gpt.bdx.market/v1` (Sub2API).
+- **Active Model Upgrade**: Updated active default models `FAST_MODEL` and `AUDIO_MODEL` to `gemini-3.6-flash` following Sub2API gateway catalog verification.
+- **Native Audio Flag Guard**: Added `NATIVE_AUDIO_ENABLED` environment override (`JV_NATIVE_AUDIO`) to cleanly control native audio dispatch per gateway capabilities.
+
+### System Prompt Translation Hardening
+
+- **Strict Role Enforcement**: Added explicit `{"role": "system", "content": "..."}` system message to `cloud_llm_rewrite()` forcing pure, direct translation output without original language quote wrappers, explanations, or commentary leaks.
+- **Zero-Temperature Decoding**: Set `temperature=0.0` for text rewrites to ensure deterministic, faithful translations.
+
 ## v2.1.2 — Full Tri-Channel SEO, AEO & AGO Discoverability (2026-07-26)
 
 Major discoverability and GitHub ecosystem release establishing 10/10 standards for search engines, AI answer engines, and LLM RAG indexers.
 
 ### Discoverability & Standards
+
 - **AGO Standard (`llms.txt` & `llms-full.txt`)**: Added root-level `llms.txt` ([llmstxt.org](https://llmstxt.org/)) and `llms-full.txt` providing structured context, architecture, and folder execution guides for AI assistants.
 - **Structured Data (`schema.json`)**: Added Schema.org `@graph` metadata combining `SoftwareApplication`, `HowTo`, and `FAQPage`.
 - **Responsive Landing Page (`index.html`)**: Created glass-morphism web landing page with interactive dictation simulator, language switcher, Google Fonts, and full OpenGraph/Twitter Card meta tags.
@@ -21,6 +37,7 @@ Major discoverability and GitHub ecosystem release establishing 10/10 standards 
 Bug fix release connecting cloud LLM text rewriting to the main execution flow.
 
 ### AI Text Styles Execution
+
 - **Fixed uninvoked AI styles**: Wired `_run_llm()` into `AppController._on_asr_done()` when `text_style` is set to `prompt_for_ai`, `professional_message`, or `facebook_post`.
 - **Live preview update**: Connected widget preview update (`set_preview`) upon completion of `CloudLLMWorker`.
 - **Latency logging safety**: Added `llm_t0` timestamp recording in `_run_llm` and safe `t.get("llm_s", 0.0)` dictionary lookup for non-LLM pipeline runs.
@@ -30,6 +47,7 @@ Bug fix release connecting cloud LLM text rewriting to the main execution flow.
 Cloud pipeline quality-of-life release. Production path stays Gemini 3.1 Flash Lite.
 
 ### Spoken one-shot target override
+
 - End an utterance with a language command (`paste in Russian`, `Give me the Russian`,
   `বাংলায় দাও`, trailing `Russian` / `Japanese`, phonetic `রাশিয়ান-এ ট্রান্সলেট…`)
   to force **this paste only** into that language without changing settings.
@@ -42,6 +60,7 @@ Cloud pipeline quality-of-life release. Production path stays Gemini 3.1 Flash L
 - Toast + temporary badge flash: `Override → RU`.
 
 ### Cancel
+
 - **Esc** (global, non-suppressing) or widget right-click **Cancel**.
 - Recording: discard audio, no API call.
 - Transcribing: invalidate job id / ignore late worker results — no paste, no history.
@@ -49,6 +68,7 @@ Cloud pipeline quality-of-life release. Production path stays Gemini 3.1 Flash L
 - F8 remains start / stop-and-process only.
 
 ### Ending cleanup
+
 - Prefer **cut dangling open lines** over inventing missing words.
 - `text_cleaner.finalize_ending`: strip `...` / `……`, soft polite tails
   (`пожалуйста, будь добр`, please, okay…), drop incomplete final clauses,
@@ -57,11 +77,13 @@ Cloud pipeline quality-of-life release. Production path stays Gemini 3.1 Flash L
 - Higher token budgets: audio JSON 1600, rewrite 1200 (short caps were truncating CJK).
 
 ### Usage telemetry
+
 - Append-only `%APPDATA%\JoyVoice\usage.jsonl` with per-request tokens + latency
   (audio, text rewrite, end-to-end pipeline). Never raises into the dictation path.
 - Log lines also include `usage … tokens=prompt/completion/total`.
 
 ### Files
+
 - New: `app/transcription/command_override.py`, `app/storage/usage_store.py`
 - Updated: `main.py`, `gemini_audio.py`, `text_cleaner.py`, `hotkeys.py`,
   `floating_widget.py`, `paths.py`, `sounds.py`
@@ -119,13 +141,13 @@ decide.
 
 Engines implemented:
 
-| Engine | Architecture | Notes |
-|---|---|---|
-| Whisper large-v3 | faster-whisper/ctranslate2 | The live dictation engine; fast, solid quality |
-| BanglaASR | fine-tuned whisper-small (transformers) | Showed a repetition artifact on our test clip |
-| Shrutimala | Wav2Vec2-BERT CTC (transformers) | Fastest of all (no autoregressive generation) |
-| IndicConformer | AI4Bharat, custom code via `trust_remote_code=True` | **Gated HF repo** -- needs an HF account, accepted access, and `HF_TOKEN`. CTC and RNNT decoding both supported. |
-| SeamlessM4T v2 | Meta, ~2.3B params (~9GB download) | Experimental/opt-in given the size; can translate speech directly to English |
+| Engine           | Architecture                                        | Notes                                                                                                            |
+| ---------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Whisper large-v3 | faster-whisper/ctranslate2                          | The live dictation engine; fast, solid quality                                                                   |
+| BanglaASR        | fine-tuned whisper-small (transformers)             | Showed a repetition artifact on our test clip                                                                    |
+| Shrutimala       | Wav2Vec2-BERT CTC (transformers)                    | Fastest of all (no autoregressive generation)                                                                    |
+| IndicConformer   | AI4Bharat, custom code via `trust_remote_code=True` | **Gated HF repo** -- needs an HF account, accepted access, and `HF_TOKEN`. CTC and RNNT decoding both supported. |
+| SeamlessM4T v2   | Meta, ~2.3B params (~9GB download)                  | Experimental/opt-in given the size; can translate speech directly to English                                     |
 
 IndicConformer and SeamlessM4T v2 are opt-in checkboxes in the benchmark
 screen (not run by default) since one executes remote code and the other is
@@ -133,14 +155,14 @@ a large download.
 
 ### Benchmark results (14.8s Bangla/Banglish test clip)
 
-| Engine | Time | Notes |
-|---|---|---|
-| Shrutimala | 0.5s | Fastest; more character-level noise (CTC has no linguistic smoothing) |
-| IndicConformer (CTC) | 1.6s | Clean, CPU-only at test time (onnxruntime-gpu added afterward) |
+| Engine                | Time  | Notes                                                                                                                           |
+| --------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Shrutimala            | 0.5s  | Fastest; more character-level noise (CTC has no linguistic smoothing)                                                           |
+| IndicConformer (CTC)  | 1.6s  | Clean, CPU-only at test time (onnxruntime-gpu added afterward)                                                                  |
 | IndicConformer (RNNT) | 1.75s | Clean; **preserved the Bangla-English code-switch** ("actually" transliterated as অ্যাকচুয়ালি) rather than normalizing it away |
-| Whisper large-v3 | 3.1s | Solid, but the output cut off with a stray replacement character |
-| BanglaASR | 4.1s | Real degenerate-repetition artifact near the end of this clip |
-| SeamlessM4T v2 | ~17s | Cleanest structurally; the only engine that can translate directly to English -- English output was fully coherent and readable |
+| Whisper large-v3      | 3.1s  | Solid, but the output cut off with a stray replacement character                                                                |
+| BanglaASR             | 4.1s  | Real degenerate-repetition artifact near the end of this clip                                                                   |
+| SeamlessM4T v2        | ~17s  | Cleanest structurally; the only engine that can translate directly to English -- English output was fully coherent and readable |
 
 Given the code-switch preservation and speed, **IndicConformer (RNNT)**
 looks like the strongest candidate to become the live dictation engine, pending
