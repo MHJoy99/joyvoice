@@ -29,6 +29,7 @@ Deep-dive fixes for the most common and subtle issues encountered during JoyVoic
 Before diving into any specific issue, run through this 7-point checklist:
 
 1. **Kill orphan processes:**
+
    ```powershell
    powershell "Get-Process python* | Stop-Process -Force"
    ```
@@ -38,6 +39,7 @@ Before diving into any specific issue, run through this 7-point checklist:
 3. **Check logs:** Open `%APPDATA%\JoyVoice\joyvoice.log` — every stage is logged with stack traces
 
 4. **Verify venv health:**
+
    ```bash
    env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import app.main"
    ```
@@ -103,6 +105,7 @@ If this crashes with a DLL error, you may have conflicting Qt DLLs on your PATH.
 ### Verification
 
 After fixing, launch via `run.bat`. You should see:
+
 - Console output: `INFO joyvoice.main: ...` log messages
 - Floating widget appears
 - System tray icon appears
@@ -121,6 +124,7 @@ After fixing, launch via `run.bat`. You should see:
 ### Root Cause
 
 Some Windows configurations hide tool windows after:
+
 - Focus changes (switching to another app)
 - UAC (User Account Control) prompts
 - Fullscreen applications taking over the display
@@ -188,6 +192,7 @@ Check `joyvoice.log` for "Hotkey health check failed" warnings. If you see them,
 **Step 2: Change the hotkey**
 
 Right-click widget → **Settings** → **Hotkey** tab. Choose a different key:
+
 - `Ctrl+Alt+Space` — Less likely to collide with other apps
 - `Ctrl+Space` — Convenient but collides with VS Code/Cursor IntelliSense (use with caution)
 
@@ -201,6 +206,7 @@ If the `keyboard` library can't register hooks without elevated privileges:
 **Step 4: Kill conflicting apps**
 
 Common F8 conflicts:
+
 - OBS Studio (default: Start Recording)
 - Discord (default: push-to-talk toggle)
 - NVIDIA GeForce Experience (overlay hotkeys)
@@ -233,15 +239,15 @@ Other Python toolchains — especially **Hermes Agent** — export `PYTHONPATH` 
 
 Any package in `requirements.txt` can be affected, but these are the most common victims:
 
-| Package | Impact if Missing |
-|:---|:---|
-| `sounddevice` | Audio capture fails — "No module named 'sounddevice'" |
-| `numpy` | Audio buffer conversion crashes |
-| `typing_extensions` | Google ASR silently disabled (see Issue #6) |
-| `PySide6` | UI fails to start |
-| `pyperclip` | Clipboard paste broken |
-| `SpeechRecognition` | Fallback ASR unavailable |
-| `keyboard` | Global hotkeys don't work |
+| Package             | Impact if Missing                                     |
+| :------------------ | :---------------------------------------------------- |
+| `sounddevice`       | Audio capture fails — "No module named 'sounddevice'" |
+| `numpy`             | Audio buffer conversion crashes                       |
+| `typing_extensions` | Google ASR silently disabled (see Issue #6)           |
+| `PySide6`           | UI fails to start                                     |
+| `pyperclip`         | Clipboard paste broken                                |
+| `SpeechRecognition` | Fallback ASR unavailable                              |
+| `keyboard`          | Global hotkeys don't work                             |
 
 ### Fix
 
@@ -399,28 +405,31 @@ After installing, restart JoyVoice. No code changes needed.
 
 ### Symptom Categories
 
-| Symptom | Likely Cause | Section |
-|:---|:---|:---|
-| **401 Unauthorized** | `JV_API_KEY` missing or invalid | [7a](#7a-401-unauthorized) |
-| **Empty transcript** ("No speech detected") | Float32→int16 mismatch, or very quiet audio | [7b](#7b-empty-transcript) |
-| **Wrong language output** | Settings `"language"` is wrong | [7c](#7c-wrong-language-output) |
-| **Timeout / hang** | Network issue or API unreachable | [7d](#7d-timeout--hang) |
+| Symptom                                     | Likely Cause                                | Section                         |
+| :------------------------------------------ | :------------------------------------------ | :------------------------------ |
+| **401 Unauthorized**                        | `JV_API_KEY` missing or invalid             | [7a](#7a-401-unauthorized)      |
+| **Empty transcript** ("No speech detected") | Float32→int16 mismatch, or very quiet audio | [7b](#7b-empty-transcript)      |
+| **Wrong language output**                   | Settings `"language"` is wrong              | [7c](#7c-wrong-language-output) |
+| **Timeout / hang**                          | Network issue or API unreachable            | [7d](#7d-timeout--hang)         |
 
 ### 7a: 401 Unauthorized
 
 **Symptom:** Gemini audio call returns HTTP 401. Widget shows error.
 
 **Check:**
+
 ```cmd
 echo %JV_API_KEY%
 ```
 
 If blank or wrong:
+
 1. Set `JV_API_KEY` as a permanent user environment variable (see [SETUP.md §4](SETUP.md#4-set-the-api-key))
 2. Restart your terminal and JoyVoice
 3. Verify the key is valid by checking with your API gateway provider
 
 **If the key is set but 401 persists:**
+
 - The key may have expired or been revoked
 - Check `JV_API_BASE` — if set, ensure it points to the correct gateway
 - Try a test API call:
@@ -441,6 +450,7 @@ If blank or wrong:
 5. **Bug in `_parse_result()`** — Check `joyvoice.log` for "Gemini returned no JSON result" or "Gemini returned an incomplete audio result".
 
 **Debug:**
+
 ```bash
 # Check which microphone is selected:
 type %APPDATA%\JoyVoice\settings.json | findstr audio_device_name
@@ -454,11 +464,12 @@ type %APPDATA%\JoyVoice\settings.json | findstr language
 **Symptom:** Bengali speech transcribed as English gibberish, or wrong translation language.
 
 **Check settings.json:**
+
 ```json
 {
-    "language": "bn",           // Should be "bn" for Bengali, NOT "bn-BD"
-    "target_language": "en",    // Target translation language
-    "output_mode": "translation" // What to paste
+  "language": "bn", // Should be "bn" for Bengali, NOT "bn-BD"
+  "target_language": "en", // Target translation language
+  "output_mode": "translation" // What to paste
 }
 ```
 
@@ -481,6 +492,7 @@ type %APPDATA%\JoyVoice\settings.json | findstr language
 5. **The 45-second timeout should trigger eventually** — if it doesn't, the request may have hung in `urllib`.
 
 **Debug:**
+
 ```bash
 # Test gateway connectivity:
 curl -I https://ai.bdx.market/v1/models
@@ -613,14 +625,14 @@ If you must debug a `pythonw.exe` launch:
 
 ### Root Causes
 
-| Cause | How to Identify | Fix |
-|:---|:---|:---|
-| **Paste mode set to `copy_only`** | Text is in clipboard but not pasted | Settings → Paste → change to `paste` |
-| **Hotkey still held down** | `keyboard.send("ctrl+v")` combines with held F8 | `wait_for_hotkey_release` is enabled by default — should wait. Check it's on in Settings. |
-| **`keyboard` library unavailable** | Log shows "Hotkey backend unavailable" | Check `keyboard` is installed; run as admin |
-| **Target app rejects synthetic Ctrl+V** | Common in browsers after rapid window switches | The retry logic (3 attempts with backoff) should handle this |
-| **Widget stole focus** | Ctrl+V goes to widget, not target app | Shouldn't happen — widget uses `Qt.WindowDoesNotAcceptFocus` |
-| **Paste delay too short** | Target app needs more time to accept paste | Settings → Paste → increase `paste_delay_ms` (try 500-1000ms) |
+| Cause                                   | How to Identify                                 | Fix                                                                                       |
+| :-------------------------------------- | :---------------------------------------------- | :---------------------------------------------------------------------------------------- |
+| **Paste mode set to `copy_only`**       | Text is in clipboard but not pasted             | Settings → Paste → change to `paste`                                                      |
+| **Hotkey still held down**              | `keyboard.send("ctrl+v")` combines with held F8 | `wait_for_hotkey_release` is enabled by default — should wait. Check it's on in Settings. |
+| **`keyboard` library unavailable**      | Log shows "Hotkey backend unavailable"          | Check `keyboard` is installed; run as admin                                               |
+| **Target app rejects synthetic Ctrl+V** | Common in browsers after rapid window switches  | The retry logic (3 attempts with backoff) should handle this                              |
+| **Widget stole focus**                  | Ctrl+V goes to widget, not target app           | Shouldn't happen — widget uses `Qt.WindowDoesNotAcceptFocus`                              |
+| **Paste delay too short**               | Target app needs more time to accept paste      | Settings → Paste → increase `paste_delay_ms` (try 500-1000ms)                             |
 
 ### The Retry Logic
 
@@ -757,36 +769,38 @@ LANGUAGES = {
 ### Fix
 
 1. **Settings key is `"bn"`, never `"bn-BD"`:**
+
    ```json
    {"language": "bn"}   // ✅ Correct
    {"language": "bn-BD"} // ❌ Wrong — fails silently
    ```
 
 2. **Check the actual settings file:**
+
    ```bash
    type %APPDATA%\JoyVoice\settings.json
    ```
 
 3. **For auto-detect, use `"auto"`:**
    ```json
-   {"language": "auto"}  // Gemini detects the language
+   { "language": "auto" } // Gemini detects the language
    ```
 
 ### Language Codes Reference
 
-| Internal Key | Language | Google BCP-47 | Gemini Recognized |
-|:---|:---|:---|:---:|
-| `"bn"` | Bangla | `bn-BD` | ✅ Yes |
-| `"en"` | English | `en-US` | ✅ Yes |
-| `"ru"` | Russian | `ru-RU` | ✅ Yes |
-| `"hi"` | Hindi | `hi-IN` | ✅ Yes |
-| `"es"` | Spanish | `es-ES` | ✅ Yes |
-| `"ar"` | Arabic | `ar-SA` | ✅ Yes |
-| `"zh"` | Chinese | `zh-CN` | ✅ Yes |
-| `"ja"` | Japanese | `ja-JP` | ✅ Yes |
-| `"fr"` | French | `fr-FR` | ✅ Yes |
-| `"pt"` | Portuguese | `pt-BR` | ✅ Yes |
-| `"auto"` | Auto-detect | `null` (Gemini detects) | ✅ Yes |
+| Internal Key | Language    | Google BCP-47           | Gemini Recognized |
+| :----------- | :---------- | :---------------------- | :---------------: |
+| `"bn"`       | Bangla      | `bn-BD`                 |      ✅ Yes       |
+| `"en"`       | English     | `en-US`                 |      ✅ Yes       |
+| `"ru"`       | Russian     | `ru-RU`                 |      ✅ Yes       |
+| `"hi"`       | Hindi       | `hi-IN`                 |      ✅ Yes       |
+| `"es"`       | Spanish     | `es-ES`                 |      ✅ Yes       |
+| `"ar"`       | Arabic      | `ar-SA`                 |      ✅ Yes       |
+| `"zh"`       | Chinese     | `zh-CN`                 |      ✅ Yes       |
+| `"ja"`       | Japanese    | `ja-JP`                 |      ✅ Yes       |
+| `"fr"`       | French      | `fr-FR`                 |      ✅ Yes       |
+| `"pt"`       | Portuguese  | `pt-BR`                 |      ✅ Yes       |
+| `"auto"`     | Auto-detect | `null` (Gemini detects) |      ✅ Yes       |
 
 ---
 
@@ -855,13 +869,8 @@ for d in Recorder.list_input_devices():
 2. **Run the Quick Debugging Checklist** at the top of this document
 3. **Verify all packages:** Use the Package Verification command above
 4. **Try a clean venv:** Delete `.venv`, recreate, reinstall (see [SETUP.md](SETUP.md))
-5. **Consult the Obsidian Knowledge Base:**
-   ```
-   C:\Users\Administrator\Documents\Hermes Vault\Knowledge Base\joyvoice\
-   ```
-   Contains detailed notes on every subsystem and pitfall.
-6. **Use the Hermes `joyvoice` skill:** Auto-loads before any JoyVoice debugging session in Hermes Agent
-7. **Read `AGENTS.md`:** Located at the repo root — encodes 6+ hours of debugging lessons
+5. **Read `AGENTS.md`:** Located at the repo root — encodes debugging lessons and pipeline architecture
+6. **Open an Issue:** Submit a bug report or question on [GitHub Issues](https://github.com/MHJoy99/joyvoice/issues)
 
 ---
 

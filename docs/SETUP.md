@@ -22,14 +22,14 @@ Complete step-by-step instructions to get JoyVoice running from a fresh clone to
 
 ## Prerequisites
 
-| Requirement | Minimum | Notes |
-|:---|---|:---|
-| **Windows** | 10 or 11 | Win32 APIs required (global hotkeys, clipboard, WASAPI audio). Not compatible with Linux/macOS. |
-| **Python** | 3.11.x | Must be on `PATH`. Run `python --version` to confirm. Python 3.12+ may work but is untested. |
-| **Git** | Any recent | For cloning the repository |
-| **Microphone** | Any Windows-recognized | USB mics (PD200X, Blue Yeti), built-in laptop mic, or headset — all work |
-| **API Key** | `JV_API_KEY` env var | Obtain from the API gateway provider. Required for Gemini transcription. |
-| **Disk Space** | ~500 MB | For the virtual environment and dependencies |
+| Requirement    | Minimum                | Notes                                                                                           |
+| :------------- | ---------------------- | :---------------------------------------------------------------------------------------------- |
+| **Windows**    | 10 or 11               | Win32 APIs required (global hotkeys, clipboard, WASAPI audio). Not compatible with Linux/macOS. |
+| **Python**     | 3.11.x                 | Must be on `PATH`. Run `python --version` to confirm. Python 3.12+ may work but is untested.    |
+| **Git**        | Any recent             | For cloning the repository                                                                      |
+| **Microphone** | Any Windows-recognized | USB mics (PD200X, Blue Yeti), built-in laptop mic, or headset — all work                        |
+| **API Key**    | `JV_API_KEY` env var   | Obtain from the API gateway provider. Required for Gemini transcription.                        |
+| **Disk Space** | ~500 MB                | For the virtual environment and dependencies                                                    |
 
 ---
 
@@ -78,15 +78,15 @@ env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install -r requi
 
 ### Dependency List
 
-| Package | Version | Purpose |
-|:---|---|:---|
-| `PySide6` | ≥ 6.7 | Qt 6 UI framework — floating widget, settings dialog, system tray, signal-slot threading |
-| `sounddevice` | ≥ 0.5 | WASAPI audio capture via PortAudio — direct mic access, float32 buffers, device enumeration |
-| `numpy` | ≥ 1.26 | Audio buffer math — float32→int16 conversion, peak level computation |
-| `pyperclip` | ≥ 1.9 | Clipboard read/write — save original → copy result → Ctrl+V → restore original |
-| `keyboard` | ≥ 0.13 | Global hotkey hooks (F8, Ctrl+Shift+L). System-wide, works from any app. |
-| `SpeechRecognition` | ≥ 3.17 | Google Web Speech API fallback — free, no API key, 80+ languages |
-| `typing_extensions` | ≥ 4.16 | **Critical:** Required by SpeechRecognition. If missing, Google ASR is silently disabled with no error. |
+| Package             | Version | Purpose                                                                                                 |
+| :------------------ | ------- | :------------------------------------------------------------------------------------------------------ |
+| `PySide6`           | ≥ 6.7   | Qt 6 UI framework — floating widget, settings dialog, system tray, signal-slot threading                |
+| `sounddevice`       | ≥ 0.5   | WASAPI audio capture via PortAudio — direct mic access, float32 buffers, device enumeration             |
+| `numpy`             | ≥ 1.26  | Audio buffer math — float32→int16 conversion, peak level computation                                    |
+| `pyperclip`         | ≥ 1.9   | Clipboard read/write — save original → copy result → Ctrl+V → restore original                          |
+| `keyboard`          | ≥ 0.13  | Global hotkey hooks (F8, Ctrl+Shift+L). System-wide, works from any app.                                |
+| `SpeechRecognition` | ≥ 3.17  | Google Web Speech API fallback — free, no API key, 80+ languages                                        |
+| `typing_extensions` | ≥ 4.16  | **Critical:** Required by SpeechRecognition. If missing, Google ASR is silently disabled with no error. |
 
 All packages are pure Python or have prebuilt Windows wheels. **No CUDA. No PyTorch. No local Whisper. No GPU required.**
 
@@ -122,7 +122,7 @@ $env:JV_API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 1. Press **Win + R**, type `sysdm.cpl`, press **Enter**
 2. Go to **Advanced** → **Environment Variables…**
-3. Under *User variables*, click **New…**
+3. Under _User variables_, click **New…**
 4. Variable name: `JV_API_KEY`
 5. Variable value: `sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
 6. Click **OK** → **OK** → **OK**
@@ -130,11 +130,11 @@ $env:JV_API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 ### Optional: Override API Base URL
 
-| Variable | Required | Default | Description |
-|:---|:---:|:---|:---|
-| `JV_API_KEY` | ✅ Yes | — | API gateway authentication key |
-| `JV_API_BASE` | ❌ No | `https://gpt.bdx.market/v1` | Override the gateway base URL (e.g., for self-hosted proxies) |
-| `JV_NATIVE_AUDIO` | ❌ No | `false` on `gpt.bdx.market` | Enable native Gemini audio only when the selected gateway supports OpenAI `input_audio`. |
+| Variable          | Required | Default                     | Description                                                                              |
+| :---------------- | :------: | :-------------------------- | :--------------------------------------------------------------------------------------- |
+| `JV_API_KEY`      |  ✅ Yes  | —                           | API gateway authentication key                                                           |
+| `JV_API_BASE`     |  ❌ No   | `https://gpt.bdx.market/v1` | Override the gateway base URL (e.g., for self-hosted proxies)                            |
+| `JV_NATIVE_AUDIO` |  ❌ No   | `false` on `gpt.bdx.market` | Enable native Gemini audio only when the selected gateway supports OpenAI `input_audio`. |
 
 ### Verify the Key
 
@@ -193,13 +193,14 @@ For daily use, create a Desktop shortcut to `run.bat` for one-click launch witho
 ### 6.2 Recording Test
 
 1. **Press F8** (or click the 🎤 button). The widget background turns **orange** with a glowing accent border. The status changes to "Recording…" and waveform bars animate with your mic level.
-2. **Speak in Bengali.** Say something like: *"আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না"* (I won't be able to join the meeting tomorrow morning). Watch the waveform bars dance.
+2. **Speak in Bengali.** Say something like: _"আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না"_ (I won't be able to join the meeting tomorrow morning). Watch the waveform bars dance.
 3. **Press F8 again** (or click the mic). The widget turns **blue** with "Transcribing…". A timer shows elapsed recording time.
 4. **After ~3.3 seconds:** Widget flashes **green** with "Pasted" — your English translation appears wherever your cursor is. A toast notification pops up near the cursor showing the first line of text.
 
 ### 6.3 Right-Click Menu
 
 Right-click the floating widget (or the tray icon). You should see:
+
 - **Recent history** (last 5 dictations — click to re-copy any)
 - **Settings...** — Full settings dialog
 - **Diagnostics...** — Device and connection health check
@@ -225,49 +226,49 @@ After the first successful dictation, right-click the widget → **Settings** to
 
 ### General
 
-| Setting | Default | Description |
-|:---|:---|:---|
-| **Source Language** | `bn` (Bangla) | Speech language. Supports `auto`, `bn`, `en`, `ru`, `hi`, `es`, `ar`, `zh`, `ja`, `fr`, `pt` |
-| **Target Language** | `en` (English) | Translation target. Same language set as source. |
-| **Output Mode** | `translation` | `original` (source language transcript), `translation` (target language only), `both` (original + translation, separated by blank line) |
-| **Text Style** | `clean_english` | `raw` (no processing), `clean_english` (rule-based: fix filler words, punctuation, capitalization, custom replacements), `prompt_for_ai` (rewrite as AI prompt via cloud LLM), `professional_message` (rewrite as email via cloud LLM), `facebook_post` (rewrite as social media post via cloud LLM) |
+| Setting             | Default         | Description                                                                                                                                                                                                                                                                                          |
+| :------------------ | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Source Language** | `bn` (Bangla)   | Speech language. Supports `auto`, `bn`, `en`, `ru`, `hi`, `es`, `ar`, `zh`, `ja`, `fr`, `pt`                                                                                                                                                                                                         |
+| **Target Language** | `en` (English)  | Translation target. Same language set as source.                                                                                                                                                                                                                                                     |
+| **Output Mode**     | `translation`   | `original` (source language transcript), `translation` (target language only), `both` (original + translation, separated by blank line)                                                                                                                                                              |
+| **Text Style**      | `clean_english` | `raw` (no processing), `clean_english` (rule-based: fix filler words, punctuation, capitalization, custom replacements), `prompt_for_ai` (rewrite as AI prompt via cloud LLM), `professional_message` (rewrite as email via cloud LLM), `facebook_post` (rewrite as social media post via cloud LLM) |
 
 ### Hotkey
 
-| Setting | Default | Description |
-|:---|:---|:---|
-| **Hotkey** | `F8` | Global toggle key. Presets: `F8`, `Ctrl+Alt+Space`, `Ctrl+Space` |
+| Setting         | Default  | Description                                                                                                    |
+| :-------------- | :------- | :------------------------------------------------------------------------------------------------------------- |
+| **Hotkey**      | `F8`     | Global toggle key. Presets: `F8`, `Ctrl+Alt+Space`, `Ctrl+Space`                                               |
 | **Hotkey Mode** | `toggle` | `toggle` (press to start, press again to stop & process) or `hold` (hold to record, release to stop & process) |
 
 > **Language Switcher Hotkey:** `Ctrl+Shift+L` opens a compact language switcher popup near the widget — change source and target languages instantly without opening the full Settings dialog.
 
 ### Audio
 
-| Setting | Default | Description |
-|:---|:---|:---|
+| Setting        | Default        | Description                                                            |
+| :------------- | :------------- | :--------------------------------------------------------------------- |
 | **Microphone** | System default | Select a specific input device from all Windows-recognized microphones |
 
 ### Paste
 
-| Setting | Default | Description |
-|:---|:---|:---|
-| **Paste Mode** | `paste` | `paste` (auto Ctrl+V into active app) or `copy_only` (clipboard only — paste manually) |
-| **Paste Delay** | 300 ms | Milliseconds to wait before sending Ctrl+V. Increase if the target app is slow to accept paste. |
-| **Restore Clipboard** | On | After pasting, restore whatever was previously in the clipboard. Safe for password managers. |
-| **Wait for Hotkey Release** | On | Block until the hotkey key is physically released before pasting. Prevents stuck modifiers. |
+| Setting                     | Default | Description                                                                                     |
+| :-------------------------- | :------ | :---------------------------------------------------------------------------------------------- |
+| **Paste Mode**              | `paste` | `paste` (auto Ctrl+V into active app) or `copy_only` (clipboard only — paste manually)          |
+| **Paste Delay**             | 300 ms  | Milliseconds to wait before sending Ctrl+V. Increase if the target app is slow to accept paste. |
+| **Restore Clipboard**       | On      | After pasting, restore whatever was previously in the clipboard. Safe for password managers.    |
+| **Wait for Hotkey Release** | On      | Block until the hotkey key is physically released before pasting. Prevents stuck modifiers.     |
 
 ### Replacements
 
 Custom word/phrase substitutions applied during text cleanup. Defaults include common Banglish terms:
 
-| Pattern | Replacement |
-|:---|:---|
-| `bdx tree` | `BDX` |
-| `bdx market` | `BDX Market` |
+| Pattern             | Replacement      |
+| :------------------ | :--------------- |
+| `bdx tree`          | `BDX`            |
+| `bdx market`        | `BDX Market`     |
 | `mh joy gamers hub` | `MHJoyGamersHub` |
-| `sellar` | `seller` |
-| `giftcard` | `gift card` |
-| `one crore` | `1 crore` |
+| `sellar`            | `seller`         |
+| `giftcard`          | `gift card`      |
+| `one crore`         | `1 crore`        |
 
 Settings are stored at `%APPDATA%\JoyVoice\settings.json` — human-readable JSON, easy to edit manually.
 
@@ -342,6 +343,7 @@ joyvoice/
 ### Distribution
 
 Distribute the entire `dist/JoyVoice/` folder — it's self-contained. The recipient only needs:
+
 - Windows 10/11
 - A microphone
 - `JV_API_KEY` environment variable set
@@ -355,8 +357,8 @@ Distribute the entire `dist/JoyVoice/` folder — it's self-contained. The recip
 ### Remove JoyVoice
 
 ```cmd
-# Delete the repository folder:
-rmdir /s C:\Users\Administrator\VoiceFloat\joyvoice
+# Delete the project folder:
+rmdir /s joyvoice
 
 # Remove settings and history:
 rmdir /s %APPDATA%\JoyVoice
@@ -366,7 +368,7 @@ rmdir /s %APPDATA%\JoyVoice
 
 1. Press **Win + R**, type `sysdm.cpl`, press **Enter**
 2. Go to **Advanced** → **Environment Variables…**
-3. Under *User variables*, select `JV_API_KEY` → **Delete**
+3. Under _User variables_, select `JV_API_KEY` → **Delete**
 4. Click **OK** → **OK**
 
 ### Remove Desktop Shortcuts
@@ -383,14 +385,14 @@ reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v JoyVoice /f
 
 ## Troubleshooting
 
-| Symptom | Likely Cause | Fix |
-|:---|:---|:---|
-| "No module named 'PySide6'" | PYTHONPATH contamination | Use isolated install (Step 3, Option B) |
-| "No module named 'app.main'" | Not in repo root | `cd joyvoice` first |
-| Widget doesn't appear | `pythonw.exe` swallowed error | Run `run.bat` to see console output |
-| "Transcription failed" | Missing `typing_extensions` | `pip install typing_extensions` |
-| F8 doesn't work | Another app grabbed the hotkey | Change hotkey in Settings |
-| No API key error | `JV_API_KEY` not set | See Step 4 |
+| Symptom                         | Likely Cause                   | Fix                                            |
+| :------------------------------ | :----------------------------- | :--------------------------------------------- |
+| "No module named 'PySide6'"     | PYTHONPATH contamination       | Use isolated install (Step 3, Option B)        |
+| "No module named 'app.main'"    | Not in repo root               | `cd joyvoice` first                            |
+| Widget doesn't appear           | `pythonw.exe` swallowed error  | Run `run.bat` to see console output            |
+| "Transcription failed"          | Missing `typing_extensions`    | `pip install typing_extensions`                |
+| F8 doesn't work                 | Another app grabbed the hotkey | Change hotkey in Settings                      |
+| No API key error                | `JV_API_KEY` not set           | See Step 4                                     |
 | Silence / garbled transcription | Float32→Int16 conversion issue | Restart app; conversion happens in app/main.py |
 
 > See **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** for deep-dive fixes for all known pitfalls.

@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> *Last updated 2026-07-26 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, and full robustness features.*
+> _Last updated 2026-07-26 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, and full robustness features._
 
 ---
 
@@ -27,28 +27,28 @@ Zero local models. Zero GPU. Pure cloud pipeline.
 
 ## 2. QUICK FACTS
 
-| Item | Value |
-|:-----|:------|
-| **Repo root** | `C:\Users\Administrator\VoiceFloat\joyvoice` |
-| **Venv** | `C:\Users\Administrator\VoiceFloat\joyvoice\.venv` (Python 3.11 ONLY) |
-| **Settings file** | `%APPDATA%\JoyVoice\settings.json` |
-| **History file** | `%APPDATA%\JoyVoice\history.json` |
-| **Log file** | `%APPDATA%\JoyVoice\joyvoice.log` |
-| **Benchmark data** | `%APPDATA%\JoyVoice\benchmarks.json` |
-| **Benchmark clips** | `%APPDATA%\JoyVoice\benchmark_clips\` |
-| **Entry point** | `app/main.py` (AppController class) |
-| **Standalone script** | `joyvoice.py` (Tkinter fallback, single-file) |
-| **Run script** | `run.bat` (visible console, debuggable) |
-| **App icon** | `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico` (root, 11KB) |
-| **Assets icon** | `C:\Users\Administrator\VoiceFloat\joyvoice\assets\icon.ico` (bundled) |
-| **Python version** | 3.11.9 |
-| **API base** | `https://ai.bdx.market/v1` |
-| **API key env var** | `JV_API_KEY` (required; NEVER hardcode) |
-| **Audio model** | `gemini-3.1-flash-lite` (~3.3s latency) |
-| **Text model** | `gemini-3.1-flash-lite` (same model, text mode) |
-| **Widget size** | 200×80 px, glass-morphism pill |
-| **Sample rate** | 16,000 Hz mono float32 |
-| **Max recording** | 300 seconds (runaway guard) |
+| Item                  | Value                                                                  |
+| :-------------------- | :--------------------------------------------------------------------- |
+| **Repo root**         | `C:\Users\Administrator\VoiceFloat\joyvoice`                           |
+| **Venv**              | `C:\Users\Administrator\VoiceFloat\joyvoice\.venv` (Python 3.11 ONLY)  |
+| **Settings file**     | `%APPDATA%\JoyVoice\settings.json`                                     |
+| **History file**      | `%APPDATA%\JoyVoice\history.json`                                      |
+| **Log file**          | `%APPDATA%\JoyVoice\joyvoice.log`                                      |
+| **Benchmark data**    | `%APPDATA%\JoyVoice\benchmarks.json`                                   |
+| **Benchmark clips**   | `%APPDATA%\JoyVoice\benchmark_clips\`                                  |
+| **Entry point**       | `app/main.py` (AppController class)                                    |
+| **Standalone script** | `joyvoice.py` (Tkinter fallback, single-file)                          |
+| **Run script**        | `run.bat` (visible console, debuggable)                                |
+| **App icon**          | `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico` (root, 11KB)     |
+| **Assets icon**       | `C:\Users\Administrator\VoiceFloat\joyvoice\assets\icon.ico` (bundled) |
+| **Python version**    | 3.11.9                                                                 |
+| **API base**          | `https://gpt.bdx.market/v1`                                            |
+| **API key env var**   | `JV_API_KEY` (required; NEVER hardcode)                                |
+| **Audio model**       | `gemini-3.6-flash`                                                     |
+| **Text model**        | `gemini-3.6-flash` (same model, text mode)                             |
+| **Widget size**       | 200×80 px, glass-morphism pill                                         |
+| **Sample rate**       | 16,000 Hz mono float32                                                 |
+| **Max recording**     | 300 seconds (runaway guard)                                            |
 
 ---
 
@@ -58,148 +58,148 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### Root Files
 
-| File | Lines | Purpose |
-|:-----|:-----:|:--------|
-| `C:\Users\Administrator\VoiceFloat\joyvoice\app\main.py` | 602 | **Entry point.** AppController state machine, CloudASRWorker(QThread), CloudLLMWorker(QThread), LLM rewrite, signal wiring, robustness timers, language switcher popup, first-run flow |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\joyvoice.py` | 307 | Standalone single-file Tkinter version — self-contained dictation app (legacy, NOT the active pipeline) |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\run.bat` | 13 | Visible-console launcher — runs `.venv\Scripts\python app\main.py` with error pause |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\check_python.bat` | 3 | Quick Python version check |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\build_exe.bat` | — | PyInstaller packaging script |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\JoyVoice.spec` | — | PyInstaller spec for frozen build |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\requirements.txt` | 7 | Pip dependencies (no versions pinned loosely except minimums) |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\.gitignore` | 82 | Standard Python .gitignore + JoyVoice-specific paths |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico` | — | App icon (11,354 bytes, root level) |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\LICENSE` | — | MIT License |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\README.md` | 382 | GitHub-facing project readme with badges, features table, architecture |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\CHANGELOG.md` | — | Version history |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\CONTRIBUTING.md` | — | Developer contribution guide |
+| File                                                          | Lines | Purpose                                                                                                                                                                                |
+| :------------------------------------------------------------ | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\app\main.py`      |  602  | **Entry point.** AppController state machine, CloudASRWorker(QThread), CloudLLMWorker(QThread), LLM rewrite, signal wiring, robustness timers, language switcher popup, first-run flow |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\joyvoice.py`      |  307  | Standalone single-file Tkinter version — self-contained dictation app (legacy, NOT the active pipeline)                                                                                |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\run.bat`          |  13   | Visible-console launcher — runs `.venv\Scripts\python app\main.py` with error pause                                                                                                    |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\check_python.bat` |   3   | Quick Python version check                                                                                                                                                             |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\build_exe.bat`    |   —   | PyInstaller packaging script                                                                                                                                                           |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\JoyVoice.spec`    |   —   | PyInstaller spec for frozen build                                                                                                                                                      |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\requirements.txt` |   7   | Pip dependencies (no versions pinned loosely except minimums)                                                                                                                          |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\.gitignore`       |  82   | Standard Python .gitignore + JoyVoice-specific paths                                                                                                                                   |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico`         |   —   | App icon (11,354 bytes, root level)                                                                                                                                                    |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\LICENSE`          |   —   | MIT License                                                                                                                                                                            |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\README.md`        |  382  | GitHub-facing project readme with badges, features table, architecture                                                                                                                 |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\CHANGELOG.md`     |   —   | Version history                                                                                                                                                                        |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\CONTRIBUTING.md`  |   —   | Developer contribution guide                                                                                                                                                           |
 
 ### `app/audio/` — Audio Capture Subsystem
 
-| File | Lines | Purpose |
-|:-----|:-----:|:--------|
-| `app/audio/__init__.py` | 0 | Package init |
-| `app/audio/recorder.py` | 149 | **sounddevice InputStream.** Captures float32 mono at 16 kHz via WASAPI callback. Live peak level. `Recorder.start()`, `Recorder.stop()`, `Recorder.save_wav()`, `Recorder.list_input_devices()`, `Recorder.current_level()` |
-| `app/audio/decode.py` | 35 | PyAV-based decoder: any audio file (m4a/mp3/wav) → 16kHz mono float32. Used by benchmark system |
-| `app/audio/vad.py` | 21 | VAD config holder (Silero VAD params, passed to faster-whisper). Inactive in cloud pipeline |
+| File                    | Lines | Purpose                                                                                                                                                                                                                      |
+| :---------------------- | :---: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/audio/__init__.py` |   0   | Package init                                                                                                                                                                                                                 |
+| `app/audio/recorder.py` |  149  | **sounddevice InputStream.** Captures float32 mono at 16 kHz via WASAPI callback. Live peak level. `Recorder.start()`, `Recorder.stop()`, `Recorder.save_wav()`, `Recorder.list_input_devices()`, `Recorder.current_level()` |
+| `app/audio/decode.py`   |  35   | PyAV-based decoder: any audio file (m4a/mp3/wav) → 16kHz mono float32. Used by benchmark system                                                                                                                              |
+| `app/audio/vad.py`      |  21   | VAD config holder (Silero VAD params, passed to faster-whisper). Inactive in cloud pipeline                                                                                                                                  |
 
 ### `app/transcription/` — ASR + Translation + Text Processing
 
-| File | Lines | Purpose |
-|:-----|:-----:|:--------|
-| `app/transcription/__init__.py` | 0 | Package init |
-| `app/transcription/gemini_audio.py` | 172 | **Primary ASR.** `transcribe_and_translate()` — PCM16 → WAV base64 → Gemini native audio → (transcript, translation). Contains LANGUAGES dict with all 10 languages + hints. Language-aware prompt building. JSON parsing from markdown fences |
-| `app/transcription/cloud_asr.py` | 51 | **Fallback ASR.** Google Web Speech API via SpeechRecognition. `GOOGLE_LANGUAGE_TAGS` mapping (bn→bn-BD, etc.) |
-| `app/transcription/text_cleaner.py` | 89 | Rule-based cleanup: filler removal, Latin-script stutter collapse, user-defined replacements, whitespace normalize, capitalize. `clean_text()` and `DEFAULT_REPLACEMENTS` |
-| `app/transcription/ai_stylist.py` | 364 | Local Ollama text rewriting for AI text styles (prompt_for_ai, professional_message, facebook_post). AIStylist(QObject) + AIStylistWorker(QThread). Model start/stop, GPU residency check, faithfulness-first prompts. NOT used in current cloud pipeline |
-| `app/transcription/whisper_engine.py` | — | Local faster-whisper adapter (legacy, inactive in cloud pipeline) |
-| `app/transcription/indic_conformer_worker.py` | — | IndicConformer ASR adapter (legacy, inactive) |
-| `app/transcription/benchmark_worker.py` | — | ASR engine benchmark runner |
-| `app/transcription/translation_benchmark_worker.py` | — | Translation model benchmark runner |
+| File                                                | Lines | Purpose                                                                                                                                                                                                                                                   |
+| :-------------------------------------------------- | :---: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/transcription/__init__.py`                     |   0   | Package init                                                                                                                                                                                                                                              |
+| `app/transcription/gemini_audio.py`                 |  172  | **Primary ASR.** `transcribe_and_translate()` — PCM16 → WAV base64 → Gemini native audio → (transcript, translation). Contains LANGUAGES dict with all 10 languages + hints. Language-aware prompt building. JSON parsing from markdown fences            |
+| `app/transcription/cloud_asr.py`                    |  51   | **Fallback ASR.** Google Web Speech API via SpeechRecognition. `GOOGLE_LANGUAGE_TAGS` mapping (bn→bn-BD, etc.)                                                                                                                                            |
+| `app/transcription/text_cleaner.py`                 |  89   | Rule-based cleanup: filler removal, Latin-script stutter collapse, user-defined replacements, whitespace normalize, capitalize. `clean_text()` and `DEFAULT_REPLACEMENTS`                                                                                 |
+| `app/transcription/ai_stylist.py`                   |  364  | Local Ollama text rewriting for AI text styles (prompt_for_ai, professional_message, facebook_post). AIStylist(QObject) + AIStylistWorker(QThread). Model start/stop, GPU residency check, faithfulness-first prompts. NOT used in current cloud pipeline |
+| `app/transcription/whisper_engine.py`               |   —   | Local faster-whisper adapter (legacy, inactive in cloud pipeline)                                                                                                                                                                                         |
+| `app/transcription/indic_conformer_worker.py`       |   —   | IndicConformer ASR adapter (legacy, inactive)                                                                                                                                                                                                             |
+| `app/transcription/benchmark_worker.py`             |   —   | ASR engine benchmark runner                                                                                                                                                                                                                               |
+| `app/transcription/translation_benchmark_worker.py` |   —   | Translation model benchmark runner                                                                                                                                                                                                                        |
 
 **`app/transcription/engines/`** — Pluggable ASR engines (benchmark only, not active pipeline):
 
-| File | Purpose |
-|:-----|:--------|
-| `engines/base.py` | Abstract engine interface |
-| `engines/registry.py` | Engine discovery and registration |
-| `engines/whisper_adapter.py` | faster-whisper wrapper |
-| `engines/bangla_asr.py` | Fine-tuned whisper-small (BanglaASR) |
-| `engines/shrutimala.py` | Wav2Vec2-BERT CTC |
-| `engines/indic_conformer.py` | AI4Bharat IndicConformer (CTC + RNNT) |
-| `engines/seamless_m4t.py` | Meta SeamlessM4T v2 |
-| `engines/wav2vec2_ctc.py` | Generic Wav2Vec2 CTC |
-| `engines/whisper_finetune.py` | Custom fine-tuned Whisper |
-| `engines/gemmax2_translate.py` | GemmaX2 translation |
+| File                           | Purpose                               |
+| :----------------------------- | :------------------------------------ |
+| `engines/base.py`              | Abstract engine interface             |
+| `engines/registry.py`          | Engine discovery and registration     |
+| `engines/whisper_adapter.py`   | faster-whisper wrapper                |
+| `engines/bangla_asr.py`        | Fine-tuned whisper-small (BanglaASR)  |
+| `engines/shrutimala.py`        | Wav2Vec2-BERT CTC                     |
+| `engines/indic_conformer.py`   | AI4Bharat IndicConformer (CTC + RNNT) |
+| `engines/seamless_m4t.py`      | Meta SeamlessM4T v2                   |
+| `engines/wav2vec2_ctc.py`      | Generic Wav2Vec2 CTC                  |
+| `engines/whisper_finetune.py`  | Custom fine-tuned Whisper             |
+| `engines/gemmax2_translate.py` | GemmaX2 translation                   |
 
 **`app/transcription/translation_engines/`** — Pluggable translation engines (benchmark only):
 
-| File | Purpose |
-|:-----|:--------|
-| `translation_engines/base.py` | Abstract translation engine interface |
-| `translation_engines/registry.py` | Engine discovery |
-| `translation_engines/nllb.py` | Meta NLLB |
-| `translation_engines/mbart50.py` | mBART-50 |
-| `translation_engines/indictrans2.py` | AI4Bharat IndicTrans2 |
-| `translation_engines/banglat5.py` | BanglaT5 |
-| `translation_engines/madlad.py` | MADLAD-400 |
-| `translation_engines/hunyuan_mt.py` | Hunyuan-MT |
-| `translation_engines/gemmax2.py` | GemmaX2 |
-| `translation_engines/ollama_translate.py` | Ollama-based |
+| File                                      | Purpose                               |
+| :---------------------------------------- | :------------------------------------ |
+| `translation_engines/base.py`             | Abstract translation engine interface |
+| `translation_engines/registry.py`         | Engine discovery                      |
+| `translation_engines/nllb.py`             | Meta NLLB                             |
+| `translation_engines/mbart50.py`          | mBART-50                              |
+| `translation_engines/indictrans2.py`      | AI4Bharat IndicTrans2                 |
+| `translation_engines/banglat5.py`         | BanglaT5                              |
+| `translation_engines/madlad.py`           | MADLAD-400                            |
+| `translation_engines/hunyuan_mt.py`       | Hunyuan-MT                            |
+| `translation_engines/gemmax2.py`          | GemmaX2                               |
+| `translation_engines/ollama_translate.py` | Ollama-based                          |
 
 ### `app/storage/` — Data Persistence
 
-| File | Lines | Purpose |
-|:-----|:-----:|:--------|
-| `app/storage/__init__.py` | — | Package init |
-| `app/storage/paths.py` | 68 | **Path resolution.** `data_dir()` → `%APPDATA%\JoyVoice\`, `models_dir()` → `%LOCALAPPDATA%\JoyVoice\models\`, `settings_path()`, `history_path()`, `log_path()`, `icon_path()`. Portable mode support via `portable.txt` |
-| `app/storage/settings_store.py` | 62 | JSON settings persistence. `DEFAULTS` dict (14 keys). `load()` with stale-key filtering. `save()` with key whitelist |
-| `app/storage/history_store.py` | 46 | Dictation history. JSON array in `history.json`. `MAX_ENTRIES=500`. `append()` auto-trims |
-| `app/storage/benchmark_store.py` | 41 | Benchmark results in `benchmarks.json`. `MAX_RUNS=100` |
-| `app/storage/clip_store.py` | 88 | Benchmark audio clip library. `MAX_CLIPS=10`. WAV files in `benchmark_clips\` |
+| File                             | Lines | Purpose                                                                                                                                                                                                                   |
+| :------------------------------- | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/storage/__init__.py`        |   —   | Package init                                                                                                                                                                                                              |
+| `app/storage/paths.py`           |  68   | **Path resolution.** `data_dir()` → `%APPDATA%\JoyVoice\`, `models_dir()` → `%LOCALAPPDATA%\JoyVoice\models\`, `settings_path()`, `history_path()`, `log_path()`, `icon_path()`. Portable mode support via `portable.txt` |
+| `app/storage/settings_store.py`  |  62   | JSON settings persistence. `DEFAULTS` dict (14 keys). `load()` with stale-key filtering. `save()` with key whitelist                                                                                                      |
+| `app/storage/history_store.py`   |  46   | Dictation history. JSON array in `history.json`. `MAX_ENTRIES=500`. `append()` auto-trims                                                                                                                                 |
+| `app/storage/benchmark_store.py` |  41   | Benchmark results in `benchmarks.json`. `MAX_RUNS=100`                                                                                                                                                                    |
+| `app/storage/clip_store.py`      |  88   | Benchmark audio clip library. `MAX_CLIPS=10`. WAV files in `benchmark_clips\`                                                                                                                                             |
 
 ### `app/ui/` — User Interface
 
-| File | Lines | Purpose |
-|:-----|:-----:|:--------|
-| `app/ui/__init__.py` | 0 | Package init |
-| `app/ui/floating_widget.py` | 553 | **The floating mic pill.** Glass-morphism paint (rgba background + rounded rect). 5 widget states (idle/recording/transcribing/pasted/error). 5 animated waveform bars. Recording timer. Language badge. Live text preview. Confidence indicator bar. Toast notifications. Right-click context menu with history. Smooth color/scale/pulse animations via QPropertyAnimation. Drag support |
-| `app/ui/tray.py` | 76 | System tray icon. Loads `icon.ico` or generates fallback circle. Menu: Show/Hide, Diagnostics, Settings, Benchmark, Quit |
-| `app/ui/settings_window.py` | 536 | Tabbed settings dialog. 7 tabs: Output (source lang, target lang, output mode, text style), General, Hotkey (preset + custom + mode), Audio (device picker), Paste (mode, delay, restore, wait-for-release), Replacements (table editor), History (list + copy). Contains `LANGUAGES` dict. API status check button. |
-| `app/ui/benchmark_dialog.py` | — | ASR engine comparison dialog (legacy, lazy-loaded) |
-| `app/ui/diagnostics_dialog.py` | — | Device/connection diagnostics (legacy) |
+| File                           | Lines | Purpose                                                                                                                                                                                                                                                                                                                                                                                    |
+| :----------------------------- | :---: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/ui/__init__.py`           |   0   | Package init                                                                                                                                                                                                                                                                                                                                                                               |
+| `app/ui/floating_widget.py`    |  553  | **The floating mic pill.** Glass-morphism paint (rgba background + rounded rect). 5 widget states (idle/recording/transcribing/pasted/error). 5 animated waveform bars. Recording timer. Language badge. Live text preview. Confidence indicator bar. Toast notifications. Right-click context menu with history. Smooth color/scale/pulse animations via QPropertyAnimation. Drag support |
+| `app/ui/tray.py`               |  76   | System tray icon. Loads `icon.ico` or generates fallback circle. Menu: Show/Hide, Diagnostics, Settings, Benchmark, Quit                                                                                                                                                                                                                                                                   |
+| `app/ui/settings_window.py`    |  536  | Tabbed settings dialog. 7 tabs: Output (source lang, target lang, output mode, text style), General, Hotkey (preset + custom + mode), Audio (device picker), Paste (mode, delay, restore, wait-for-release), Replacements (table editor), History (list + copy). Contains `LANGUAGES` dict. API status check button.                                                                       |
+| `app/ui/benchmark_dialog.py`   |   —   | ASR engine comparison dialog (legacy, lazy-loaded)                                                                                                                                                                                                                                                                                                                                         |
+| `app/ui/diagnostics_dialog.py` |   —   | Device/connection diagnostics (legacy)                                                                                                                                                                                                                                                                                                                                                     |
 
 ### `app/system/` — OS Integration
 
-| File | Lines | Purpose |
-|:-----|:-----:|:--------|
-| `app/system/__init__.py` | 0 | Package init |
-| `app/system/hotkeys.py` | 176 | **Global hotkey manager.** Toggle mode (F8 press=start, press=stop) and hold mode (hold F8=record, release=stop). Language switcher on Ctrl+Shift+L. `check_health()` for re-registration after sleep/UAC. PRESETS: F8, Ctrl+Alt+Space, Ctrl+Space |
-| `app/system/paste.py` | 117 | **Clipboard-safe paste.** Saves clipboard → copies text → sends Ctrl+V (via `keyboard.send()`) → restores original clipboard. 3 retries with exponential backoff. Configurable delay. Key-release wait. Copy-only mode. Thread-based clipboard restore |
-| `app/system/sounds.py` | 63 | Audio feedback via `winsound.Beep()`. `play_start()` (1200Hz, 80ms), `play_stop()` (600Hz, 80ms), `play_done()` (800→1200Hz), `play_error()` (300Hz, 300ms). Daemon-threaded |
-| `app/system/startup.py` | 44 | Windows launch-on-startup via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. `JoyVoice` registry value |
+| File                     | Lines | Purpose                                                                                                                                                                                                                                                |
+| :----------------------- | :---: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/system/__init__.py` |   0   | Package init                                                                                                                                                                                                                                           |
+| `app/system/hotkeys.py`  |  176  | **Global hotkey manager.** Toggle mode (F8 press=start, press=stop) and hold mode (hold F8=record, release=stop). Language switcher on Ctrl+Shift+L. `check_health()` for re-registration after sleep/UAC. PRESETS: F8, Ctrl+Alt+Space, Ctrl+Space     |
+| `app/system/paste.py`    |  117  | **Clipboard-safe paste.** Saves clipboard → copies text → sends Ctrl+V (via `keyboard.send()`) → restores original clipboard. 3 retries with exponential backoff. Configurable delay. Key-release wait. Copy-only mode. Thread-based clipboard restore |
+| `app/system/sounds.py`   |  63   | Audio feedback via `winsound.Beep()`. `play_start()` (1200Hz, 80ms), `play_stop()` (600Hz, 80ms), `play_done()` (800→1200Hz), `play_error()` (300Hz, 300ms). Daemon-threaded                                                                           |
+| `app/system/startup.py`  |  44   | Windows launch-on-startup via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. `JoyVoice` registry value                                                                                                                                          |
 
 ### `docs/` — Documentation
 
-| File | Purpose |
-|:-----|:--------|
-| `docs/SETUP.md` | Installation guide |
-| `docs/API.md` | API gateway + model reference |
-| `docs/TROUBLESHOOTING.md` | Common issues and fixes |
-| `docs/ARCHITECTURE.md` | Code structure + pipeline flow + design decisions |
-| `docs/PROJECT_STATUS.md` | Complete project history (pre-cloud era) |
-| `docs/model-research.md` | Model selection notes |
-| `docs/bengali-asr-benchmark.md` | ASR benchmark methodology |
-| `docs/translation-benchmark.md` | Translation model benchmarks |
-| `docs/benchmark_transcripts.json` | Saved benchmark test transcripts |
+| File                              | Purpose                                           |
+| :-------------------------------- | :------------------------------------------------ |
+| `docs/SETUP.md`                   | Installation guide                                |
+| `docs/API.md`                     | API gateway + model reference                     |
+| `docs/TROUBLESHOOTING.md`         | Common issues and fixes                           |
+| `docs/ARCHITECTURE.md`            | Code structure + pipeline flow + design decisions |
+| `docs/PROJECT_STATUS.md`          | Complete project history (pre-cloud era)          |
+| `docs/model-research.md`          | Model selection notes                             |
+| `docs/bengali-asr-benchmark.md`   | ASR benchmark methodology                         |
+| `docs/translation-benchmark.md`   | Translation model benchmarks                      |
+| `docs/benchmark_transcripts.json` | Saved benchmark test transcripts                  |
 
 ### `assets/` — Media
 
-| File | Purpose |
-|:-----|:--------|
-| `assets/icon.ico` | Bundled app icon |
-| `assets/logo.svg` | Dark-themed wordmark |
-| `assets/pipeline.svg` | Architecture diagram |
-| `assets/hero-banner.png` | README hero |
-| `assets/desktop-mockup.png` | Screenshot mockup |
-| `assets/how-it-works.png` | Pipeline infographic |
-| `assets/features_card.png` | Features overview |
+| File                                 | Purpose                 |
+| :----------------------------------- | :---------------------- |
+| `assets/icon.ico`                    | Bundled app icon        |
+| `assets/logo.svg`                    | Dark-themed wordmark    |
+| `assets/pipeline.svg`                | Architecture diagram    |
+| `assets/hero-banner.png`             | README hero             |
+| `assets/desktop-mockup.png`          | Screenshot mockup       |
+| `assets/how-it-works.png`            | Pipeline infographic    |
+| `assets/features_card.png`           | Features overview       |
 | `assets/comparison_before_after.png` | Before/after comparison |
-| `assets/pipeline_infographic.png` | Pipeline graphic |
-| `assets/joyvoice-banner.png` | Banner |
-| `assets/joyvoice-icon.png` | Icon PNG |
-| `assets/joyvoice-project-card.png` | Project card |
-| `assets/social-preview.svg` | Social media preview |
-| `assets/wallpaper_soundwave.png` | Soundwave wallpaper |
+| `assets/pipeline_infographic.png`    | Pipeline graphic        |
+| `assets/joyvoice-banner.png`         | Banner                  |
+| `assets/joyvoice-icon.png`           | Icon PNG                |
+| `assets/joyvoice-project-card.png`   | Project card            |
+| `assets/social-preview.svg`          | Social media preview    |
+| `assets/wallpaper_soundwave.png`     | Soundwave wallpaper     |
 
 ### Other Directories
 
-| Path | Purpose |
-|:-----|:--------|
-| `tools/translation_benchmark.py` | Standalone translation benchmark tool |
-| `build/` | PyInstaller build artifacts |
-| `dist/JoyVoice.exe` | Built executable (~116MB) |
-| `release/` | Release packages (v1.0.0) |
+| Path                                   | Purpose                                         |
+| :------------------------------------- | :---------------------------------------------- |
+| `tools/translation_benchmark.py`       | Standalone translation benchmark tool           |
+| `build/`                               | PyInstaller build artifacts                     |
+| `dist/JoyVoice.exe`                    | Built executable (~116MB)                       |
+| `release/`                             | Release packages (v1.0.0)                       |
 | `__pycache__/joyvoice.cpython-311.pyc` | Compiled `joyvoice.py` (DANGER: see pitfall #7) |
 
 ---
@@ -249,6 +249,7 @@ Every source file in the repo, with purpose, line count, and what it contains.
 ```
 
 **Key pipeline facts:**
+
 - Recorder produces **float32** numpy arrays (`Recorder.stop()`)
 - Conversion to **int16 PCM** happens in `app/main.py` line 322: `(np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()`
 - PCM bytes wrapped as WAV base64 in `gemini_audio.py._wav_base64()`
@@ -263,13 +264,13 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### Widget States
 
-| State | Accent Color | Duration | Trigger | Visual |
-|:------|:-------------|:---------|:--------|:--------|
-| `idle` | `#3a3f4b` (dark gray) | Until user action | Ready, waiting | Glass pill, no waveform, "Ready" label |
-| `recording` | `#e0622a` (orange) | Until F8 toggle | Hotkey press or mic click | 5-waveform bar animation, timer, level polling, pulse animation |
-| `transcribing` | `#2a6fe0` (blue) | ~3.3s | Recording stopped, API call in flight | Blue accent border glow |
-| `pasted` | `#2ecc71` (green) | 1.2s | Text successfully pasted | Scale pulse animation (1.0→1.05→1.0 over 400ms), toast notification |
-| `error` | `#e74c3c` (red) | 3.0s | API failure or other error | Error message in tooltip |
+| State          | Accent Color          | Duration          | Trigger                               | Visual                                                              |
+| :------------- | :-------------------- | :---------------- | :------------------------------------ | :------------------------------------------------------------------ |
+| `idle`         | `#3a3f4b` (dark gray) | Until user action | Ready, waiting                        | Glass pill, no waveform, "Ready" label                              |
+| `recording`    | `#e0622a` (orange)    | Until F8 toggle   | Hotkey press or mic click             | 5-waveform bar animation, timer, level polling, pulse animation     |
+| `transcribing` | `#2a6fe0` (blue)      | ~3.3s             | Recording stopped, API call in flight | Blue accent border glow                                             |
+| `pasted`       | `#2ecc71` (green)     | 1.2s              | Text successfully pasted              | Scale pulse animation (1.0→1.05→1.0 over 400ms), toast notification |
+| `error`        | `#e74c3c` (red)       | 3.0s              | API failure or other error            | Error message in tooltip                                            |
 
 ### Transitions
 
@@ -319,20 +320,21 @@ HotkeyManager.language_switcher_requested ──→ show_language_switcher() pop
 
 ## 6. LANGUAGES — All 10 Supported
 
-| Code | Name | Native Script | Google BCP-47 Tag | Gemini Hint |
-|:-----|:-----|:--------------|:------------------|:------------|
-| `bn` | Bangla | বাংলা | `bn-BD` | Bangladeshi Bengali, may code-switch into English |
-| `en` | English | English | `en-US` | Primarily English |
-| `ru` | Russian | Русский | `ru-RU` | Russian, may code-switch |
-| `hi` | Hindi | हिन्दी | `hi-IN` | Hindi, may code-switch |
-| `es` | Spanish | Español | `es-ES` | Spanish, may code-switch |
-| `ar` | Arabic | العربية | `ar-SA` | Arabic, may code-switch into English/French |
-| `zh` | Chinese | 中文 | `zh-CN` | Mandarin Chinese |
-| `ja` | Japanese | 日本語 | `ja-JP` | Japanese, may code-switch |
-| `fr` | French | Français | `fr-FR` | French, may code-switch |
-| `pt` | Portuguese | Português | `pt-BR` | Portuguese, may code-switch |
+| Code | Name       | Native Script | Google BCP-47 Tag | Gemini Hint                                       |
+| :--- | :--------- | :------------ | :---------------- | :------------------------------------------------ |
+| `bn` | Bangla     | বাংলা         | `bn-BD`           | Bangladeshi Bengali, may code-switch into English |
+| `en` | English    | English       | `en-US`           | Primarily English                                 |
+| `ru` | Russian    | Русский       | `ru-RU`           | Russian, may code-switch                          |
+| `hi` | Hindi      | हिन्दी        | `hi-IN`           | Hindi, may code-switch                            |
+| `es` | Spanish    | Español       | `es-ES`           | Spanish, may code-switch                          |
+| `ar` | Arabic     | العربية       | `ar-SA`           | Arabic, may code-switch into English/French       |
+| `zh` | Chinese    | 中文          | `zh-CN`           | Mandarin Chinese                                  |
+| `ja` | Japanese   | 日本語        | `ja-JP`           | Japanese, may code-switch                         |
+| `fr` | French     | Français      | `fr-FR`           | French, may code-switch                           |
+| `pt` | Portuguese | Português     | `pt-BR`           | Portuguese, may code-switch                       |
 
 **Language definitions live in TWO places (keep both in sync):**
+
 1. `app/transcription/gemini_audio.py` — `LANGUAGES` dict (with `hint` field for Gemini prompts)
 2. `app/ui/settings_window.py` — `LANGUAGES` dict (without `hint`, used for UI labels)
 3. `app/transcription/cloud_asr.py` — `GOOGLE_LANGUAGE_TAGS` dict (code→BCP-47 for Google ASR)
@@ -347,33 +349,33 @@ HotkeyManager.language_switcher_requested ──→ show_language_switcher() pop
 
 Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 
-| Key | Default | Type | Description |
-|:----|:--------|:-----|:------------|
-| `language` | `"bn"` | `str` | Source speech language: `"auto"` or one of 10 language codes |
-| `target_language` | `"en"` | `str` | Translation target: one of 10 language codes |
-| `output_mode` | `"translation"` | `str` | What to paste: `"original"`, `"translation"`, or `"both"` |
-| `text_style` | `"clean_english"` | `str` | Post-processing: `"raw"`, `"clean_english"`, `"prompt_for_ai"`, `"professional_message"`, `"facebook_post"` |
-| `hotkey` | `"F8"` | `str` | Global hotkey string (e.g. `"F8"`, `"Ctrl+Alt+Space"`, custom) |
-| `hotkey_mode` | `"toggle"` | `str` | Activation mode: `"toggle"` (press start, press stop) or `"hold"` (hold to record) |
-| `audio_device_name` | `null` | `str\|null` | Specific input device name, or `null` for system default |
-| `paste_mode` | `"paste"` | `str` | `"paste"` (auto Ctrl+V) or `"copy_only"` (clipboard only) |
-| `paste_delay_ms` | `300` | `int` | Delay before pasting in ms. Options: 0, 300, 700, 1000 |
-| `restore_clipboard` | `true` | `bool` | Restore original clipboard after paste |
-| `wait_for_hotkey_release` | `true` | `bool` | Wait for hotkey keys to be released before pasting |
-| `replacements` | (6 defaults) | `dict[str,str]` | Word-boundary, case-insensitive text substitutions |
-| `widget_pos` | `null` | `[int,int]\|null` | Saved widget position [x, y], or null for default (100, 100) |
-| `first_run_complete` | `false` | `bool` | Whether first-run flow has been shown |
+| Key                       | Default           | Type              | Description                                                                                                 |
+| :------------------------ | :---------------- | :---------------- | :---------------------------------------------------------------------------------------------------------- |
+| `language`                | `"bn"`            | `str`             | Source speech language: `"auto"` or one of 10 language codes                                                |
+| `target_language`         | `"en"`            | `str`             | Translation target: one of 10 language codes                                                                |
+| `output_mode`             | `"translation"`   | `str`             | What to paste: `"original"`, `"translation"`, or `"both"`                                                   |
+| `text_style`              | `"clean_english"` | `str`             | Post-processing: `"raw"`, `"clean_english"`, `"prompt_for_ai"`, `"professional_message"`, `"facebook_post"` |
+| `hotkey`                  | `"F8"`            | `str`             | Global hotkey string (e.g. `"F8"`, `"Ctrl+Alt+Space"`, custom)                                              |
+| `hotkey_mode`             | `"toggle"`        | `str`             | Activation mode: `"toggle"` (press start, press stop) or `"hold"` (hold to record)                          |
+| `audio_device_name`       | `null`            | `str\|null`       | Specific input device name, or `null` for system default                                                    |
+| `paste_mode`              | `"paste"`         | `str`             | `"paste"` (auto Ctrl+V) or `"copy_only"` (clipboard only)                                                   |
+| `paste_delay_ms`          | `300`             | `int`             | Delay before pasting in ms. Options: 0, 300, 700, 1000                                                      |
+| `restore_clipboard`       | `true`            | `bool`            | Restore original clipboard after paste                                                                      |
+| `wait_for_hotkey_release` | `true`            | `bool`            | Wait for hotkey keys to be released before pasting                                                          |
+| `replacements`            | (6 defaults)      | `dict[str,str]`   | Word-boundary, case-insensitive text substitutions                                                          |
+| `widget_pos`              | `null`            | `[int,int]\|null` | Saved widget position [x, y], or null for default (100, 100)                                                |
+| `first_run_complete`      | `false`           | `bool`            | Whether first-run flow has been shown                                                                       |
 
 **Default replacements** (in `text_cleaner.py`):
 
-| Phrase | Replacement |
-|:-------|:------------|
-| `bdx tree` | BDX |
-| `bdx market` | BDX Market |
+| Phrase              | Replacement    |
+| :------------------ | :------------- |
+| `bdx tree`          | BDX            |
+| `bdx market`        | BDX Market     |
 | `mh joy gamers hub` | MHJoyGamersHub |
-| `sellar` | seller |
-| `giftcard` | gift card |
-| `one crore` | 1 crore |
+| `sellar`            | seller         |
+| `giftcard`          | gift card      |
+| `one crore`         | 1 crore        |
 
 ---
 
@@ -386,18 +388,20 @@ Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 The Hermes agent's venv leaks into shell environment. `pip` sees packages in the Hermes venv and falsely reports them as "already installed" for JoyVoice's venv.
 
 **Always use this pattern for any pip/import operation:**
+
 ```bash
 env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -m pip install <pkg>
 env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import <pkg>"
 ```
 
-The `-I` flag runs Python in isolated mode (ignores all PYTHON* environment variables). Without it, even the `-u` unset isn't enough — modules can still be shadowed.
+The `-I` flag runs Python in isolated mode (ignores all PYTHON\* environment variables). Without it, even the `-u` unset isn't enough — modules can still be shadowed.
 
 ### 2. PCM Float32 → Int16 Conversion
 
 `Recorder.stop()` returns **float32** numpy arrays (values in [-1.0, +1.0]). Cloud APIs (Gemini audio, Google ASR) require **signed int16 PCM** bytes.
 
 **The conversion happens exactly once in `app/main.py` line 322:**
+
 ```python
 raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
 ```
@@ -421,6 +425,7 @@ This is in `requirements.txt` but can be missed if PIP didn't install it correct
 LLM callbacks from plain Python `threading.Thread` objects have NO Qt event loop. Signals emitted from a plain thread never reach their slots — the result is **silently lost** with no error.
 
 **CORRECT pattern:**
+
 ```python
 class CloudLLMWorker(QThread):
     done = Signal(str)
@@ -440,6 +445,7 @@ class CloudLLMWorker(QThread):
 ```
 
 **WRONG pattern (will silently fail):**
+
 ```python
 def do_llm(text):
     threading.Thread(target=lambda: cloud_llm_rewrite(text)).start()
@@ -482,6 +488,7 @@ The `.gitignore` excludes `__pycache__/` but they accumulate locally.
 When running Python under Git Bash (MSYS), paths like `/c/Users/...` work in bash but Python expects Windows-style `C:\Users\...` paths. `pathlib.Path` can handle both, but some operations (especially `subprocess` and `os.environ`) may fail with MSYS paths.
 
 Always test the actual Python process, not just bash commands:
+
 ```bash
 env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import sys; sys.path.insert(0,'.'); import app.main; print('OK')"
 ```
@@ -503,11 +510,13 @@ LANGUAGES = {"bn": {"name": "Bangla", "native": "বাংলা", "google_tag":
 ### 9. Gemini JSON Parsing (Markdown Fences)
 
 Gemini returns JSON wrapped in markdown code blocks like:
-```
+
+````
 ```json
 {"transcript": "আমি কাল...", "translation": "I will..."}
-```
-```
+````
+
+````
 
 The parser in `gemini_audio.py._parse_result()` uses regex to extract:
 ```python
@@ -515,7 +524,7 @@ match = re.search(r"\{.*\}", content, re.DOTALL)
 result = json.loads(match.group())
 transcript = result.get("transcript", "").strip()
 translation = result.get("translation", "").strip()
-```
+````
 
 **Field names are `"transcript"` and `"translation"`** — NOT `"bengali_transcript"` and `"english_translation"` (those were from an earlier version of the prompt). If you change the prompt's JSON structure, you MUST update the parser.
 
@@ -525,10 +534,10 @@ translation = result.get("translation", "").strip()
 
 ### Primary Hotkey: F8 (configurable)
 
-| Setting Key | Default | Options |
-|:------------|:--------|:--------|
-| `hotkey` | `"F8"` | Any keyboard library-compatible string |
-| `hotkey_mode` | `"toggle"` | `"toggle"` or `"hold"` |
+| Setting Key   | Default    | Options                                |
+| :------------ | :--------- | :------------------------------------- |
+| `hotkey`      | `"F8"`     | Any keyboard library-compatible string |
+| `hotkey_mode` | `"toggle"` | `"toggle"` or `"hold"`                 |
 
 **Toggle mode:** Press F8 → start recording. Press F8 again → stop and process.
 **Hold mode:** Press and hold F8 → recording. Release F8 → stop and process.
@@ -538,6 +547,7 @@ Presets offered in settings UI: F8, Ctrl+Alt+Space, Ctrl+Space. Custom hotkeys s
 ### Language Switcher: Ctrl+Shift+L
 
 A compact frameless popup appears near the floating widget with two dropdowns:
+
 - **Source language:** Auto detect + all 10 languages
 - **Target language:** All 10 languages (default English)
 
@@ -563,6 +573,7 @@ In `hotkeys.py`, hold mode hooks the final key of the combo (e.g., for `Ctrl+Alt
 ### Waveform Bars (5 bars)
 
 Animated vertical bars during recording state only:
+
 - Bar width: 4px, spacing: 6px
 - Height modulated by mic level × sine wave per-bar phase offset
 - Gradient fill: accent color fading top-to-bottom (alpha 220→80)
@@ -584,13 +595,13 @@ After transcription completes, shows first 50 characters of the translated text 
 
 A 3px tall colored bar at the bottom of the widget that evaluates transcript quality:
 
-| Condition | Color | Confidence |
-|:----------|:------|:-----------|
-| Empty or < 5 chars | `#e74c3c` (red) | Low |
-| < 10 chars | `#f1c40f` (yellow) | Medium |
-| > 30% unusual chars | `#f1c40f` (yellow) | Medium |
-| > 20 chars, normal text | `#2ecc71` (green) | High |
-| 10-20 chars, normal | `#f1c40f` (yellow) | Medium |
+| Condition               | Color              | Confidence |
+| :---------------------- | :----------------- | :--------- |
+| Empty or < 5 chars      | `#e74c3c` (red)    | Low        |
+| < 10 chars              | `#f1c40f` (yellow) | Medium     |
+| > 30% unusual chars     | `#f1c40f` (yellow) | Medium     |
+| > 20 chars, normal text | `#2ecc71` (green)  | High       |
+| 10-20 chars, normal     | `#f1c40f` (yellow) | Medium     |
 
 Auto-fades after 3 seconds.
 
@@ -600,28 +611,29 @@ A temporary frameless QWidget notification near the mouse cursor showing first 8
 
 ### Animations
 
-| Animation | Trigger | Duration | Easing | Details |
-|:----------|:--------|:---------|:-------|:--------|
-| Color transition | Any state change | 300ms | OutCubic | `_accent_color` smoothly transitions |
-| Recording pulse | Recording state | Continuous | Sine | Scale oscillates 1.0 ± 0.02 at ~3Hz |
-| Paste pop | Pasted state | 400ms | OutBack | Scale: 1.0 → 1.05 → 1.0 (bouncy) |
-| Scale reset | Leaving recording | 200ms | OutCubic | Smooth return to 1.0 |
-| Level smoothing | Recording (every 40ms) | — | EMA (α=0.4) | `display += (level - display) * 0.4` |
+| Animation        | Trigger                | Duration   | Easing      | Details                              |
+| :--------------- | :--------------------- | :--------- | :---------- | :----------------------------------- |
+| Color transition | Any state change       | 300ms      | OutCubic    | `_accent_color` smoothly transitions |
+| Recording pulse  | Recording state        | Continuous | Sine        | Scale oscillates 1.0 ± 0.02 at ~3Hz  |
+| Paste pop        | Pasted state           | 400ms      | OutBack     | Scale: 1.0 → 1.05 → 1.0 (bouncy)     |
+| Scale reset      | Leaving recording      | 200ms      | OutCubic    | Smooth return to 1.0                 |
+| Level smoothing  | Recording (every 40ms) | —          | EMA (α=0.4) | `display += (level - display) * 0.4` |
 
 ### Sound Feedback (winsound)
 
-| Event | Frequency | Duration | Thread |
-|:------|:----------|:---------|:-------|
-| Recording start | 1200 Hz | 80 ms | Daemon |
-| Recording stop | 600 Hz | 80 ms | Daemon |
+| Event              | Frequency        | Duration       | Thread |
+| :----------------- | :--------------- | :------------- | :----- |
+| Recording start    | 1200 Hz          | 80 ms          | Daemon |
+| Recording stop     | 600 Hz           | 80 ms          | Daemon |
 | Transcription done | 800 Hz → 1200 Hz | 80 ms → 100 ms | Daemon |
-| Error | 300 Hz | 300 ms | Daemon |
+| Error              | 300 Hz           | 300 ms         | Daemon |
 
 All sounds run on daemon threads — never block the Qt event loop.
 
 ### Right-Click Context Menu
 
 Opens on the floating widget:
+
 - **Last 5 history entries** — each with a `📋 snippet…` label that copies the full text on click. Shows "Copied!" tooltip
 - Separator
 - Settings...
@@ -726,16 +738,16 @@ cat "$APPDATA/JoyVoice/settings.json"
 
 Complete list with versions and WHY each is needed:
 
-| Package | Min Version | Actual | Why It's Needed |
-|:--------|:-----------|:-------|:----------------|
-| `PySide6` | ≥ 6.7 | 6.7.x | Qt 6 bindings — floating widget (frameless, always-on-top, custom paint), settings dialog (7 tabs), system tray, QThread for async workers, QPropertyAnimation, signal-slot architecture |
-| `sounddevice` | ≥ 0.5 | 0.5.x | PortAudio/WASAPI bindings — InputStream with float32 callback, device enumeration, low-latency mic capture at 16kHz mono |
-| `numpy` | ≥ 1.26 | 1.26.x | Audio buffer math — float32→int16 conversion, np.clip, np.concatenate, peak level computation |
-| `pyperclip` | ≥ 1.9 | 1.9.x | Cross-platform clipboard access — save clipboard, copy result, restore original. Handles Unicode (Bangla) correctly |
-| `keyboard` | ≥ 0.13 | 0.13.x | Global hotkey hooks — keyboard.add_hotkey() for toggle mode, keyboard.hook_key() for hold mode, keyboard.send("ctrl+v") for paste, keyboard.is_pressed() for key-release detection |
-| `SpeechRecognition` | ≥ 3.17 | 3.17 | Google Web Speech API fallback — sr.Recognizer().recognize_google(). Free, no API key, 80+ languages |
-| `typing_extensions` | ≥ 4.16 | 4.16 | **Required by SpeechRecognition.** Without it, recognize_google() silently fails. NOT optional despite the name |
-| `cffi` | ≥ 1.16 | — | Transitive dependency of `sounddevice` on Windows (PortAudio C library bindings) |
+| Package             | Min Version | Actual | Why It's Needed                                                                                                                                                                          |
+| :------------------ | :---------- | :----- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PySide6`           | ≥ 6.7       | 6.7.x  | Qt 6 bindings — floating widget (frameless, always-on-top, custom paint), settings dialog (7 tabs), system tray, QThread for async workers, QPropertyAnimation, signal-slot architecture |
+| `sounddevice`       | ≥ 0.5       | 0.5.x  | PortAudio/WASAPI bindings — InputStream with float32 callback, device enumeration, low-latency mic capture at 16kHz mono                                                                 |
+| `numpy`             | ≥ 1.26      | 1.26.x | Audio buffer math — float32→int16 conversion, np.clip, np.concatenate, peak level computation                                                                                            |
+| `pyperclip`         | ≥ 1.9       | 1.9.x  | Cross-platform clipboard access — save clipboard, copy result, restore original. Handles Unicode (Bangla) correctly                                                                      |
+| `keyboard`          | ≥ 0.13      | 0.13.x | Global hotkey hooks — keyboard.add_hotkey() for toggle mode, keyboard.hook_key() for hold mode, keyboard.send("ctrl+v") for paste, keyboard.is_pressed() for key-release detection       |
+| `SpeechRecognition` | ≥ 3.17      | 3.17   | Google Web Speech API fallback — sr.Recognizer().recognize_google(). Free, no API key, 80+ languages                                                                                     |
+| `typing_extensions` | ≥ 4.16      | 4.16   | **Required by SpeechRecognition.** Without it, recognize_google() silently fails. NOT optional despite the name                                                                          |
+| `cffi`              | ≥ 1.16      | —      | Transitive dependency of `sounddevice` on Windows (PortAudio C library bindings)                                                                                                         |
 
 **All packages are pure Python or have prebuilt Windows wheels.** No CUDA. No PyTorch. No local Whisper. No Ollama. No GPU required.
 
@@ -774,12 +786,13 @@ The `joyvoice` Hermes skill auto-loads this knowledge before any JoyVoice debugg
 
 The app icon exists in two locations:
 
-| Path | Size | Purpose |
-|:-----|:-----|:--------|
-| `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico` | 11,354 bytes | Root level — used by `build_exe.bat` (`--icon=icon.ico`) |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\assets\icon.ico` | — | Bundled — loaded at runtime by `paths.icon_path()` |
+| Path                                                         | Size         | Purpose                                                  |
+| :----------------------------------------------------------- | :----------- | :------------------------------------------------------- |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico`        | 11,354 bytes | Root level — used by `build_exe.bat` (`--icon=icon.ico`) |
+| `C:\Users\Administrator\VoiceFloat\joyvoice\assets\icon.ico` | —            | Bundled — loaded at runtime by `paths.icon_path()`       |
 
 At runtime, `paths.icon_path()` checks:
+
 1. If frozen (PyInstaller): `sys._MEIPASS / "assets" / "icon.ico"`
 2. Otherwise: `app_root() / "assets" / "icon.ico"` (i.e., `<repo>/assets/icon.ico`)
 
@@ -871,41 +884,41 @@ powershell "Get-Process python* -ErrorAction SilentlyContinue | Stop-Process -Fo
 ## APPENDIX A: API Gateway Reference
 
 ```
-Base URL: https://ai.bdx.market/v1
+Base URL: https://gpt.bdx.market/v1
 Auth:     Bearer token from JV_API_KEY env var
 Headers:  Authorization: Bearer {JV_API_KEY}
           Content-Type: application/json
 
-Audio endpoint:  POST /chat/completions  (with input_audio content type)
+Audio endpoint:  POST /chat/completions  (with input_audio content type if supported)
 Text endpoint:   POST /chat/completions  (standard chat completion)
 Models endpoint: GET  /models            (list available models)
 ```
 
-**Available models:** The live gateway catalog is documented in `docs/API.md` and currently contains 63 models (queried 2026-07-22). The catalog is dynamic; query `GET /models` for the authoritative current list.
+**Available models:** The live gateway catalog is documented in `docs/API.md`. The catalog is dynamic; query `GET /models` for the authoritative current list.
 
-**Default model:** `gemini-3.1-flash-lite` for both audio and text. ~3.3s end-to-end.
+**Default model:** `gemini-3.6-flash` for both audio and text (gateway `https://gpt.bdx.market/v1`).
 
 ---
 
 ## APPENDIX B: Output Modes
 
-| Mode | `output_mode` value | What gets pasted |
-|:-----|:-------------------|:-----------------|
-| Translation | `"translation"` | Target language only (e.g., English) |
-| Original | `"original"` | Source language transcript only |
-| Both | `"both"` | Source transcript + `\n\n` + Translation |
+| Mode        | `output_mode` value | What gets pasted                         |
+| :---------- | :------------------ | :--------------------------------------- |
+| Translation | `"translation"`     | Target language only (e.g., English)     |
+| Original    | `"original"`        | Source language transcript only          |
+| Both        | `"both"`            | Source transcript + `\n\n` + Translation |
 
 ---
 
 ## APPENDIX C: Text Styles
 
-| Style | `text_style` value | Processing | API Call? |
-|:------|:-------------------|:-----------|:----------|
-| Raw | `"raw"` | None — passes through as-is | No |
-| Clean English | `"clean_english"` | Rule-based: fillers, stutters, replacements, capitalize | No |
-| Prompt for AI | `"prompt_for_ai"` | Gemini text LLM: cleanup into AI prompt format | Yes |
-| Professional Message | `"professional_message"` | Gemini text LLM: polite professional tone | Yes |
-| Facebook Post | `"facebook_post"` | Gemini text LLM: casual social post tone | Yes |
+| Style                | `text_style` value       | Processing                                              | API Call? |
+| :------------------- | :----------------------- | :------------------------------------------------------ | :-------- |
+| Raw                  | `"raw"`                  | None — passes through as-is                             | No        |
+| Clean English        | `"clean_english"`        | Rule-based: fillers, stutters, replacements, capitalize | No        |
+| Prompt for AI        | `"prompt_for_ai"`        | Gemini text LLM: cleanup into AI prompt format          | Yes       |
+| Professional Message | `"professional_message"` | Gemini text LLM: polite professional tone               | Yes       |
+| Facebook Post        | `"facebook_post"`        | Gemini text LLM: casual social post tone                | Yes       |
 
 AI text styles (`prompt_for_ai`, `professional_message`, `facebook_post`) are defined in `app/main.py` `STYLE_PROMPTS` dict. They use `CloudLLMWorker(QThread)` with `FAST_MODEL`.
 
@@ -917,4 +930,4 @@ The recorder has a hard limit: `MAX_SECONDS = 300` (5 minutes). If recording exc
 
 ---
 
-*This document supercedes all previous AGENTS.md versions. Every pitfall encoded here was discovered through actual debugging sessions. Respect them.*
+_This document supercedes all previous AGENTS.md versions. Every pitfall encoded here was discovered through actual debugging sessions. Respect them._

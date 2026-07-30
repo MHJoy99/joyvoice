@@ -84,19 +84,19 @@ That's it. No window switching. No copy-paste. No language selection. Just speak
 
 ---
 
-## ⚡ Direct Local Execution (Run Directly From This Folder)
+## ⚡ Direct Local Execution
 
-If you have downloaded or cloned this repository into your local folder (`C:\Users\Administrator\VoiceFloat\joyvoice`), you can run JoyVoice immediately without rebuilding or downloading extra tools:
+If you have downloaded or cloned this repository into your project folder, you can run JoyVoice immediately:
 
 ```cmd
-:: 1. Open Command Prompt in this folder
-cd C:\Users\Administrator\VoiceFloat\joyvoice
+:: 1. Open Command Prompt in the repository folder
+cd joyvoice
 
-:: 2. Activate the pre-configured virtual environment
+:: 2. Activate virtual environment
 .venv\Scripts\activate
 
 :: 3. Set your API Key
-set JV_API_KEY=your_bdx_market_api_key
+set JV_API_KEY=your_api_key_here
 
 :: 4. Launch JoyVoice!
 run.bat
