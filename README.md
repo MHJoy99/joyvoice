@@ -6,7 +6,7 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.0-22d3ee?style=flat-square" alt="Version 2.3.0"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.1-22d3ee?style=flat-square" alt="Version 2.3.1"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="#"><img src="https://img.shields.io/badge/Latency-~3.3s-22d3ee?style=flat-square" alt="Latency ~3.3s"></a>
@@ -110,26 +110,25 @@ run.bat
 
 ### 🪟 Option A: Download Pre-built EXE _(recommended)_
 
-> A single `.exe` — no Python, no venv, no dependency hell. Drop it on any Windows machine and start dictating. **Two builds are published on GitHub Releases:**
+> A single `.exe` — no Python, no venv, no dependency hell. Drop it on any Windows machine and start dictating. **One consolidated executable supports both cloud and offline dictation:**
 
-| Build                 | Best for                                    | What's inside                                                                                                     |
-| :-------------------- | :------------------------------------------ | :---------------------------------------------------------------------------------------------------------------- |
-| **JoyVoice-Free.exe** | **Fully-free, offline use _(recommended)_** | Bundles the offline libraries (faster-whisper / ctranslate2 / av / onnxruntime), CPU-oriented. No API key needed. |
-| **JoyVoice.exe**      | Cloud use (smaller download)                | Slim cloud build. Needs an API key in **Settings → API** (or `JV_API_KEY`).                                       |
+| Build            | Best for                                                  | What's inside                                                                                                                               |
+| :--------------- | :-------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
+| **JoyVoice.exe** | **All users — Cloud & Free/Offline Mode _(recommended)_** | Single full bundle (~173 MB). Contains cloud mode pipeline and bundled offline libraries (faster-whisper / ctranslate2 / av / onnxruntime). |
 
 ```
 📁 JoyVoice/
-   ├── JoyVoice-Free.exe     ← Double-click to launch (offline, no API key)
-   ├── JoyVoice.exe          ← Slim cloud build (needs API key)
+   ├── JoyVoice.exe          ← Double-click to launch (supports Cloud & Free/Offline Mode)
    ├── assets/               ← Bundled icons & SVGs
    └── README.txt
 ```
 
 **[Download from GitHub Releases](https://github.com/MHJoy99/joyvoice/releases)** &nbsp;·&nbsp; _Standalone · Auto-update ready_
 
-> **🆓 JoyVoice-Free.exe needs no API key.** The first time, click **Set up Free Mode** in Settings → **Free Mode** to download the speech model **once** (needs internet for the download only); after that it works fully offline.
+> **💡 Single EXE convenience:** `JoyVoice.exe` handles both Cloud Mode and Free & Offline Mode.
 >
-> **🔑 JoyVoice.exe needs an API key.** The slim cloud build ships with no bundled key — configure one in **Settings → API** (stored locally) or set the `JV_API_KEY` environment variable before first use.
+> - **Cloud Mode:** Requires an API key configured in **Settings → API** (stored locally) or set via `JV_API_KEY`.
+> - **Free & Offline Mode:** Requires no API key. Click **Set up Free Mode** in **Settings → Free Mode** to download the speech model **once** (needs internet for initial model download only); after that it operates fully offline.
 
 ### 🐍 Option B: Run from Source
 
@@ -383,27 +382,29 @@ Uses `winsound.Beep` (stdlib, no deps). Silent no-op on non-Windows or Terminal 
 
 Stored at `%APPDATA%\JoyVoice\settings.json`:
 
-| Key                     | Default                     | Description                                                                |
-| :---------------------- | :-------------------------- | :------------------------------------------------------------------------- |
-| `language`              | `auto`                      | Source language (`auto` to detect, or lock to `bn`/`ru`/`zh`/etc.)         |
-| `target_language`       | `en`                        | Translation target language (any of the 10 supported codes)                |
-| `output_mode`           | `translation`               | `original` / `translation` / `both` — labels are dynamic per language pair |
-| `text_style`            | `clean_english`             | `raw` / `clean_english` / `prompt_for_ai` / `formal_email` / `custom`      |
-| `hotkey`                | `F8`                        | Global toggle key                                                          |
-| `hotkey_mode`           | `toggle`                    | `toggle` / `hold-to-record`                                                |
-| `audio_device_name`     | —                           | Specific mic (null = system default)                                       |
-| `paste_mode`            | `paste`                     | `paste` / `copy_only`                                                      |
-| `paste_delay_ms`        | `300`                       | Delay before `Ctrl+V`                                                      |
-| `restore_clipboard`     | `true`                      | Restore original clipboard after paste                                     |
-| `launch_on_startup`     | `false`                     | Auto-start with Windows                                                    |
-| `api_base`              | `https://gpt.bdx.market/v1` | OpenAI-compatible endpoint root (ends in `/v1`)                            |
-| `api_key`               | _(blank)_                   | API key stored locally; blank falls back to `JV_API_KEY` env var           |
-| `audio_model`           | `gemini-3.6-flash`          | Model for speech transcription (native audio)                              |
-| `text_model`            | `gemini-3.6-flash`          | Model for translation and AI text styles                                   |
-| `engine_mode`           | `cloud`                     | Active engine: `cloud` (uses API key) / `free` (local models, no API key)  |
-| `free_asr_model`        | `small`                     | Free Mode local Whisper model: `tiny` / `base` / `small`                   |
-| `free_device`           | `auto`                      | Free Mode device: `auto` (GPU if available) / `cpu`                        |
-| `free_translate_engine` | `auto`                      | Free Mode translation: `auto` / `whisper` / `none`                         |
+| Key                        | Default                     | Description                                                                  |
+| :------------------------- | :-------------------------- | :--------------------------------------------------------------------------- |
+| `language`                 | `auto`                      | Source language (`auto` to detect, or lock to `bn`/`ru`/`zh`/etc.)           |
+| `target_language`          | `en`                        | Translation target language (any of the 10 supported codes)                  |
+| `output_mode`              | `translation`               | `original` / `translation` / `both` — labels are dynamic per language pair   |
+| `text_style`               | `clean_english`             | `raw` / `clean_english` / `prompt_for_ai` / `formal_email` / `custom`        |
+| `hotkey`                   | `F8`                        | Global toggle key                                                            |
+| `hotkey_mode`              | `toggle`                    | `toggle` / `hold-to-record`                                                  |
+| `audio_device_name`        | —                           | Specific mic (null = system default)                                         |
+| `paste_mode`               | `paste`                     | `paste` / `copy_only`                                                        |
+| `paste_delay_ms`           | `300`                       | Delay before `Ctrl+V`                                                        |
+| `restore_clipboard`        | `true`                      | Restore original clipboard after paste                                       |
+| `launch_on_startup`        | `false`                     | Auto-start with Windows                                                      |
+| `api_base`                 | `https://gpt.bdx.market/v1` | OpenAI-compatible endpoint root (ends in `/v1`)                              |
+| `api_key`                  | _(blank)_                   | API key stored locally; blank falls back to `JV_API_KEY` env var             |
+| `audio_model`              | `gemini-3.6-flash`          | Model for speech transcription (native audio)                                |
+| `text_model`               | `gemini-3.6-flash`          | Model for translation and AI text styles                                     |
+| `engine_mode`              | `cloud`                     | Active engine: `cloud` (uses API key) / `free` (local models, no API key)    |
+| `mute_other_apps`          | `off`                       | Call muting mode: `off` \| `hotkey` \| `virtual_device`                      |
+| `call_mute_virtual_device` | `""`                        | Selected virtual audio device endpoint/name for `virtual_device` muting mode |
+| `free_asr_model`           | `small`                     | Free Mode local Whisper model: `tiny` / `base` / `small`                     |
+| `free_device`              | `auto`                      | Free Mode device: `auto` (GPU if available) / `cpu`                          |
+| `free_translate_engine`    | `auto`                      | Free Mode translation: `auto` / `whisper` / `none`                           |
 
 Access via **right-click mic → Settings** or system tray icon.
 
@@ -686,6 +687,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.0 · August 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.1 · August 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>

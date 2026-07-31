@@ -3,6 +3,22 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.1 — Call-Mute Fixes & Single EXE (2026-08-01)
+
+Release addressing call-muting reliability and consolidating distribution into a single executable.
+
+### Call-Mute Improvements
+
+- **Audio-tab mode selector**: Replaced the single "Mute other applications" checkbox with a mode selector: **Off**, **Hotkey**, or **Virtual device**.
+- **Virtual device muting**: Added selectable virtual device mode with an auto-detecting dropdown for VB-Cable and VoiceMeeter capture endpoints.
+- **Hotkey guidance & detection**: Hotkey mode detects active call applications (`discord.exe`, `teams.exe`, `zoom.exe`) via `psutil` and sends app mute keys (Discord/Teams: `Ctrl+Shift+M`, Zoom: `Alt+A`). Added UI guidance noting keybind requirements.
+- **Status & Failure Feedback**: Updated `CallMuteManager.engage()` to return structured status dicts (capturing failure reasons such as no call app detected, missing virtual device, or keyboard unavailable); `app/main.py` surfaces results via widget toasts so recording never silently fails to mute.
+- **Bundled dependencies**: PyInstaller spec now explicitly bundles `pycaw`, `comtypes`, and `psutil`.
+
+### Single EXE Consolidation
+
+- **Consolidated binary**: Consolidated distribution into a single `JoyVoice.exe` (~173 MB) containing both cloud mode and bundled free/offline mode libraries (faster-whisper, ctranslate2, av, onnxruntime). The separate `JoyVoice-Free.exe` download distinction has been removed.
+
 ## v2.3.0 — Free & Offline Mode (no API key required) (2026-08-01)
 
 JoyVoice can now run **totally free and offline** — no API key, no cloud. A new **Free Mode** tab in Settings adds an engine switch: **Cloud (uses API key)** vs **Free & Offline (local models, no API key)**. Free Mode uses a small local Whisper model (faster-whisper) for speech-to-text; the model auto-downloads once into `%LOCALAPPDATA%\JoyVoice\models\` the first time (needs internet **once** for the download, then works fully offline). Cloud mode remains the default and is completely untouched.

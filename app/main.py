@@ -512,7 +512,18 @@ class AppController:
         sounds.play_start()
         self.widget.set_state("recording")
         self._level_poll_timer.start()
-        get_call_mute_manager().engage()
+        self._notify_mute_status(get_call_mute_manager().engage())
+
+    def _notify_mute_status(self, status) -> None:
+        """Surface call-mute results so 'recording' never silently means 'not muted'."""
+        if not isinstance(status, dict) or status.get("mode") == "off":
+            return
+        note = status.get("note", "")
+        if status.get("ok") and status.get("muted"):
+            if note:
+                self.widget.show_toast(note)
+            return
+        self.widget.show_toast(f"Mute: {note}" if note else "Mute: could not mute other apps")
 
     def stop_recording(self) -> None:
         if not self.recorder.is_recording() and self._phase != "recording":

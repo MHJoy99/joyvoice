@@ -630,11 +630,33 @@ class SettingsWindow(QDialog):
         self.audio_device_combo = QComboBox()
         form.addRow("Input device:", self.audio_device_combo)
 
-        self.mute_others_checkbox = QCheckBox("Mute other applications while recording (Discord, Zoom, etc.)")
-        self.mute_others_checkbox.setChecked(bool(self._settings.get("mute_other_apps", False)))
-        form.addRow(self.mute_others_checkbox)
+        self.mute_mode_combo = QComboBox()
+        self.mute_mode_combo.addItem("Off", "off")
+        self.mute_mode_combo.addItem("Hotkey \u2014 send mute key to call apps", "hotkey")
+        self.mute_mode_combo.addItem("Virtual device \u2014 mute VB-Cable/VoiceMeeter (most reliable)", "virtual_device")
+        mute_mode = self._settings.get("mute_other_apps", False)
+        if mute_mode is True:
+            mute_mode = "hotkey"
+        elif mute_mode is False:
+            mute_mode = "off"
+        self._set_combo_by_data(self.mute_mode_combo, mute_mode)
+        self.mute_mode_combo.currentIndexChanged.connect(self._on_mute_mode_changed)
+        form.addRow("Mute other apps:", self.mute_mode_combo)
+
+        self.mute_device_combo = QComboBox()
+        self.mute_device_combo.addItem("(auto-detect)", None)
+        for name in self._list_virtual_devices():
+            self.mute_device_combo.addItem(name, name)
+        self._set_combo_by_data(self.mute_device_combo, self._settings.get("call_mute_virtual_device"))
+        form.addRow("Virtual device:", self.mute_device_combo)
+
+        self.mute_help_label = QLabel("")
+        self.mute_help_label.setWordWrap(True)
+        self.mute_help_label.setStyleSheet("color: #6b7280;")
+        form.addRow(self.mute_help_label)
 
         layout.addLayout(form)
+        self._on_mute_mode_changed()
 
         refresh_button = QPushButton("Refresh")
         refresh_button.clicked.connect(self._refresh_audio_devices)
@@ -662,6 +684,32 @@ class SettingsWindow(QDialog):
             self.audio_device_combo.addItem(name, name)
 
         self._set_combo_by_data(self.audio_device_combo, current_name)
+
+    def _list_virtual_devices(self) -> list:
+        try:
+            from app.system.call_mute import detect_virtual_devices
+            return detect_virtual_devices() or []
+        except Exception as exc:
+            logger.warning("Could not list virtual devices: %s", exc)
+            return []
+
+    def _on_mute_mode_changed(self) -> None:
+        mode = self.mute_mode_combo.currentData()
+        self.mute_device_combo.setEnabled(mode == "virtual_device")
+        if mode == "hotkey":
+            self.mute_help_label.setText(
+                "Hotkey mode sends a global mute key (Discord/Teams: Ctrl+Shift+M, "
+                "Zoom: Alt+A). You must set that exact keybind inside the app "
+                "(e.g. Discord \u2192 Settings \u2192 Keybinds \u2192 Toggle Mute) or it will not mute."
+            )
+        elif mode == "virtual_device":
+            self.mute_help_label.setText(
+                "Virtual device mode mutes a VB-Cable/VoiceMeeter capture endpoint \u2014 "
+                "the most reliable method. Requires VB-Cable or VoiceMeeter installed "
+                "and selected as the call app's microphone."
+            )
+        else:
+            self.mute_help_label.setText("")
 
     # ------------------------------------------------------------------
     # Paste
@@ -821,7 +869,8 @@ class SettingsWindow(QDialog):
         updated["hotkey_mode"] = "hold" if self.mode_hold_radio.isChecked() else "toggle"
 
         updated["audio_device_name"] = self.audio_device_combo.currentData()
-        updated["mute_other_apps"] = self.mute_others_checkbox.isChecked()
+        updated["mute_other_apps"] = self.mute_mode_combo.currentData()
+        updated["call_mute_virtual_device"] = self.mute_device_combo.currentData()
 
         updated["paste_mode"] = "copy_only" if self.paste_mode_copy_radio.isChecked() else "paste"
         updated["paste_delay_ms"] = self.paste_delay_combo.currentData()

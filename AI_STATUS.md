@@ -3,10 +3,26 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-01
-- **Focus**: JoyVoice v2.3.0 release — "Free & Offline Mode (no API key required)": new Settings **Free Mode** tab with an engine switch (Cloud vs Free & Offline), local faster-whisper Whisper ASR (`FreeASRWorker`) with one-click auto-download, built-in offline Bangla→English translation, Set up + Test buttons, new `engine_mode` / `free_asr_model` / `free_device` / `free_translate_engine` settings keys, bundled `JoyVoice-Free.exe`; documented in CHANGELOG.md, README.md, and AGENTS.md. Cloud mode remains the default and is untouched.
+- **Focus**: JoyVoice release v2.3.1 documentation updates — updated `CHANGELOG.md`, `README.md`, `AGENTS.md`, and `AI_STATUS.md` for call-mute fixes (Audio-tab mode selector, virtual-device dropdown, keybind guidance, `engage()` status dicts, widget toasts, pycaw/comtypes/psutil bundling) and single-EXE consolidation (`JoyVoice.exe` ~173 MB doing both cloud and free/offline mode).
 - **Phase**: Complete
 
 ### Session Log — 2026-08-01
+
+#### Closeout — v2.3.1 Call-Mute Fixes & Single EXE Consolidation (2026-08-01)
+
+Updated core documentation for the v2.3.1 release:
+
+- **Call-Mute Fixes**: Documented the replacement of the Audio tab's single checkbox with a mode selector (**Off** / **Hotkey** / **Virtual device**), virtual device dropdown with auto-detection, hotkey keybind guidance text, `CallMuteManager.engage()` status dict returning failure reasons, UI widget toast feedback (`_notify_mute_status`), and PyInstaller bundling of `pycaw`, `comtypes`, and `psutil`.
+- **Single EXE Consolidation**: Documented consolidation into a single `JoyVoice.exe` (~173 MB) supporting both cloud mode and bundled free/offline mode, replacing the separate `JoyVoice-Free.exe` distribution model.
+
+#### Closeout — Call Muting Documentation Alignment (2026-08-01)
+
+Updated `AGENTS.md` and `AI_STATUS.md` to reflect actual code behavior for call muting:
+
+- **Active Muter**: `app/system/call_mute.py` (`CallMuteManager`) is the active muter supporting 3 modes (`"off"`, `"hotkey"`, `"virtual_device"`).
+- **Mode Details**: `"hotkey"` sends app-specific mute keys (`Ctrl+Shift+M` for Discord/Teams, `Alt+A` for Zoom by default) via `psutil` app detection, requiring the keybind to be configured inside target apps; `"virtual_device"` mutes a chosen VB-Cable/VoiceMeeter capture endpoint.
+- **UI & Notifications**: Audio settings tab features a mode selector, virtual device dropdown, and guidance text; widget toasts (`_notify_mute_status`) surface failure/guidance warnings at runtime.
+- **Legacy Muter**: `app/system/mic_muter.py` only performs startup crash-recovery (`recover_leftovers()`, `muted_pids.json`).
 
 #### Closeout — v2.3.0 Free & Offline Mode (no API key required) released & documented (2026-08-01)
 

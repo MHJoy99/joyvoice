@@ -104,6 +104,7 @@ class CallMuteManager:
         self._we_muted_virtual: bool = False
         self._last_toggle_time: float = 0.0
         self._state_file: Optional[Path] = None
+        self._last_failure: str = ""
 
     def set_state_file(self, path: Path) -> None:
         self._state_file = path
@@ -121,16 +122,20 @@ class CallMuteManager:
     def is_configured(self) -> bool:
         return self._mode != "off"
 
-    def engage(self) -> None:
-        """Mute call apps. Never raises."""
+    def engage(self) -> dict:
+        """Mute call apps. Never raises. Returns a status dict:
+        {"mode", "muted": [..], "ok": bool, "note": str}."""
         with self._lock:
-            if self._engaged or self._mode == "off":
-                return
+            if self._mode == "off":
+                return {"mode": "off", "muted": [], "ok": True, "note": ""}
+            if self._engaged:
+                return {"mode": self._mode, "muted": list(self._muted_apps), "ok": True, "note": ""}
             # Debounce rapid toggling
             now = time.monotonic()
             if (now - self._last_toggle_time) * 1000 < _DEBOUNCE_MS:
-                return
+                return {"mode": self._mode, "muted": [], "ok": True, "note": ""}
             self._last_toggle_time = now
+            self._last_failure = ""
             try:
                 if self._mode == "virtual_device":
                     self._engage_virtual_device()
@@ -140,6 +145,26 @@ class CallMuteManager:
                 self._persist_state()
             except Exception as exc:
                 logger.error("Call mute engage failed: %s", exc)
+                self._last_failure = str(exc)
+            return self._build_status()
+
+    def _build_status(self) -> dict:
+        if self._mode == "virtual_device":
+            muted = [self._virtual_device_name or "virtual device"] if self._we_muted_virtual else []
+            if muted:
+                return {"mode": self._mode, "muted": muted, "ok": True, "note": ""}
+            return {"mode": self._mode, "muted": [], "ok": False,
+                    "note": self._last_failure or "No virtual audio device was muted"}
+        if self._mode == "hotkey":
+            muted = list(self._muted_apps)
+            if muted:
+                names = ", ".join(muted)
+                return {"mode": self._mode, "muted": muted, "ok": True,
+                        "note": f"Sent mute key to {names} \u2014 ensure each app has a mute "
+                                f"keybind set (Discord/Teams: Ctrl+Shift+M, Zoom: Alt+A)."}
+            return {"mode": self._mode, "muted": [], "ok": False,
+                    "note": self._last_failure or "No call apps detected"}
+        return {"mode": self._mode, "muted": [], "ok": True, "note": ""}
 
     def release(self) -> None:
         """Unmute call apps. Never raises. Idempotent."""
@@ -222,6 +247,7 @@ class CallMuteManager:
                 self._virtual_device_name = devs[0]
             else:
                 logger.warning("No virtual audio device found")
+                self._last_failure = "No virtual audio device found (install VB-Cable or VoiceMeeter)"
                 return
 
         try:
@@ -262,6 +288,7 @@ class CallMuteManager:
                 comtypes.CoUninitialize()
         except Exception as exc:
             logger.error("Virtual device mute failed: %s", exc)
+            self._last_failure = f"Virtual device mute failed: {exc}"
 
     def _release_virtual_device(self) -> None:
         if not self._virtual_device_name:
@@ -308,10 +335,12 @@ class CallMuteManager:
     def _engage_hotkey(self) -> None:
         if not HAS_KEYBOARD:
             logger.warning("keyboard library not available for hotkey backend")
+            self._last_failure = "Keyboard library not available"
             return
         apps = detect_running_call_apps()
         if not apps:
             logger.info("No call apps detected")
+            self._last_failure = "No call apps detected (Discord/Zoom/Teams not running)"
             return
         for app_key in apps:
             hotkey = self._hotkeys.get(app_key)
