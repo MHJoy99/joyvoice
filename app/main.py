@@ -33,6 +33,7 @@ from app.system.mic_muter import get_mic_muter
 from app.system.call_mute import get_call_mute_manager
 from app.crash_guard import safe_slot
 from app.transcription.cloud_asr import transcribe as cloud_asr_transcribe
+from app.transcription.free_asr import FreeASRWorker
 from app.transcription.command_override import (
     resolve_effective_target,
     strip_override_command,
@@ -550,14 +551,26 @@ class AppController:
         job_id = self._job_id
         self._active_job_id = job_id
 
-        # Recorder returns normalized float32; cloud audio APIs expect signed PCM16.
-        if isinstance(audio, np.ndarray):
-            raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+        # Free mode keeps the float32 array (faster-whisper input); cloud needs PCM16.
+        if self.settings.get("engine_mode", "cloud") == "free" and isinstance(audio, np.ndarray):
+            self._pending_asr = FreeASRWorker(
+                audio,
+                language,
+                target_language,
+                asr_model=self.settings.get("free_asr_model", "small"),
+                device=self.settings.get("free_device", "auto"),
+                translate_engine=self.settings.get("free_translate_engine", "auto"),
+                job_id=job_id,
+            )
         else:
-            raw_bytes = audio
-        self._pending_asr = CloudASRWorker(
-            raw_bytes, language, target_language, job_id=job_id
-        )
+            # Recorder returns normalized float32; cloud audio APIs expect signed PCM16.
+            if isinstance(audio, np.ndarray):
+                raw_bytes = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+            else:
+                raw_bytes = audio
+            self._pending_asr = CloudASRWorker(
+                raw_bytes, language, target_language, job_id=job_id
+            )
         self._pending_asr.done.connect(
             lambda transcript, translation, override, jid=job_id: self._on_asr_done(
                 transcript, translation, override, output_mode, jid
@@ -755,11 +768,14 @@ class AppController:
             final_text = translation
 
         style = self.settings.get("text_style", "clean_english")
-        if style in AI_TEXT_STYLES:
+        if style in AI_TEXT_STYLES and self.settings.get("engine_mode", "cloud") != "free":
             logger.info("Triggering AI text style rewrite (%s)", style)
             self._run_llm(final_text, style)
             return
 
+        if style in AI_TEXT_STYLES:
+            # Free mode has no cloud LLM; paste the cleaned text and inform the user.
+            self.widget.show_toast("AI text styles need Cloud mode")
         self._finish_paste(final_text)
 
     def _on_asr_failed(self, message: str, job_id: int) -> None:

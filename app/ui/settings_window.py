@@ -12,7 +12,7 @@ import logging
 from typing import Any, Optional
 
 import pyperclip
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -79,6 +79,76 @@ KNOWN_MODELS = [
     "gpt-4o",
 ]
 
+FREE_ASR_MODELS = [
+    ("Tiny (fastest, lowest quality)", "tiny"),
+    ("Base (fast)", "base"),
+    ("Small (recommended)", "small"),
+]
+FREE_DEVICES = [
+    ("Auto (GPU if available)", "auto"),
+    ("CPU only", "cpu"),
+]
+FREE_TRANSLATE_ENGINES = [
+    ("Auto (English translation built-in)", "auto"),
+    ("Whisper English translation", "whisper"),
+    ("None (transcription only)", "none"),
+]
+
+
+class FreeModelWorker(QThread):
+    """Downloads/loads the local Whisper model and optionally runs a test pass."""
+
+    progress = Signal(str)
+    finished_ok = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, asr_model: str, device: str, purpose: str = "setup", parent=None) -> None:
+        super().__init__(parent)
+        self._asr_model = asr_model or "small"
+        self._device = device or "auto"
+        self._purpose = purpose
+
+    def run(self) -> None:
+        try:
+            self.progress.emit("Loading offline model (downloads once if needed)…")
+            import app.transcription.whisper_engine  # noqa: F401  (registers NVIDIA DLL dirs)
+            from faster_whisper import WhisperModel
+            from app.storage import paths
+
+            root = str(paths.models_dir())
+            if self._device == "cpu":
+                model = WhisperModel(self._asr_model, device="cpu", compute_type="int8", download_root=root)
+                detail = "device=cpu, compute=int8"
+            else:
+                try:
+                    model = WhisperModel(self._asr_model, device="cuda", compute_type="float16", download_root=root)
+                    detail = "device=cuda, compute=float16"
+                except Exception:
+                    model = WhisperModel(self._asr_model, device="cpu", compute_type="int8", download_root=root)
+                    detail = "device=cpu, compute=int8"
+
+            if self._purpose == "test":
+                import time
+                import numpy as np
+
+                self.progress.emit("Running a test transcription…")
+                t0 = time.monotonic()
+                segments, _info = model.transcribe(
+                    np.zeros(16000, dtype=np.float32), beam_size=1, vad_filter=False
+                )
+                text = " ".join(seg.text for seg in segments).strip()
+                elapsed = time.monotonic() - t0
+                self.finished_ok.emit(
+                    f"\u2713 Engine OK ({detail}). Test audio processed in {elapsed:.2f}s. "
+                    f"Transcript: \u201c{text or '(silence)'}\u201d"
+                )
+            else:
+                self.finished_ok.emit(
+                    f"\u2713 Model \u201c{self._asr_model}\u201d ready ({detail}). Free Mode is set up."
+                )
+        except Exception as exc:
+            self.failed.emit(f"\u2717 {exc}")
+
 
 def _paste_delay_label(ms: int) -> str:
     return "0ms (fastest)" if ms == 0 else f"{ms}ms"
@@ -96,6 +166,7 @@ class SettingsWindow(QDialog):
         tabs = QTabWidget(self)
         tabs.addTab(self._build_output_tab(), "Output")
         tabs.addTab(self._build_api_tab(), "API")
+        tabs.addTab(self._build_free_mode_tab(), "Free Mode")
         tabs.addTab(self._build_general_tab(), "General")
         tabs.addTab(self._build_hotkey_tab(), "Hotkey")
         tabs.addTab(self._build_audio_tab(), "Audio")
@@ -356,6 +427,108 @@ class SettingsWindow(QDialog):
         else:
             self.api_test_label.setText(f"\u2713 Connected to {base}.")
         self.api_test_label.setStyleSheet("color: #2ecc71;")
+
+    # ------------------------------------------------------------------
+    # Free Mode (local models, no API key)
+    # ------------------------------------------------------------------
+    def _build_free_mode_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        mode_label = QLabel("Engine:")
+        layout.addWidget(mode_label)
+
+        self.engine_cloud_radio = QRadioButton("Cloud — uses your API key (best quality)")
+        self.engine_free_radio = QRadioButton("Free & Offline — local models, no API key needed")
+        self.engine_group = QButtonGroup(widget)
+        self.engine_group.addButton(self.engine_cloud_radio)
+        self.engine_group.addButton(self.engine_free_radio)
+        if self._settings.get("engine_mode", "cloud") == "free":
+            self.engine_free_radio.setChecked(True)
+        else:
+            self.engine_cloud_radio.setChecked(True)
+        layout.addWidget(self.engine_cloud_radio)
+        layout.addWidget(self.engine_free_radio)
+
+        form = QFormLayout()
+        self.free_asr_combo = QComboBox()
+        for label, key in FREE_ASR_MODELS:
+            self.free_asr_combo.addItem(label, key)
+        self._set_combo_by_data(self.free_asr_combo, self._settings.get("free_asr_model", "small"))
+        form.addRow("Speech model:", self.free_asr_combo)
+
+        self.free_device_combo = QComboBox()
+        for label, key in FREE_DEVICES:
+            self.free_device_combo.addItem(label, key)
+        self._set_combo_by_data(self.free_device_combo, self._settings.get("free_device", "auto"))
+        form.addRow("Device:", self.free_device_combo)
+
+        self.free_translate_combo = QComboBox()
+        for label, key in FREE_TRANSLATE_ENGINES:
+            self.free_translate_combo.addItem(label, key)
+        self._set_combo_by_data(self.free_translate_combo, self._settings.get("free_translate_engine", "auto"))
+        form.addRow("Translation:", self.free_translate_combo)
+        layout.addLayout(form)
+
+        button_row = QHBoxLayout()
+        self.free_setup_button = QPushButton("Set up Free Mode")
+        self.free_setup_button.clicked.connect(lambda: self._run_free_worker("setup"))
+        self.free_test_button = QPushButton("Test")
+        self.free_test_button.clicked.connect(lambda: self._run_free_worker("test"))
+        button_row.addWidget(self.free_setup_button)
+        button_row.addWidget(self.free_test_button)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        self.free_status_label = QLabel("Status: not checked yet.")
+        self.free_status_label.setWordWrap(True)
+        self.free_status_label.setStyleSheet("color: #8b949e;")
+        layout.addWidget(self.free_status_label)
+
+        note = QLabel(
+            "Free Mode runs entirely on your computer — no API key, no cloud. "
+            "The first time, click “Set up Free Mode” to download the speech model "
+            "(needs internet once; about 460 MB for Small). Bangla → English "
+            "translation is built in. Other target languages currently produce "
+            "transcription only in Free Mode. AI text styles require Cloud mode."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #6b7280;")
+        layout.addWidget(note)
+        layout.addStretch(1)
+
+        self._free_worker: Optional[FreeModelWorker] = None
+        return widget
+
+    def _run_free_worker(self, purpose: str) -> None:
+        self.free_setup_button.setEnabled(False)
+        self.free_test_button.setEnabled(False)
+        self.free_status_label.setText("Working…")
+        self.free_status_label.setStyleSheet("color: #8b949e;")
+        self._free_worker = FreeModelWorker(
+            self.free_asr_combo.currentData(),
+            self.free_device_combo.currentData(),
+            purpose,
+        )
+        self._free_worker.progress.connect(self._on_free_progress)
+        self._free_worker.finished_ok.connect(self._on_free_ok)
+        self._free_worker.failed.connect(self._on_free_failed)
+        self._free_worker.start()
+
+    def _on_free_progress(self, message: str) -> None:
+        self.free_status_label.setText(message)
+
+    def _on_free_ok(self, message: str) -> None:
+        self.free_status_label.setText(message)
+        self.free_status_label.setStyleSheet("color: #2ecc71;")
+        self.free_setup_button.setEnabled(True)
+        self.free_test_button.setEnabled(True)
+
+    def _on_free_failed(self, message: str) -> None:
+        self.free_status_label.setText(message)
+        self.free_status_label.setStyleSheet("color: #e74c3c;")
+        self.free_setup_button.setEnabled(True)
+        self.free_test_button.setEnabled(True)
 
     # ------------------------------------------------------------------
     # General
@@ -632,6 +805,10 @@ class SettingsWindow(QDialog):
         updated["api_key"] = self.api_key_edit.text().strip()
         updated["audio_model"] = self.audio_model_combo.currentText().strip()
         updated["text_model"] = self.text_model_combo.currentText().strip()
+        updated["engine_mode"] = "free" if self.engine_free_radio.isChecked() else "cloud"
+        updated["free_asr_model"] = self.free_asr_combo.currentData()
+        updated["free_device"] = self.free_device_combo.currentData()
+        updated["free_translate_engine"] = self.free_translate_combo.currentData()
 
         updated["launch_on_startup"] = self.startup_checkbox.isChecked()
         try:

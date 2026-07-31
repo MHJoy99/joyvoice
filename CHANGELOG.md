@@ -3,6 +3,52 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.0 — Free & Offline Mode (no API key required) (2026-08-01)
+
+JoyVoice can now run **totally free and offline** — no API key, no cloud. A new **Free Mode** tab in Settings adds an engine switch: **Cloud (uses API key)** vs **Free & Offline (local models, no API key)**. Free Mode uses a small local Whisper model (faster-whisper) for speech-to-text; the model auto-downloads once into `%LOCALAPPDATA%\JoyVoice\models\` the first time (needs internet **once** for the download, then works fully offline). Cloud mode remains the default and is completely untouched.
+
+### Free Mode Tab & Engine Switch
+
+- **Engine switch**: choose **Cloud (uses API key)** or **Free & Offline (local models, no API key)** from the new Settings → **Free Mode** tab (settings dialog is now 9 tabs).
+- **Speech model choice**: Tiny / Base / **Small** (default Small) — quality-vs-speed tradeoff for the local Whisper model.
+- **Device choice**: **Auto** (uses GPU if available) or **CPU only**.
+- **Set up Free Mode button**: one-click — downloads the selected speech model into `%LOCALAPPDATA%\JoyVoice\models\` with live status.
+- **Test button**: loads the model and runs a test transcription with live status, so you can confirm offline ASR works before dictating.
+
+### Built-in Offline Translation
+
+- **Bangla → English translation is built in offline** via Whisper's `translate` task — no extra model and no API call required.
+- **Other target languages** currently produce **transcription-only** output in Free Mode; multilingual offline translation is a planned next step (NLLB).
+
+### New Settings Keys
+
+- **`engine_mode`** (`"cloud"` | `"free"`, default `"cloud"`): selects the active engine.
+- **`free_asr_model`** (`"tiny"` | `"base"` | `"small"`, default `"small"`): local Whisper model size.
+- **`free_device`** (`"auto"` | `"cpu"`, default `"auto"`): GPU-if-available vs CPU-only.
+- **`free_translate_engine`** (`"auto"` | `"whisper"` | `"none"`, default `"auto"`): how Free Mode handles translation.
+- All four added to `DEFAULTS` in `app/storage/settings_store.py`.
+
+### Pipeline Routing (cloud untouched, still default)
+
+- **`FreeASRWorker`** (`app/transcription/free_asr.py`): new local Whisper offline ASR worker. `app/main.py` `stop_recording()` routes to `FreeASRWorker` when `engine_mode == "free"` (keeping the float32 audio), otherwise to the existing `CloudASRWorker`. Both workers emit the same `done` / `failed` signals, so all downstream result handling is unchanged.
+- **AI text styles** (`prompt_for_ai` / `professional_message` / `facebook_post`) require **Cloud** mode; in Free Mode the cleaned text is pasted and a toast informs the user.
+
+### Dependencies & Distribution
+
+- **`requirements.txt` additions**: `faster-whisper`, `ctranslate2`, `av` (`onnxruntime` comes transitively for VAD).
+- **New bundled build**: `JoyVoice-free.spec` → `dist\JoyVoice-Free.exe`, a onefile build that **bundles the offline libraries** (faster-whisper / ctranslate2 / av / onnxruntime), CPU-oriented — recommended for fully-free use. The existing `JoyVoice.spec` → `JoyVoice.exe` remains the slim cloud build. Both are to be published on GitHub Releases (https://github.com/MHJoy99/joyvoice/releases).
+- **New tooling**: `tools/test_free_mode.py` (headless engine smoke test), `tools/test_free_speech.py` (real-speech offline test via Windows SAPI), and `tools/diag_free_crash.py` + `tools/diag_free_crash2.py` (diagnostics).
+
+### Verified
+
+- **Real spoken audio** ("Hello world. This is a free mode test.") was transcribed **offline** by the production `FreeASRWorker` with an **exact match** — no network, no API key.
+
+### Honest Limits & Planned Next Steps
+
+- The **first** model download needs internet once; after that Free Mode works fully offline.
+- Free Mode transcription quality depends on the chosen Whisper model (**Small recommended**).
+- **Non-English translation targets** and **offline AI text styles** are not yet available in Free Mode. Planned: **NLLB** for multilingual offline translation and **Ollama** for offline AI text styles.
+
 ## v2.2.0 — Configurable OpenAI-Compatible API & Model Selection (2026-08-01)
 
 User-facing configuration release adding a dedicated **API** tab to the Settings dialog. JoyVoice previously read its cloud API config only from environment variables (`JV_API_KEY`, `JV_API_BASE`) with hardcoded `gemini-3.6-flash` models; now any user can point the app at any OpenAI-compatible gateway and pick their own models entirely from the UI — no environment variables required.

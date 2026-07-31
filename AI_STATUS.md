@@ -3,10 +3,24 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-01
-- **Focus**: JoyVoice v2.2.0 release — "Configurable OpenAI-Compatible API & Model Selection": new Settings **API** tab (base URL, masked API key with Show toggle, editable audio/text model dropdowns, Fetch models, Test connection), settings→env→default config resolution applied at startup and live on save, and new `api_base` / `api_key` / `audio_model` / `text_model` settings keys; documented in CHANGELOG.md and README.md.
+- **Focus**: JoyVoice v2.3.0 release — "Free & Offline Mode (no API key required)": new Settings **Free Mode** tab with an engine switch (Cloud vs Free & Offline), local faster-whisper Whisper ASR (`FreeASRWorker`) with one-click auto-download, built-in offline Bangla→English translation, Set up + Test buttons, new `engine_mode` / `free_asr_model` / `free_device` / `free_translate_engine` settings keys, bundled `JoyVoice-Free.exe`; documented in CHANGELOG.md, README.md, and AGENTS.md. Cloud mode remains the default and is untouched.
 - **Phase**: Complete
 
 ### Session Log — 2026-08-01
+
+#### Closeout — v2.3.0 Free & Offline Mode (no API key required) released & documented (2026-08-01)
+
+Recorded the v2.3.0 release in `CHANGELOG.md`, `README.md`, and `AGENTS.md`. JoyVoice can now run **totally free and offline** — no API key, no cloud — using a small local Whisper model. Cloud mode remains the default and is completely untouched.
+
+- **New Settings Free Mode tab** (settings dialog is now 9 tabs): engine switch **Cloud (uses API key)** vs **Free & Offline (local models, no API key)**; speech model Tiny / Base / **Small** (default Small); device **Auto** (GPU if available) / **CPU only**; a one-click **Set up Free Mode** button (downloads the model into `%LOCALAPPDATA%\JoyVoice\models\` with live status — needs internet once); and a **Test** button (loads the model + runs a test transcription with live status).
+- **Built-in offline translation**: Bangla → English via Whisper's `translate` task — no extra model. Other target languages are transcription-only in Free Mode for now.
+- **New settings.json keys** (in `app/storage/settings_store.py` `DEFAULTS`): `engine_mode` (`"cloud"`|`"free"`, default `"cloud"`), `free_asr_model` (`"tiny"`|`"base"`|`"small"`, default `"small"`), `free_device` (`"auto"`|`"cpu"`, default `"auto"`), `free_translate_engine` (`"auto"`|`"whisper"`|`"none"`, default `"auto"`).
+- **Code touched**: `app/transcription/free_asr.py` (new `FreeASRWorker(QThread)` — local Whisper offline ASR, keeps float32 audio); `app/main.py` (`stop_recording()` routes to `FreeASRWorker` when `engine_mode == "free"`, else the existing `CloudASRWorker`; both emit the same `done`/`failed` signals so result handling is unchanged; AI text styles run only when `engine_mode != "free"`); `app/ui/settings_window.py` (new Free Mode tab); `app/storage/settings_store.py` (new keys); `requirements.txt` (added `faster-whisper`, `ctranslate2`, `av`; `onnxruntime` transitive for VAD).
+- **New tooling**: `tools/test_free_mode.py` (headless engine smoke test), `tools/test_free_speech.py` (real-speech offline test via Windows SAPI), `tools/diag_free_crash.py` + `tools/diag_free_crash2.py` (diagnostics).
+- **Distribution**: new onefile build `JoyVoice-free.spec` → `dist\JoyVoice-Free.exe` that bundles the offline libraries (faster-whisper/ctranslate2/av/onnxruntime), CPU-oriented — recommended for fully-free use. The existing `JoyVoice.spec` → `JoyVoice.exe` remains the slim cloud build. Both to be published on GitHub Releases (https://github.com/MHJoy99/joyvoice/releases).
+- **Verification**: real spoken audio ("Hello world. This is a free mode test.") was transcribed **offline** by the production `FreeASRWorker` with an **exact match** — no network, no API key.
+- **Honest limits / planned next steps**: the first model download needs internet once; Free Mode quality depends on the chosen Whisper model (Small recommended); non-English translation targets and offline AI text styles are not yet available in Free Mode (planned: NLLB for multilingual translation, Ollama for AI styles).
+- **Docs updated**: `CHANGELOG.md` (new v2.3.0 section at top); `README.md` (version badge + footer → v2.3.0, Free & Offline feature row + dedicated subsection, settings-keys rows, Free Mode settings-tab row, two-build Download section, dependencies note, 8 → 9 tabs); `AGENTS.md` (header date/mention, §1 Free path note, `free_asr.py` + tools + Free build file-map rows, settings_window 8 → 9 tabs, §5 engine-routing note, §7 settings-key rows, §13 dependency rows).
 
 #### Closeout — v2.2.0 Configurable OpenAI-Compatible API & Model Selection released & documented (2026-08-01)
 

@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-01 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, opt-in global microphone/session muting (pycaw + comtypes) with crash recovery, and configurable API endpoint/key/models via the Settings → API tab._
+> _Last updated 2026-08-01 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, opt-in global microphone/session muting (pycaw + comtypes) with crash recovery, configurable API endpoint/key/models via the Settings → API tab, and Free & Offline Mode (local Whisper ASR, no API key required) via the Settings → Free Mode tab._
 
 ---
 
@@ -16,7 +16,9 @@
 
 **Fallback path:** Speech → Google Web Speech API (free ASR) → Gemini text LLM (translation) → paste.
 
-Zero local models. Zero GPU. Pure cloud pipeline.
+**Free & Offline path (v2.3.0, opt-in):** Speech → local faster-whisper Whisper model (`FreeASRWorker`) → rule-based cleanup → paste. No API key, no cloud; Bangla→English translation is built in via Whisper's `translate` task.
+
+Cloud mode is the default: zero local models, zero GPU, pure cloud pipeline. Free & Offline Mode (`engine_mode == "free"`) is opt-in and adds an optional local Whisper model.
 
 ```
   You say (Bengali):   "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না"
@@ -86,17 +88,18 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### `app/transcription/` — ASR + Translation + Text Processing
 
-| File                                                | Lines | Purpose                                                                                                                                                                                                                                                   |
-| :-------------------------------------------------- | :---: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/transcription/__init__.py`                     |   0   | Package init                                                                                                                                                                                                                                              |
-| `app/transcription/gemini_audio.py`                 |  172  | **Primary ASR.** `transcribe_and_translate()` — PCM16 → WAV base64 → Gemini native audio → (transcript, translation). Contains LANGUAGES dict with all 10 languages + hints. Language-aware prompt building. JSON parsing from markdown fences            |
-| `app/transcription/cloud_asr.py`                    |  51   | **Fallback ASR.** Google Web Speech API via SpeechRecognition. `GOOGLE_LANGUAGE_TAGS` mapping (bn→bn-BD, etc.)                                                                                                                                            |
-| `app/transcription/text_cleaner.py`                 |  89   | Rule-based cleanup: filler removal, Latin-script stutter collapse, user-defined replacements, whitespace normalize, capitalize. `clean_text()` and `DEFAULT_REPLACEMENTS`                                                                                 |
-| `app/transcription/ai_stylist.py`                   |  364  | Local Ollama text rewriting for AI text styles (prompt_for_ai, professional_message, facebook_post). AIStylist(QObject) + AIStylistWorker(QThread). Model start/stop, GPU residency check, faithfulness-first prompts. NOT used in current cloud pipeline |
-| `app/transcription/whisper_engine.py`               |   —   | Local faster-whisper adapter (legacy, inactive in cloud pipeline)                                                                                                                                                                                         |
-| `app/transcription/indic_conformer_worker.py`       |   —   | IndicConformer ASR adapter (legacy, inactive)                                                                                                                                                                                                             |
-| `app/transcription/benchmark_worker.py`             |   —   | ASR engine benchmark runner                                                                                                                                                                                                                               |
-| `app/transcription/translation_benchmark_worker.py` |   —   | Translation model benchmark runner                                                                                                                                                                                                                        |
+| File                                                | Lines | Purpose                                                                                                                                                                                                                                                                                                                                     |
+| :-------------------------------------------------- | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/transcription/__init__.py`                     |   0   | Package init                                                                                                                                                                                                                                                                                                                                |
+| `app/transcription/gemini_audio.py`                 |  172  | **Primary ASR.** `transcribe_and_translate()` — PCM16 → WAV base64 → Gemini native audio → (transcript, translation). Contains LANGUAGES dict with all 10 languages + hints. Language-aware prompt building. JSON parsing from markdown fences                                                                                              |
+| `app/transcription/cloud_asr.py`                    |  51   | **Fallback ASR.** Google Web Speech API via SpeechRecognition. `GOOGLE_LANGUAGE_TAGS` mapping (bn→bn-BD, etc.)                                                                                                                                                                                                                              |
+| `app/transcription/free_asr.py`                     |   —   | **Free & Offline ASR (v2.3.0).** `FreeASRWorker(QThread)` — local faster-whisper Whisper model, no API key. Keeps float32 audio; model auto-downloads once to `%LOCALAPPDATA%\JoyVoice\models\`. Bangla→English via Whisper `translate` task. Emits the same `done`/`failed` signals as `CloudASRWorker`. Used when `engine_mode == "free"` |
+| `app/transcription/text_cleaner.py`                 |  89   | Rule-based cleanup: filler removal, Latin-script stutter collapse, user-defined replacements, whitespace normalize, capitalize. `clean_text()` and `DEFAULT_REPLACEMENTS`                                                                                                                                                                   |
+| `app/transcription/ai_stylist.py`                   |  364  | Local Ollama text rewriting for AI text styles (prompt_for_ai, professional_message, facebook_post). AIStylist(QObject) + AIStylistWorker(QThread). Model start/stop, GPU residency check, faithfulness-first prompts. NOT used in current cloud pipeline                                                                                   |
+| `app/transcription/whisper_engine.py`               |   —   | Local faster-whisper adapter (legacy, inactive in cloud pipeline)                                                                                                                                                                                                                                                                           |
+| `app/transcription/indic_conformer_worker.py`       |   —   | IndicConformer ASR adapter (legacy, inactive)                                                                                                                                                                                                                                                                                               |
+| `app/transcription/benchmark_worker.py`             |   —   | ASR engine benchmark runner                                                                                                                                                                                                                                                                                                                 |
+| `app/transcription/translation_benchmark_worker.py` |   —   | Translation model benchmark runner                                                                                                                                                                                                                                                                                                          |
 
 **`app/transcription/engines/`** — Pluggable ASR engines (benchmark only, not active pipeline):
 
@@ -141,14 +144,14 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### `app/ui/` — User Interface
 
-| File                           | Lines | Purpose                                                                                                                                                                                                                                                                                                                                                                                    |
-| :----------------------------- | :---: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/ui/__init__.py`           |   0   | Package init                                                                                                                                                                                                                                                                                                                                                                               |
-| `app/ui/floating_widget.py`    |  553  | **The floating mic pill.** Glass-morphism paint (rgba background + rounded rect). 5 widget states (idle/recording/transcribing/pasted/error). 5 animated waveform bars. Recording timer. Language badge. Live text preview. Confidence indicator bar. Toast notifications. Right-click context menu with history. Smooth color/scale/pulse animations via QPropertyAnimation. Drag support |
-| `app/ui/tray.py`               |  76   | System tray icon. Loads `icon.ico` or generates fallback circle. Menu: Show/Hide, Diagnostics, Settings, Benchmark, Quit                                                                                                                                                                                                                                                                   |
-| `app/ui/settings_window.py`    |  536  | Tabbed settings dialog. 8 tabs: Output (source lang, target lang, output mode, text style), API (endpoint/key/models), General, Hotkey (preset + custom + mode), Audio (device picker), Paste (mode, delay, restore, wait-for-release), Replacements (table editor), History (list + copy). Contains `LANGUAGES` dict. API tab has Fetch models + Test connection buttons.                 |
-| `app/ui/benchmark_dialog.py`   |   —   | ASR engine comparison dialog (legacy, lazy-loaded)                                                                                                                                                                                                                                                                                                                                         |
-| `app/ui/diagnostics_dialog.py` |   —   | Device/connection diagnostics (legacy)                                                                                                                                                                                                                                                                                                                                                     |
+| File                           | Lines | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| :----------------------------- | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/ui/__init__.py`           |   0   | Package init                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `app/ui/floating_widget.py`    |  553  | **The floating mic pill.** Glass-morphism paint (rgba background + rounded rect). 5 widget states (idle/recording/transcribing/pasted/error). 5 animated waveform bars. Recording timer. Language badge. Live text preview. Confidence indicator bar. Toast notifications. Right-click context menu with history. Smooth color/scale/pulse animations via QPropertyAnimation. Drag support                                                                                                                    |
+| `app/ui/tray.py`               |  76   | System tray icon. Loads `icon.ico` or generates fallback circle. Menu: Show/Hide, Diagnostics, Settings, Benchmark, Quit                                                                                                                                                                                                                                                                                                                                                                                      |
+| `app/ui/settings_window.py`    |  536  | Tabbed settings dialog. 9 tabs: Output (source lang, target lang, output mode, text style), API (endpoint/key/models), Free Mode (engine switch cloud/free, speech model Tiny/Base/Small, device Auto/CPU, translation, Set up Free Mode + Test buttons), General, Hotkey (preset + custom + mode), Audio (device picker), Paste (mode, delay, restore, wait-for-release), Replacements (table editor), History (list + copy). Contains `LANGUAGES` dict. API tab has Fetch models + Test connection buttons. |
+| `app/ui/benchmark_dialog.py`   |   —   | ASR engine comparison dialog (legacy, lazy-loaded)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `app/ui/diagnostics_dialog.py` |   —   | Device/connection diagnostics (legacy)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### `app/system/` — OS Integration
 
@@ -196,13 +199,19 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### Other Directories
 
-| Path                                   | Purpose                                         |
-| :------------------------------------- | :---------------------------------------------- |
-| `tools/translation_benchmark.py`       | Standalone translation benchmark tool           |
-| `build/`                               | PyInstaller build artifacts                     |
-| `dist/JoyVoice.exe`                    | Built executable (~116MB)                       |
-| `release/`                             | Release packages (v1.0.0)                       |
-| `__pycache__/joyvoice.cpython-311.pyc` | Compiled `joyvoice.py` (DANGER: see pitfall #7) |
+| Path                                   | Purpose                                                                                               |
+| :------------------------------------- | :---------------------------------------------------------------------------------------------------- |
+| `tools/translation_benchmark.py`       | Standalone translation benchmark tool                                                                 |
+| `tools/test_free_mode.py`              | Free Mode headless engine smoke test (v2.3.0)                                                         |
+| `tools/test_free_speech.py`            | Free Mode real-speech offline test via Windows SAPI (v2.3.0)                                          |
+| `tools/diag_free_crash.py`             | Free Mode diagnostics (v2.3.0)                                                                        |
+| `tools/diag_free_crash2.py`            | Free Mode diagnostics (v2.3.0)                                                                        |
+| `JoyVoice-free.spec`                   | PyInstaller spec for the bundled offline build → `dist\JoyVoice-Free.exe` (v2.3.0)                    |
+| `build/`                               | PyInstaller build artifacts                                                                           |
+| `dist/JoyVoice.exe`                    | Built executable (~116MB) — slim cloud build                                                          |
+| `dist/JoyVoice-Free.exe`               | Bundled offline build (faster-whisper/ctranslate2/av/onnxruntime), CPU-oriented — no API key (v2.3.0) |
+| `release/`                             | Release packages (v1.0.0)                                                                             |
+| `__pycache__/joyvoice.cpython-311.pyc` | Compiled `joyvoice.py` (DANGER: see pitfall #7)                                                       |
 
 ---
 
@@ -318,6 +327,8 @@ CloudLLMWorker.failed ──→ _show_error()
 HotkeyManager.language_switcher_requested ──→ show_language_switcher() popup
 ```
 
+**Engine routing (v2.3.0):** `AppController.stop_recording()` checks `engine_mode`. When `engine_mode == "free"` it dispatches the recorded float32 audio to `FreeASRWorker` (`app/transcription/free_asr.py`, local Whisper); otherwise it uses the existing `CloudASRWorker` (Gemini audio API). Both workers emit the same `done` / `failed` signals, so `_on_asr_done()` / `_on_asr_failed()` and all downstream result handling are unchanged. Cloud mode is the default and is untouched. AI text styles run only when `engine_mode != "free"`; in Free Mode the cleaned text is pasted and a toast informs the user.
+
 ---
 
 ## 6. LANGUAGES — All 10 Supported
@@ -369,6 +380,10 @@ Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 | `api_key`                 | `""`              | `str`             | API key stored locally; blank falls back to `JV_API_KEY` env var                                            |
 | `audio_model`             | `""`              | `str`             | Audio transcription model; blank = `gemini-3.6-flash`                                                       |
 | `text_model`              | `""`              | `str`             | Translation / AI-style text model; blank = `gemini-3.6-flash`                                               |
+| `engine_mode`             | `"cloud"`         | `str`             | Active engine: `"cloud"` (uses API key) or `"free"` (local models, no API key)                              |
+| `free_asr_model`          | `"small"`         | `str`             | Free Mode local Whisper model: `"tiny"`, `"base"`, or `"small"`                                             |
+| `free_device`             | `"auto"`          | `str`             | Free Mode device: `"auto"` (GPU if available) or `"cpu"`                                                    |
+| `free_translate_engine`   | `"auto"`          | `str`             | Free Mode translation: `"auto"`, `"whisper"`, or `"none"`                                                   |
 | `replacements`            | (6 defaults)      | `dict[str,str]`   | Word-boundary, case-insensitive text substitutions                                                          |
 | `widget_pos`              | `null`            | `[int,int]\|null` | Saved widget position [x, y], or null for default (100, 100)                                                |
 | `first_run_complete`      | `false`           | `bool`            | Whether first-run flow has been shown                                                                       |
@@ -757,7 +772,7 @@ Complete list with versions and WHY each is needed:
 
 | Package             | Min Version | Actual | Why It's Needed                                                                                                                                                                          |
 | :------------------ | :---------- | :----- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PySide6`           | ≥ 6.7       | 6.7.x  | Qt 6 bindings — floating widget (frameless, always-on-top, custom paint), settings dialog (8 tabs), system tray, QThread for async workers, QPropertyAnimation, signal-slot architecture |
+| `PySide6`           | ≥ 6.7       | 6.7.x  | Qt 6 bindings — floating widget (frameless, always-on-top, custom paint), settings dialog (9 tabs), system tray, QThread for async workers, QPropertyAnimation, signal-slot architecture |
 | `sounddevice`       | ≥ 0.5       | 0.5.x  | PortAudio/WASAPI bindings — InputStream with float32 callback, device enumeration, low-latency mic capture at 16kHz mono                                                                 |
 | `numpy`             | ≥ 1.26      | 1.26.x | Audio buffer math — float32→int16 conversion, np.clip, np.concatenate, peak level computation                                                                                            |
 | `pyperclip`         | ≥ 1.9       | 1.9.x  | Cross-platform clipboard access — save clipboard, copy result, restore original. Handles Unicode (Bangla) correctly                                                                      |
@@ -766,9 +781,12 @@ Complete list with versions and WHY each is needed:
 | `typing_extensions` | ≥ 4.16      | 4.16   | **Required by SpeechRecognition.** Without it, recognize_google() silently fails. NOT optional despite the name                                                                          |
 | `pycaw`             | ≥ 20240210  | —      | Windows Core Audio API wrapper — enumerates audio sessions and mutes/unmutes other apps' `SimpleAudioVolume` while recording (opt-in `mute_other_apps`). Gracefully disabled if absent   |
 | `comtypes`          | ≥ 1.4.0     | —      | COM bindings required by `pycaw` — `CoInitialize`/`CoUninitialize` apartment management for audio session calls                                                                          |
+| `faster-whisper`    | ≥ 1.0.0     | —      | **Free & Offline Mode (v2.3.0).** Local Whisper ASR (`FreeASRWorker`) — no API key, no cloud; Bangla→English via the `translate` task. Only used when `engine_mode == "free"`            |
+| `ctranslate2`       | ≥ 4.6.0     | —      | Inference engine behind `faster-whisper` — runs the local Whisper model on CPU (or GPU if available) for Free Mode                                                                       |
+| `av`                | ≥ 11.0.0    | —      | Audio decoding for Free Mode (PyAV). `onnxruntime` comes transitively for VAD                                                                                                            |
 | `cffi`              | ≥ 1.16      | —      | Transitive dependency of `sounddevice` on Windows (PortAudio C library bindings)                                                                                                         |
 
-**All packages are pure Python or have prebuilt Windows wheels.** No CUDA. No PyTorch. No local Whisper. No Ollama. No GPU required.
+**All packages are pure Python or have prebuilt Windows wheels.** Cloud mode (the default) needs no CUDA, no PyTorch, no local Whisper, no Ollama, and no GPU. Free & Offline Mode (opt-in, `engine_mode == "free"`) adds a local Whisper model via `faster-whisper`/`ctranslate2`/`av` that runs on CPU (or GPU if available).
 
 ### Installing
 

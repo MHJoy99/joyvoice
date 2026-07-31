@@ -34,6 +34,11 @@ DEFAULTS: dict[str, Any] = {
     "api_key": "",        # str — API key; empty falls back to JV_API_KEY env var
     "audio_model": "",    # str — native audio transcription model; empty = built-in default
     "text_model": "",     # str — translation / AI-style rewrite model; empty = built-in default
+    # Free / offline mode (local models, no API key required)
+    "engine_mode": "cloud",           # "cloud" | "free"
+    "free_asr_model": "small",        # "tiny" | "base" | "small"
+    "free_device": "auto",            # "auto" | "cpu"
+    "free_translate_engine": "auto",  # "auto" | "whisper" | "none"
     "replacements": dict(DEFAULT_REPLACEMENTS),
     "widget_pos": None,  # [x, y] or None
     "first_run_complete": False,
