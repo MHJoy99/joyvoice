@@ -29,6 +29,11 @@ DEFAULTS: dict[str, Any] = {
     "mute_other_apps": False,  # Mute other apps (Discord/Zoom/etc) while recording
     "call_mute_virtual_device": None,  # str | None — VB-Cable/VoiceMeeter device name
     "call_mute_hotkeys": None,  # dict[str,str] | None — custom hotkeys per app
+    # OpenAI-compatible cloud API config (empty string = fall back to env var, then built-in default)
+    "api_base": "",       # str — e.g. "https://gpt.bdx.market/v1" or "https://api.openai.com/v1"
+    "api_key": "",        # str — API key; empty falls back to JV_API_KEY env var
+    "audio_model": "",    # str — native audio transcription model; empty = built-in default
+    "text_model": "",     # str — translation / AI-style rewrite model; empty = built-in default
     "replacements": dict(DEFAULT_REPLACEMENTS),
     "widget_pos": None,  # [x, y] or None
     "first_run_complete": False,

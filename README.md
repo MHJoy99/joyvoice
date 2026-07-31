@@ -6,7 +6,7 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.1.3-22d3ee?style=flat-square" alt="Version 2.1.3"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.2.0-22d3ee?style=flat-square" alt="Version 2.2.0"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="#"><img src="https://img.shields.io/badge/Latency-~3.3s-22d3ee?style=flat-square" alt="Latency ~3.3s"></a>
@@ -119,7 +119,9 @@ run.bat
    └── README.txt
 ```
 
-**[Download v2.1.0 EXE](#)** &nbsp;·&nbsp; _Standalone · Auto-update ready_
+**[Download JoyVoice.exe from GitHub Releases](https://github.com/MHJoy99/joyvoice/releases)** &nbsp;·&nbsp; _Standalone · Auto-update ready_
+
+> **🔑 Needs an API key.** The EXE ships with no bundled key — configure one in **Settings → API** (stored locally) or set the `JV_API_KEY` environment variable before first use.
 
 ### 🐍 Option B: Run from Source
 
@@ -162,6 +164,7 @@ python app\main.py
 | 🔄  | **Automatic Fallback**        | Google Web Speech API kicks in if Gemini is unreachable. Zero config.                                              |
 | 🎛️  | **Dynamic Output Modes**      | Source transcript only · Target translation only · Both side-by-side. Labels adapt to your selected language pair. |
 | 📝  | **5 Text Styles**             | Clean English · Raw transcript · AI prompt · Formal email · Custom rewrite                                         |
+| 🔌  | **Configurable API**          | Set the OpenAI-compatible base URL, API key, and audio/text models from the Settings UI — no env vars required.    |
 
 ### ✨ 10 UI/UX Improvements (v2.0.0)
 
@@ -357,33 +360,55 @@ Uses `winsound.Beep` (stdlib, no deps). Silent no-op on non-Windows or Terminal 
 
 Stored at `%APPDATA%\JoyVoice\settings.json`:
 
-| Key                 | Default         | Description                                                                |
-| :------------------ | :-------------- | :------------------------------------------------------------------------- |
-| `language`          | `auto`          | Source language (`auto` to detect, or lock to `bn`/`ru`/`zh`/etc.)         |
-| `target_language`   | `en`            | Translation target language (any of the 10 supported codes)                |
-| `output_mode`       | `translation`   | `original` / `translation` / `both` — labels are dynamic per language pair |
-| `text_style`        | `clean_english` | `raw` / `clean_english` / `prompt_for_ai` / `formal_email` / `custom`      |
-| `hotkey`            | `F8`            | Global toggle key                                                          |
-| `hotkey_mode`       | `toggle`        | `toggle` / `hold-to-record`                                                |
-| `audio_device_name` | —               | Specific mic (null = system default)                                       |
-| `paste_mode`        | `paste`         | `paste` / `copy_only`                                                      |
-| `paste_delay_ms`    | `300`           | Delay before `Ctrl+V`                                                      |
-| `restore_clipboard` | `true`          | Restore original clipboard after paste                                     |
-| `launch_on_startup` | `false`         | Auto-start with Windows                                                    |
+| Key                 | Default                     | Description                                                                |
+| :------------------ | :-------------------------- | :------------------------------------------------------------------------- |
+| `language`          | `auto`                      | Source language (`auto` to detect, or lock to `bn`/`ru`/`zh`/etc.)         |
+| `target_language`   | `en`                        | Translation target language (any of the 10 supported codes)                |
+| `output_mode`       | `translation`               | `original` / `translation` / `both` — labels are dynamic per language pair |
+| `text_style`        | `clean_english`             | `raw` / `clean_english` / `prompt_for_ai` / `formal_email` / `custom`      |
+| `hotkey`            | `F8`                        | Global toggle key                                                          |
+| `hotkey_mode`       | `toggle`                    | `toggle` / `hold-to-record`                                                |
+| `audio_device_name` | —                           | Specific mic (null = system default)                                       |
+| `paste_mode`        | `paste`                     | `paste` / `copy_only`                                                      |
+| `paste_delay_ms`    | `300`                       | Delay before `Ctrl+V`                                                      |
+| `restore_clipboard` | `true`                      | Restore original clipboard after paste                                     |
+| `launch_on_startup` | `false`                     | Auto-start with Windows                                                    |
+| `api_base`          | `https://gpt.bdx.market/v1` | OpenAI-compatible endpoint root (ends in `/v1`)                            |
+| `api_key`           | _(blank)_                   | API key stored locally; blank falls back to `JV_API_KEY` env var           |
+| `audio_model`       | `gemini-3.6-flash`          | Model for speech transcription (native audio)                              |
+| `text_model`        | `gemini-3.6-flash`          | Model for translation and AI text styles                                   |
 
 Access via **right-click mic → Settings** or system tray icon.
 
 ### Settings Tabs
 
-| Tab              | Contents                                                                                                          |
-| :--------------- | :---------------------------------------------------------------------------------------------------------------- |
-| **Output**       | Source language (10 langs + auto), target language (10 langs), dynamic output mode labels, text style, cloud note |
-| **General**      | Source language (mirrors Output), launch on startup, API status indicator with "Check API" button                 |
-| **Hotkey**       | Preset + custom hotkey, toggle/hold mode                                                                          |
-| **Audio**        | Input device picker + refresh                                                                                     |
-| **Paste**        | Paste/copy-only mode, delay, clipboard restore, wait-for-release                                                  |
-| **Replacements** | Phrase → Replacement table                                                                                        |
-| **History**      | Dictation history list + copy                                                                                     |
+| Tab              | Contents                                                                                                              |
+| :--------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| **Output**       | Source language (10 langs + auto), target language (10 langs), dynamic output mode labels, text style, cloud note     |
+| **General**      | Source language (mirrors Output), launch on startup                                                                   |
+| **API**          | OpenAI-compatible base URL, masked API key (Show toggle), audio & text model dropdowns, Fetch models, Test connection |
+| **Hotkey**       | Preset + custom hotkey, toggle/hold mode                                                                              |
+| **Audio**        | Input device picker + refresh                                                                                         |
+| **Paste**        | Paste/copy-only mode, delay, clipboard restore, wait-for-release                                                      |
+| **Replacements** | Phrase → Replacement table                                                                                            |
+| **History**      | Dictation history list + copy                                                                                         |
+
+---
+
+### API Tab (v2.2.0)
+
+The **API** tab configures JoyVoice's cloud connection entirely from the UI — no environment variables required:
+
+| Field               | Purpose                                                                                                                                                                |
+| :------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **API base URL**    | Any OpenAI-compatible endpoint root ending in `/v1` (e.g. `https://gpt.bdx.market/v1`, `https://api.openai.com/v1`). Default/placeholder: `https://gpt.bdx.market/v1`. |
+| **API key**         | Masked (password) field with a **Show** toggle. Stored locally in `settings.json`. If left blank, falls back to the `JV_API_KEY` env var.                              |
+| **Audio model**     | Editable dropdown — model used for speech transcription (native audio). Default `gemini-3.6-flash`.                                                                    |
+| **Text model**      | Editable dropdown — model used for translation and AI text styles. Default `gemini-3.6-flash`.                                                                         |
+| **Fetch models**    | Queries the endpoint's `GET /models` and populates both dropdowns with the live model list.                                                                            |
+| **Test connection** | Verifies the endpoint + key are reachable and reports how many models are available.                                                                                   |
+
+**Config resolution precedence:** `settings.json` value → environment variable → built-in default. Applied at startup and re-applied live whenever settings are saved.
 
 ---
 
@@ -436,7 +461,7 @@ joyvoice/
 │   ├── ui/
 │   │   ├── floating_widget.py          ← Glass-morphism widget, waveform, toast, confidence
 │   │   ├── tray.py                     ← System tray icon + menu
-│   │   ├── settings_window.py          ← Tabbed settings dialog (7 tabs)
+│   │   ├── settings_window.py          ← Tabbed settings dialog (8 tabs)
 │   │   ├── benchmark_dialog.py         ← ASR speed benchmark
 │   │   └── diagnostics_dialog.py       ← Device/connection diagnostics
 │   └── system/
@@ -459,21 +484,21 @@ joyvoice/
 ## 🔧 API Gateway
 
 ```
-Base URL:   https://gpt.bdx.market/v1
-Auth:       Set JV_API_KEY environment variable
+Base URL:   https://gpt.bdx.market/v1   (default — change in Settings → API)
+Auth:       Settings → API tab, or JV_API_KEY env var
 
 Speech input:  Google Web Speech       (Sub2API does not relay OpenAI input_audio)
-Text model:    gemini-3.6-flash        (fallback translation + text cleanup)
+Text model:    gemini-3.6-flash        (default — change in Settings → API)
 ```
 
-Both models are served through an OpenAI-compatible API gateway. The same key works for both endpoints — set it once and forget it.
+Both models are served through any OpenAI-compatible API gateway. The base URL, API key, and both models are configurable from **Settings → API** (see the [API Tab](#api-tab-v220) section above); environment variables remain as optional fallbacks. Resolution precedence: `settings.json` → environment variable → built-in default.
 
-| Env Variable  | Purpose                    |               Required               |
-| :------------ | :------------------------- | :----------------------------------: |
-| `JV_API_KEY`  | API gateway authentication |                ✅ Yes                |
-| `JV_API_BASE` | Override gateway URL       | ❌ No (defaults to `gpt.bdx.market`) |
+| Env Variable  | Purpose                    |                 Required                  |
+| :------------ | :------------------------- | :---------------------------------------: |
+| `JV_API_KEY`  | API gateway authentication | ❌ No (optional if set in Settings → API) |
+| `JV_API_BASE` | Override gateway URL       |   ❌ No (defaults to `gpt.bdx.market`)    |
 
-> **Quick setup:** `setx JV_API_KEY "your-key"` — persists across reboots, needed for Desktop shortcuts.
+> **Quick setup:** Configure the key in **Settings → API** (stored locally), or `setx JV_API_KEY "your-key"` to persist it across reboots for Desktop shortcuts.
 
 ---
 
@@ -630,6 +655,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.1.3 · July 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.2.0 · August 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>

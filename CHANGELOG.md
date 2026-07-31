@@ -3,6 +3,33 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.2.0 — Configurable OpenAI-Compatible API & Model Selection (2026-08-01)
+
+User-facing configuration release adding a dedicated **API** tab to the Settings dialog. JoyVoice previously read its cloud API config only from environment variables (`JV_API_KEY`, `JV_API_BASE`) with hardcoded `gemini-3.6-flash` models; now any user can point the app at any OpenAI-compatible gateway and pick their own models entirely from the UI — no environment variables required.
+
+### Settings API Tab
+
+- **API base URL field**: accepts any OpenAI-compatible endpoint root ending in `/v1` (e.g. `https://gpt.bdx.market/v1`, `https://api.openai.com/v1`). Default/placeholder is `https://gpt.bdx.market/v1`.
+- **API key field**: masked (password) input with a **Show** toggle. Stored locally in `%APPDATA%\JoyVoice\settings.json`. If left blank, falls back to the `JV_API_KEY` environment variable.
+- **Audio model dropdown (editable)**: model used for speech transcription (native audio). Default `gemini-3.6-flash`.
+- **Text model dropdown (editable)**: model used for translation and AI text styles. Default `gemini-3.6-flash`.
+- **Fetch models button**: queries the endpoint's `GET /models` and populates both dropdowns with the live model list.
+- **Test connection button**: verifies the endpoint + key are reachable and reports how many models are available.
+
+### Config Resolution
+
+- **Precedence**: `settings.json` value → environment variable → built-in default. Applied at startup and re-applied live whenever settings are saved (`resolve_api_config` / `apply_api_config` in `app/main.py`).
+
+### New Settings Keys
+
+- **`api_base`, `api_key`, `audio_model`, `text_model`**: added to `app/storage/settings_store.py` to persist the API tab configuration.
+
+### Compatibility & Distribution
+
+- **Any OpenAI-compatible gateway**: the base URL, key, and both models are user-configurable, so JoyVoice is no longer tied to a single gateway or a hardcoded model.
+- **Removed General-tab "Check API" button**: superseded by the new API tab's Test connection button.
+- **Single self-contained EXE**: published as `JoyVoice.exe` on GitHub Releases (https://github.com/MHJoy99/joyvoice/releases); the EXE needs an API key configured in Settings (or `JV_API_KEY`).
+
 ## v2.1.4 — 4-Layer Crash-Proof Resilience Architecture (2026-07-30)
 
 Comprehensive resilience upgrade introducing a 4-layer fault-tolerance guard ensuring 100% crash-proof operations under all unexpected errors, callback exceptions, or process terminations.

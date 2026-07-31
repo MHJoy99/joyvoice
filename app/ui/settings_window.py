@@ -69,6 +69,16 @@ TEXT_STYLES = [
 ]
 AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
 
+DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
+KNOWN_MODELS = [
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-pro",
+    "gpt-4o-mini",
+    "gpt-4o",
+]
+
 
 def _paste_delay_label(ms: int) -> str:
     return "0ms (fastest)" if ms == 0 else f"{ms}ms"
@@ -85,6 +95,7 @@ class SettingsWindow(QDialog):
 
         tabs = QTabWidget(self)
         tabs.addTab(self._build_output_tab(), "Output")
+        tabs.addTab(self._build_api_tab(), "API")
         tabs.addTab(self._build_general_tab(), "General")
         tabs.addTab(self._build_hotkey_tab(), "Hotkey")
         tabs.addTab(self._build_audio_tab(), "Audio")
@@ -189,6 +200,164 @@ class SettingsWindow(QDialog):
         pass
 
     # ------------------------------------------------------------------
+    # API (OpenAI-compatible endpoint, key, models)
+    # ------------------------------------------------------------------
+    def _build_api_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        form = QFormLayout()
+
+        self.api_base_edit = QLineEdit()
+        self.api_base_edit.setPlaceholderText(DEFAULT_API_BASE)
+        self.api_base_edit.setText(self._settings.get("api_base", "") or "")
+        form.addRow("API base URL:", self.api_base_edit)
+
+        key_row = QHBoxLayout()
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setEchoMode(QLineEdit.Password)
+        self.api_key_edit.setPlaceholderText("Leave blank to use JV_API_KEY env var")
+        self.api_key_edit.setText(self._settings.get("api_key", "") or "")
+        self.show_key_checkbox = QCheckBox("Show")
+        self.show_key_checkbox.toggled.connect(self._on_toggle_show_key)
+        key_row.addWidget(self.api_key_edit, 1)
+        key_row.addWidget(self.show_key_checkbox)
+        form.addRow("API key:", key_row)
+
+        self.audio_model_combo = QComboBox()
+        self.audio_model_combo.setEditable(True)
+        self._populate_model_combo(self.audio_model_combo, self._settings.get("audio_model", ""))
+        form.addRow("Audio model:", self.audio_model_combo)
+
+        self.text_model_combo = QComboBox()
+        self.text_model_combo.setEditable(True)
+        self._populate_model_combo(self.text_model_combo, self._settings.get("text_model", ""))
+        form.addRow("Text model:", self.text_model_combo)
+
+        layout.addLayout(form)
+
+        button_row = QHBoxLayout()
+        fetch_models_button = QPushButton("Fetch models")
+        fetch_models_button.clicked.connect(self._fetch_models)
+        test_button = QPushButton("Test connection")
+        test_button.clicked.connect(self._test_api_connection)
+        button_row.addWidget(fetch_models_button)
+        button_row.addWidget(test_button)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        self.api_test_label = QLabel("")
+        self.api_test_label.setWordWrap(True)
+        layout.addWidget(self.api_test_label)
+
+        note = QLabel(
+            "JoyVoice works with any OpenAI-compatible API. The base URL is the "
+            "root that ends in /v1 (e.g. https://api.openai.com/v1). Audio is sent "
+            "to the audio model for transcription; the text model handles "
+            "translation and AI text styles. The API key is stored locally in "
+            "settings.json."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #6b7280;")
+        layout.addWidget(note)
+        layout.addStretch(1)
+
+        return widget
+
+    def _populate_model_combo(self, combo: QComboBox, current: str) -> None:
+        combo.clear()
+        models = list(KNOWN_MODELS)
+        current = (current or "").strip()
+        if current and current not in models:
+            models.insert(0, current)
+        combo.addItems(models)
+        combo.setEditText(current or KNOWN_MODELS[0])
+
+    def _on_toggle_show_key(self, checked: bool) -> None:
+        self.api_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
+
+    def _effective_api_base(self) -> str:
+        return (self.api_base_edit.text().strip() or DEFAULT_API_BASE).rstrip("/")
+
+    def _effective_api_key(self) -> str:
+        import os
+        return self.api_key_edit.text().strip() or os.environ.get("JV_API_KEY", "")
+
+    def _fetch_models(self) -> None:
+        import json
+        import urllib.request
+
+        base = self._effective_api_base()
+        key = self._effective_api_key()
+        if not key:
+            self.api_test_label.setText("\u2717 Enter an API key first (or set JV_API_KEY).")
+            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            return
+        try:
+            req = urllib.request.Request(
+                f"{base}/models", headers={"Authorization": f"Bearer {key}"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception as exc:
+            self.api_test_label.setText(f"\u2717 Could not fetch models: {exc}")
+            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            return
+
+        ids = []
+        if isinstance(data, dict) and isinstance(data.get("data"), list):
+            for item in data["data"]:
+                if isinstance(item, dict) and item.get("id"):
+                    ids.append(str(item["id"]))
+        ids = sorted(set(ids))
+        if not ids:
+            self.api_test_label.setText("\u2713 Connected, but no models were listed.")
+            self.api_test_label.setStyleSheet("color: #f1c40f;")
+            return
+
+        current_audio = self.audio_model_combo.currentText().strip()
+        current_text = self.text_model_combo.currentText().strip()
+        self.audio_model_combo.clear()
+        self.audio_model_combo.addItems(ids)
+        self.text_model_combo.clear()
+        self.text_model_combo.addItems(ids)
+        if current_audio in ids:
+            self.audio_model_combo.setEditText(current_audio)
+        if current_text in ids:
+            self.text_model_combo.setEditText(current_text)
+        self.api_test_label.setText(f"\u2713 Fetched {len(ids)} model(s) from {base}.")
+        self.api_test_label.setStyleSheet("color: #2ecc71;")
+
+    def _test_api_connection(self) -> None:
+        import json
+        import urllib.request
+
+        base = self._effective_api_base()
+        key = self._effective_api_key()
+        if not key:
+            self.api_test_label.setText("\u2717 No API key \u2014 enter one or set JV_API_KEY.")
+            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            return
+        try:
+            req = urllib.request.Request(
+                f"{base}/models", headers={"Authorization": f"Bearer {key}"}
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception as exc:
+            self.api_test_label.setText(f"\u2717 Connection failed: {exc}")
+            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            return
+
+        count = 0
+        if isinstance(data, dict) and isinstance(data.get("data"), list):
+            count = len(data["data"])
+        if count:
+            self.api_test_label.setText(f"\u2713 Connected to {base} ({count} model(s) available).")
+        else:
+            self.api_test_label.setText(f"\u2713 Connected to {base}.")
+        self.api_test_label.setStyleSheet("color: #2ecc71;")
+
+    # ------------------------------------------------------------------
     # General
     # ------------------------------------------------------------------
     def _build_general_tab(self) -> QWidget:
@@ -214,18 +383,8 @@ class SettingsWindow(QDialog):
 
         layout.addLayout(form)
 
-        # API status indicator
-        api_row = QHBoxLayout()
-        self.api_status_label = QLabel("")
-        self.api_status_label.setWordWrap(True)
-        check_api_button = QPushButton("Check API")
-        check_api_button.clicked.connect(self._check_api_status)
-        api_row.addWidget(check_api_button)
-        api_row.addWidget(self.api_status_label, 1)
-        layout.addLayout(api_row)
-
         note = QLabel(
-            "Powered by Gemini 2.5 Flash Lite via BDX.market cloud"
+            "Cloud API endpoint, key, and models are configured in the API tab."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #6b7280;")
@@ -233,43 +392,6 @@ class SettingsWindow(QDialog):
         layout.addStretch(1)
 
         return widget
-
-    def _check_api_status(self) -> None:
-        """Check whether the BDX.market cloud API is reachable with the current API key."""
-        import json
-        import os
-        import urllib.request
-
-        api_key = os.environ.get("JV_API_KEY", "")
-        api_base = os.environ.get(
-            "JV_API_BASE", "https://gpt.bdx.market/v1"
-        ).rstrip("/")
-        if not api_key:
-            self.api_status_label.setText("\u2717 JV_API_KEY not set in environment")
-            self.api_status_label.setStyleSheet("color: #e74c3c;")
-            return
-
-        try:
-            req = urllib.request.Request(
-                f"{api_base}/models",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode())
-        except Exception as exc:
-            self.api_status_label.setText(f"\u2717 API unreachable: {exc}")
-            self.api_status_label.setStyleSheet("color: #e74c3c;")
-            return
-
-        if isinstance(data, dict) and isinstance(data.get("data"), list):
-            count = len(data["data"])
-            self.api_status_label.setText(
-                f"\u2713 BDX.market API reachable ({count} model(s) available)"
-            )
-            self.api_status_label.setStyleSheet("color: #2ecc71;")
-        else:
-            self.api_status_label.setText("\u2713 BDX.market API reachable")
-            self.api_status_label.setStyleSheet("color: #2ecc71;")
 
     # ------------------------------------------------------------------
     # Hotkey
@@ -506,6 +628,10 @@ class SettingsWindow(QDialog):
         updated["target_language"] = self.target_language_combo.currentData()
         updated["output_mode"] = self.output_mode_combo.currentData()
         updated["text_style"] = self.text_style_combo.currentData()
+        updated["api_base"] = self.api_base_edit.text().strip()
+        updated["api_key"] = self.api_key_edit.text().strip()
+        updated["audio_model"] = self.audio_model_combo.currentText().strip()
+        updated["text_model"] = self.text_model_combo.currentText().strip()
 
         updated["launch_on_startup"] = self.startup_checkbox.isChecked()
         try:

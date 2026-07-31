@@ -53,14 +53,52 @@ def _lazy_benchmark_dialog():
 
 # ── Cloud LLM (translate / rewrite) ────────────────────────────────────────
 
+DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
+DEFAULT_MODEL = "gemini-3.6-flash"  # verified active model on Sub2API (gpt.bdx.market)
+
+# Effective runtime API config. Initialized from the environment so the app
+# works with zero settings; AppController calls apply_api_config() to override
+# these from settings.json (API tab) at startup and whenever settings are saved.
 API_KEY = os.environ.get("JV_API_KEY", "")
-API_BASE = os.environ.get("JV_API_BASE", "https://gpt.bdx.market/v1").rstrip("/")
-FAST_MODEL = "gemini-3.6-flash"  # verified active model on Sub2API (gpt.bdx.market)
-AUDIO_MODEL = "gemini-3.6-flash"
+API_BASE = os.environ.get("JV_API_BASE", DEFAULT_API_BASE).rstrip("/")
+FAST_MODEL = DEFAULT_MODEL
+AUDIO_MODEL = DEFAULT_MODEL
 NATIVE_AUDIO_ENABLED = os.environ.get(
     "JV_NATIVE_AUDIO",
-    "false" if API_BASE == "https://gpt.bdx.market/v1" else "true",
+    "false" if API_BASE == DEFAULT_API_BASE else "true",
 ).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def resolve_api_config(settings: dict) -> dict:
+    """Resolve effective API config with precedence: settings -> env -> default."""
+    api_base = (
+        (settings.get("api_base") or "").strip()
+        or os.environ.get("JV_API_BASE", "").strip()
+        or DEFAULT_API_BASE
+    ).rstrip("/")
+    api_key = (settings.get("api_key") or "").strip() or os.environ.get("JV_API_KEY", "")
+    audio_model = (settings.get("audio_model") or "").strip() or DEFAULT_MODEL
+    text_model = (settings.get("text_model") or "").strip() or DEFAULT_MODEL
+    return {
+        "api_base": api_base,
+        "api_key": api_key,
+        "audio_model": audio_model,
+        "text_model": text_model,
+    }
+
+
+def apply_api_config(settings: dict) -> None:
+    """Apply resolved API config to the module globals used by the workers."""
+    global API_KEY, API_BASE, AUDIO_MODEL, FAST_MODEL, NATIVE_AUDIO_ENABLED
+    cfg = resolve_api_config(settings)
+    API_BASE = cfg["api_base"]
+    API_KEY = cfg["api_key"]
+    AUDIO_MODEL = cfg["audio_model"]
+    FAST_MODEL = cfg["text_model"]
+    NATIVE_AUDIO_ENABLED = os.environ.get(
+        "JV_NATIVE_AUDIO",
+        "false" if API_BASE == DEFAULT_API_BASE else "true",
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
 STYLE_PROMPTS = {
     "translate_to_english": (
@@ -315,6 +353,7 @@ MIN_RECORDING_SECONDS = 0.35  # shorter accidental taps are treated as cancel
 class AppController:
     def __init__(self) -> None:
         self.settings = settings_store.load()
+        apply_api_config(self.settings)
 
         self.widget = FloatingWidget()
         self.recorder = Recorder()
@@ -956,6 +995,7 @@ class AppController:
         old = self.settings
         self.settings = updated_settings
         settings_store.save(self.settings)
+        apply_api_config(self.settings)
 
         if (
             old.get("hotkey") != self.settings.get("hotkey")

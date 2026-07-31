@@ -2,9 +2,22 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-07-31
-- **Focus**: JoyVoice global microphone muting feature (final approved per Qwen Brain review) — opt-in pycaw + comtypes capture-session muter with crash recovery, `mute_other_apps` setting, and `safe_slot` import fix; documented in AGENTS.md.
+- **Updated Date**: 2026-08-01
+- **Focus**: JoyVoice v2.2.0 release — "Configurable OpenAI-Compatible API & Model Selection": new Settings **API** tab (base URL, masked API key with Show toggle, editable audio/text model dropdowns, Fetch models, Test connection), settings→env→default config resolution applied at startup and live on save, and new `api_base` / `api_key` / `audio_model` / `text_model` settings keys; documented in CHANGELOG.md and README.md.
 - **Phase**: Complete
+
+### Session Log — 2026-08-01
+
+#### Closeout — v2.2.0 Configurable OpenAI-Compatible API & Model Selection released & documented (2026-08-01)
+
+Recorded the v2.2.0 release in `CHANGELOG.md` and `README.md`. JoyVoice previously read its cloud API config only from environment variables (`JV_API_KEY`, `JV_API_BASE`) with hardcoded `gemini-3.6-flash` models; v2.2.0 adds a dedicated **API** tab to the Settings dialog so any user can configure the app from the UI with no env vars required.
+
+- **New Settings API tab**: API base URL field (any OpenAI-compatible endpoint root ending in `/v1`, e.g. `https://gpt.bdx.market/v1` or `https://api.openai.com/v1`; default/placeholder `https://gpt.bdx.market/v1`); masked API key field with a Show toggle (stored locally in `%APPDATA%\JoyVoice\settings.json`, falls back to `JV_API_KEY` if blank); editable Audio model and Text model dropdowns (default `gemini-3.6-flash`); **Fetch models** button (queries `GET /models` and populates both dropdowns); **Test connection** button (verifies endpoint + key and reports how many models are available).
+- **Config resolution precedence**: `settings.json` value → environment variable → built-in default; applied at startup and re-applied live whenever settings are saved (`resolve_api_config` / `apply_api_config` in `app/main.py`).
+- **New settings.json keys**: `api_base`, `api_key`, `audio_model`, `text_model` (added in `app/storage/settings_store.py`).
+- **Code touched**: `app/storage/settings_store.py` (new keys), `app/ui/settings_window.py` (new API tab), `app/main.py` (`resolve_api_config` / `apply_api_config`). The old General-tab "Check API" button was removed (superseded by the API tab).
+- **Distribution**: published as a single self-contained `JoyVoice.exe` on GitHub Releases (https://github.com/MHJoy99/joyvoice/releases); the EXE needs an API key configured in Settings (or `JV_API_KEY`).
+- **README.md updates**: version badge + footer → v2.2.0; new "Configurable API" feature row; settings-keys table rows for the four new keys; new "API Tab (v2.2.0)" subsection with field table + resolution precedence; Settings Tabs table gained an API row and dropped the removed General-tab "Check API" button; API Gateway section rewritten from env-var-only to Settings-UI-with-env-fallback; Download pointer updated to the GitHub Releases page; settings dialog count 7 → 8 tabs.
 
 ### Session Log — 2026-07-31
 

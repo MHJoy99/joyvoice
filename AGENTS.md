@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-07-31 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, and opt-in global microphone/session muting (pycaw + comtypes) with crash recovery._
+> _Last updated 2026-08-01 — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, opt-in global microphone/session muting (pycaw + comtypes) with crash recovery, and configurable API endpoint/key/models via the Settings → API tab._
 
 ---
 
@@ -146,7 +146,7 @@ Every source file in the repo, with purpose, line count, and what it contains.
 | `app/ui/__init__.py`           |   0   | Package init                                                                                                                                                                                                                                                                                                                                                                               |
 | `app/ui/floating_widget.py`    |  553  | **The floating mic pill.** Glass-morphism paint (rgba background + rounded rect). 5 widget states (idle/recording/transcribing/pasted/error). 5 animated waveform bars. Recording timer. Language badge. Live text preview. Confidence indicator bar. Toast notifications. Right-click context menu with history. Smooth color/scale/pulse animations via QPropertyAnimation. Drag support |
 | `app/ui/tray.py`               |  76   | System tray icon. Loads `icon.ico` or generates fallback circle. Menu: Show/Hide, Diagnostics, Settings, Benchmark, Quit                                                                                                                                                                                                                                                                   |
-| `app/ui/settings_window.py`    |  536  | Tabbed settings dialog. 7 tabs: Output (source lang, target lang, output mode, text style), General, Hotkey (preset + custom + mode), Audio (device picker), Paste (mode, delay, restore, wait-for-release), Replacements (table editor), History (list + copy). Contains `LANGUAGES` dict. API status check button.                                                                       |
+| `app/ui/settings_window.py`    |  536  | Tabbed settings dialog. 8 tabs: Output (source lang, target lang, output mode, text style), API (endpoint/key/models), General, Hotkey (preset + custom + mode), Audio (device picker), Paste (mode, delay, restore, wait-for-release), Replacements (table editor), History (list + copy). Contains `LANGUAGES` dict. API tab has Fetch models + Test connection buttons.                 |
 | `app/ui/benchmark_dialog.py`   |   —   | ASR engine comparison dialog (legacy, lazy-loaded)                                                                                                                                                                                                                                                                                                                                         |
 | `app/ui/diagnostics_dialog.py` |   —   | Device/connection diagnostics (legacy)                                                                                                                                                                                                                                                                                                                                                     |
 
@@ -365,6 +365,10 @@ Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 | `restore_clipboard`       | `true`            | `bool`            | Restore original clipboard after paste                                                                      |
 | `wait_for_hotkey_release` | `true`            | `bool`            | Wait for hotkey keys to be released before pasting                                                          |
 | `mute_other_apps`         | `false`           | `bool`            | Opt-in: mute other apps' audio sessions (Discord/Zoom/etc.) while recording, restore on stop                |
+| `api_base`                | `""`              | `str`             | OpenAI-compatible base URL (ends in `/v1`); blank → `JV_API_BASE` env → built-in default                    |
+| `api_key`                 | `""`              | `str`             | API key stored locally; blank falls back to `JV_API_KEY` env var                                            |
+| `audio_model`             | `""`              | `str`             | Audio transcription model; blank = `gemini-3.6-flash`                                                       |
+| `text_model`              | `""`              | `str`             | Translation / AI-style text model; blank = `gemini-3.6-flash`                                               |
 | `replacements`            | (6 defaults)      | `dict[str,str]`   | Word-boundary, case-insensitive text substitutions                                                          |
 | `widget_pos`              | `null`            | `[int,int]\|null` | Saved widget position [x, y], or null for default (100, 100)                                                |
 | `first_run_complete`      | `false`           | `bool`            | Whether first-run flow has been shown                                                                       |
@@ -753,7 +757,7 @@ Complete list with versions and WHY each is needed:
 
 | Package             | Min Version | Actual | Why It's Needed                                                                                                                                                                          |
 | :------------------ | :---------- | :----- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PySide6`           | ≥ 6.7       | 6.7.x  | Qt 6 bindings — floating widget (frameless, always-on-top, custom paint), settings dialog (7 tabs), system tray, QThread for async workers, QPropertyAnimation, signal-slot architecture |
+| `PySide6`           | ≥ 6.7       | 6.7.x  | Qt 6 bindings — floating widget (frameless, always-on-top, custom paint), settings dialog (8 tabs), system tray, QThread for async workers, QPropertyAnimation, signal-slot architecture |
 | `sounddevice`       | ≥ 0.5       | 0.5.x  | PortAudio/WASAPI bindings — InputStream with float32 callback, device enumeration, low-latency mic capture at 16kHz mono                                                                 |
 | `numpy`             | ≥ 1.26      | 1.26.x | Audio buffer math — float32→int16 conversion, np.clip, np.concatenate, peak level computation                                                                                            |
 | `pyperclip`         | ≥ 1.9       | 1.9.x  | Cross-platform clipboard access — save clipboard, copy result, restore original. Handles Unicode (Bangla) correctly                                                                      |
@@ -908,6 +912,8 @@ Audio endpoint:  POST /chat/completions  (with input_audio content type if suppo
 Text endpoint:   POST /chat/completions  (standard chat completion)
 Models endpoint: GET  /models            (list available models)
 ```
+
+**Configuration:** The endpoint, API key, and models are configurable in Settings → API tab. Resolution precedence: settings.json value → environment variable (`JV_API_BASE` / `JV_API_KEY`) → built-in default (base `https://gpt.bdx.market/v1`, model `gemini-3.6-flash`).
 
 **Available models:** The live gateway catalog is documented in `docs/API.md`. The catalog is dynamic; query `GET /models` for the authoritative current list.
 
