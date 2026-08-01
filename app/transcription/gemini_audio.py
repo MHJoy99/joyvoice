@@ -204,7 +204,7 @@ def transcribe_and_translate(
                 }
             ],
             # transcript + translation JSON; long speech was truncating mid-sentence.
-            "max_tokens": 1600,
+            "max_tokens": 4096,
             "temperature": 0,
         }
     ).encode("utf-8")
@@ -219,7 +219,15 @@ def transcribe_and_translate(
     with urllib.request.urlopen(request, timeout=60) as response:
         result = json.loads(response.read())
     latency_s = time.monotonic() - t0
+
+    choices = result.get("choices")
+    if not choices or not isinstance(choices, list):
+        raise ValueError("Gemini returned invalid response choices")
+    choice = choices[0]
+    finish_reason = choice.get("finish_reason")
+
     usage = usage_store.extract_usage(result)
+    usage["finish_reason"] = finish_reason
     usage_store.append(
         {
             "kind": "audio",
@@ -233,6 +241,7 @@ def transcribe_and_translate(
     )
     logger_msg = (
         f"usage audio model={model} latency={latency_s:.2f}s "
+        f"finish_reason={finish_reason} "
         f"prompt={usage.get('prompt_tokens')} completion={usage.get('completion_tokens')} "
         f"total={usage.get('total_tokens')}"
     )
@@ -241,4 +250,9 @@ def transcribe_and_translate(
         logging.getLogger("joyvoice.gemini_audio").info(logger_msg)
     except Exception:
         pass
-    return _parse_result(result["choices"][0]["message"]["content"])
+
+    if finish_reason == "length":
+        raise ValueError("Gemini native audio response exceeded max_tokens (finish_reason='length')")
+
+    content = choice.get("message", {}).get("content", "")
+    return _parse_result(content)

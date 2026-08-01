@@ -32,7 +32,10 @@ from app.system.hotkeys import HotkeyManager
 from app.system.mic_muter import get_mic_muter
 from app.system.call_mute import get_call_mute_manager
 from app.crash_guard import safe_slot
-from app.transcription.cloud_asr import transcribe as cloud_asr_transcribe
+from app.transcription.cloud_asr import (
+    transcribe as cloud_asr_transcribe,
+    transcribe_chunked as cloud_asr_transcribe_chunked,
+)
 from app.transcription.free_asr import FreeASRWorker
 from app.transcription.command_override import (
     resolve_effective_target,
@@ -131,8 +134,8 @@ STYLE_PROMPTS = {
 }
 
 
-def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str:
-    """Send text to the fastest cloud LLM for cleanup/translation."""
+def _single_llm_call(text: str, style: str, target_language: str = "en") -> str:
+    """Send a single text chunk to cloud LLM."""
     import json, urllib.request, logging, time
     from app.storage import usage_store
     logger = logging.getLogger("joyvoice.llm")
@@ -166,8 +169,7 @@ def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str
             },
             {"role": "user", "content": prompt},
         ],
-        # Long dictation + CJK can exceed 500 easily; truncation showed up as "……".
-        "max_tokens": 1200,
+        "max_tokens": 4096,
         "temperature": 0.0,
     }).encode()
 
@@ -182,9 +184,16 @@ def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str
 
     with urllib.request.urlopen(req, timeout=45) as resp:
         result = json.loads(resp.read())
-    output = result["choices"][0]["message"]["content"].strip()
+
+    choices = result.get("choices")
+    if not choices or not isinstance(choices, list):
+        raise ValueError("LLM returned invalid response choices")
+    choice = choices[0]
+    finish_reason = choice.get("finish_reason")
+    output = choice.get("message", {}).get("content", "").strip()
     latency_s = time.monotonic() - t0
     usage = usage_store.extract_usage(result)
+    usage["finish_reason"] = finish_reason
     usage_store.append(
         {
             "kind": "text_rewrite",
@@ -198,12 +207,96 @@ def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str
         }
     )
     logger.info(
-        "LLM rewrite (style=%s, model=%s, target=%s, latency=%.2fs, tokens=%s/%s/%s): %s",
-        style, FAST_MODEL, target_language, latency_s,
+        "LLM rewrite (style=%s, model=%s, target=%s, finish_reason=%s, latency=%.2fs, tokens=%s/%s/%s): %s",
+        style, FAST_MODEL, target_language, finish_reason, latency_s,
         usage.get("prompt_tokens"), usage.get("completion_tokens"), usage.get("total_tokens"),
         output[:80],
     )
+    if finish_reason == "length":
+        raise ValueError("LLM response exceeded max_tokens (finish_reason='length')")
     return output
+
+
+def _split_text_into_chunks(text: str, max_chars: int = 1500) -> list[str]:
+    """Split text into manageable chunks on sentence/word boundaries."""
+    text = text.strip()
+    if not text or len(text) <= max_chars:
+        return [text] if text else []
+
+    import re
+    # Match sentence endings across various scripts (. ! ? \n etc.)
+    sentence_delims = re.compile(r'([.!?\n|।॥]+(?:\s+|$))')
+    raw_tokens = sentence_delims.split(text)
+
+    sentences: list[str] = []
+    i = 0
+    while i < len(raw_tokens):
+        s = raw_tokens[i]
+        if i + 1 < len(raw_tokens):
+            s += raw_tokens[i + 1]
+            i += 2
+        else:
+            i += 1
+        if s.strip():
+            sentences.append(s)
+
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_len = 0
+
+    for sent in sentences:
+        if len(sent) > max_chars:
+            # Sentence itself is huge; split by words
+            if current_chunk:
+                chunks.append("".join(current_chunk).strip())
+                current_chunk = []
+                current_len = 0
+            words = sent.split(" ")
+            w_chunk: list[str] = []
+            w_len = 0
+            for w in words:
+                w_str = w + " "
+                if w_len + len(w_str) > max_chars and w_chunk:
+                    chunks.append("".join(w_chunk).strip())
+                    w_chunk = [w_str]
+                    w_len = len(w_str)
+                else:
+                    w_chunk.append(w_str)
+                    w_len += len(w_str)
+            if w_chunk:
+                chunks.append("".join(w_chunk).strip())
+        else:
+            if current_len + len(sent) > max_chars and current_chunk:
+                chunks.append("".join(current_chunk).strip())
+                current_chunk = [sent]
+                current_len = len(sent)
+            else:
+                current_chunk.append(sent)
+                current_len += len(sent)
+
+    if current_chunk:
+        chunks.append("".join(current_chunk).strip())
+
+    return [c for c in chunks if c]
+
+
+def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str:
+    """Send text to the fastest cloud LLM for cleanup/translation."""
+    text_clean = text.strip()
+    if not text_clean:
+        return ""
+
+    chunks = _split_text_into_chunks(text_clean, max_chars=1500)
+    if len(chunks) <= 1:
+        return _single_llm_call(text_clean, style, target_language=target_language)
+
+    translated_chunks: list[str] = []
+    for idx, chunk in enumerate(chunks):
+        res = _single_llm_call(chunk, style, target_language=target_language)
+        if res.strip():
+            translated_chunks.append(res.strip())
+
+    return " ".join(translated_chunks)
 
 
 # ── Cloud ASR worker thread ────────────────────────────────────────────────
@@ -258,7 +351,7 @@ class CloudASRWorker(QThread):
             logger.info("Native audio disabled for %s; using Google ASR", API_BASE)
 
         try:
-            transcript = cloud_asr_transcribe(self._audio, self._lang)
+            transcript = cloud_asr_transcribe_chunked(self._audio, self._lang)
             if self._cancelled:
                 return
             # Google returns text only, so detect target overrides locally and translate.

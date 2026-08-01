@@ -258,7 +258,7 @@ User presses F8 (or clicks mic)
 │           }}                 │
 │         ]                    │
 │       }],                    │
-│       max_tokens: 700,       │
+│       max_tokens: 4096,      │
 │       temperature: 0         │
 │     }                        │
 │  4. _parse_result(content)  │  Regex JSON extraction from markdown

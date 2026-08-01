@@ -3,6 +3,18 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## Long-Audio Truncation Fix & Telemetry Hardening (2026-08-01)
+
+Fixes cut-off transcriptions and missing translations on long audio recordings across both cloud native audio and fallback translation paths.
+
+### Root Cause Analysis & Fixes
+
+- **Raised Token Limits**: `max_tokens` raised from 1600 (audio) / 1200 (text) to `4096` in `app/transcription/gemini_audio.py` and `app/main.py` single LLM call payload to prevent `completion_tokens` cutoff.
+- **Finish-Reason Telemetry & Rejection**: Appended `finish_reason` to usage telemetry in `gemini_audio.py` and `main.py`; added explicit `ValueError` rejection when `finish_reason == "length"` so truncated outputs fail cleanly rather than pasting partial text.
+- **30s Sequential ASR Chunking**: `app/transcription/cloud_asr.py` now splits audio >30s into 960,000-byte PCM chunks (`transcribe_chunked()`), transcribing sequentially with per-chunk failure logging.
+- **Text Chunking**: Integrated `_split_text_into_chunks()` inside `cloud_llm_rewrite()` in `app/main.py` to break long text fallback/AI translation requests at sentence/word boundaries (max 1500 chars per chunk).
+- **Regression Test Suite**: Added `tests/test_cloud_pipeline_robustness.py` with 9 deterministic unit tests covering chunking, payload parameters, telemetry, and length rejection.
+
 ## v2.3.1 — Call-Mute Fixes & Single EXE (2026-08-01)
 
 Release addressing call-muting reliability and consolidating distribution into a single executable.

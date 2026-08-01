@@ -3,10 +3,37 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-01
-- **Focus**: JoyVoice release v2.3.1 documentation updates — updated `CHANGELOG.md`, `README.md`, `AGENTS.md`, and `AI_STATUS.md` for call-mute fixes (Audio-tab mode selector, virtual-device dropdown, keybind guidance, `engage()` status dicts, widget toasts, pycaw/comtypes/psutil bundling) and single-EXE consolidation (`JoyVoice.exe` ~173 MB doing both cloud and free/offline mode).
+- **Focus**: JoyVoice long-audio documentation audit & factual accuracy cleanup — updated `AI_STATUS.md` and `CHANGELOG.md` to accurately reflect `cloud_llm_rewrite()` chunking behavior, native Gemini audio `max_tokens` (1600 → 4096), and list only touched Markdown files.
 - **Phase**: Complete
 
 ### Session Log — 2026-08-01
+
+#### Closeout — Documentation Factual Accuracy Audit (2026-08-01)
+
+Audited and corrected factual inaccuracies in Markdown documentation regarding the long-audio truncation update:
+
+- **Corrected LLM Rewrite Chunking Reference**: Replaced references to nonexistent `_chunked_llm_rewrite()` helper in `AI_STATUS.md` and `CHANGELOG.md` with accurate descriptions of `_split_text_into_chunks()` and `cloud_llm_rewrite()` chunking logic in `app/main.py`.
+- **Corrected Native Audio Token Limits**: Clarified in `AI_STATUS.md` that native Gemini audio `max_tokens` was raised from `1600` to `4096` in `app/transcription/gemini_audio.py` (and fallback text translation raised from `1200` to `4096` in `app/main.py`).
+- **Clean Session Scope**: Updated the Current Session block in `AI_STATUS.md` to list only the Markdown files changed in this session (`AI_STATUS.md` and `CHANGELOG.md`).
+
+#### Closeout — Long-Audio Truncation Fix & Telemetry Hardening (2026-08-01)
+
+Documented the completed long-audio truncation fix and telemetry hardening across the core documentation set:
+
+- **Root Cause Analysis**:
+  - Runtime logs revealed long audio fallback text translation hit `max_tokens=1200`, yielding `completion_tokens` 1195/1196 with `finish_reason='length'` and abruptly cutting off translated text output.
+  - Long audio sent to Google ASR fallback in a single large request failed or suffered quality degradation.
+  - `finish_reason` truncation was previously silent (no explicit rejection error or telemetry flag).
+- **Implemented Fix**:
+  - **30s Sequential ASR Chunking**: `app/transcription/cloud_asr.py` now implements `transcribe_chunked()` to split long audio into ~30-second PCM chunks (960,000 bytes) and transcribes sequentially with chunk failure logging.
+  - **Raised Token Limits**: `max_tokens` raised from 1600 (audio) / 1200 (text) to `4096` in `gemini_audio.py` and `app/main.py` single LLM call payload for both native audio and text translation.
+  - **Finish-Reason Telemetry & Rejection**: Appended `finish_reason` to usage telemetry events in `gemini_audio.py` and `app/main.py`; added explicit `ValueError` rejection when `finish_reason == "length"` to prevent silent truncation.
+  - **Text Chunking**: Integrated `_split_text_into_chunks()` inside `cloud_llm_rewrite()` in `app/main.py` (sentence/word boundary splitting up to 1500 chars per chunk) for long-text fallback/AI translation.
+  - **Regression Unit Tests**: Added complete no-network test suite `tests/test_cloud_pipeline_robustness.py`.
+- **Verification Results**:
+  - **Unit Tests**: 9/9 tests pass (`python -m unittest tests.test_cloud_pipeline_robustness`).
+  - **App Import**: Clean import check passed (`env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import sys; sys.path.insert(0,'.'); import app.main; print('App imports OK')"`).
+  - **Git Diff Check**: `git diff --check` passed cleanly with no trailing whitespace or format issues.
 
 #### Closeout — v2.3.1 Call-Mute Fixes & Single EXE Consolidation (2026-08-01)
 

@@ -108,7 +108,7 @@ Content-Type: application/json
       ]
     }
   ],
-  "max_tokens": 700,
+  "max_tokens": 4096,
   "temperature": 0
 }
 ```
@@ -117,7 +117,7 @@ Content-Type: application/json
 
 | Field                                       | Type      | Description                                                                                                     |
 | :------------------------------------------ | :-------- | :-------------------------------------------------------------------------------------------------------------- |
-| `model`                                     | `string`  | Model name. Currently `"gemini-3.1-flash-lite"` for audio.                                                      |
+| `model`                                     | `string`  | Model name. Currently `"gemini-3.6-flash"` for audio.                                                           |
 | `messages[0].role`                          | `string`  | Always `"user"`.                                                                                                |
 | `messages[0].content`                       | `array`   | Array of content blocks. Order: text prompt, then audio.                                                        |
 | `messages[0].content[0].type`               | `string`  | `"text"` — the language hint and instruction prompt.                                                            |
@@ -125,7 +125,7 @@ Content-Type: application/json
 | `messages[0].content[1].type`               | `string`  | `"input_audio"` — native audio content block.                                                                   |
 | `messages[0].content[1].input_audio.data`   | `string`  | Base64-encoded WAV file (16-bit PCM, 16 kHz, mono).                                                             |
 | `messages[0].content[1].input_audio.format` | `string`  | Always `"wav"`.                                                                                                 |
-| `max_tokens`                                | `integer` | `700` — enough for transcript + translation + JSON wrapper.                                                     |
+| `max_tokens`                                | `integer` | `4096` — ample capacity for long transcripts, translations, and JSON wrapper without truncation.                |
 | `temperature`                               | `number`  | `0` — deterministic output for accurate transcription.                                                          |
 
 ### Audio Format Requirements
@@ -325,7 +325,7 @@ def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str
             },
             {"role": "user", "content": prompt},
         ],
-        "max_tokens": 1200,
+        "max_tokens": 4096,
         "temperature": 0.0,
     }).encode()
 
