@@ -3,10 +3,28 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-02
-- **Focus**: Cloud Gateway Native Audio Default Fix & Documentation Alignment.
+- **Focus**: JoyVoice Long-Recording Recovery & Documentation Audit.
 - **Phase**: Complete
 
 ### Session Log — 2026-08-02
+
+#### Closeout — Long-Recording Recovery Fix (2026-08-02)
+
+- **Long-Recording Recovery Fix**: Successful Google chunked ASR transcript is now salvaged when gateway translation returns HTTP 400, preserving the existing 3-argument Qt signal and allowing history-before-paste; empty/transcription failures still fail; bounded/redacted HTTP diagnostics logging implemented.
+- **Verification**: 21/21 tests passed, isolated app import check passed, `git diff --check` clean.
+
+#### Closeout — Long-Recording Recovery & Translation HTTP 400 Fallback Fix (2026-08-02)
+
+Updated repository documentation (`AI_STATUS.md`, `AGENTS.md`, `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `docs/TROUBLESHOOTING.md`) to record the long-recording recovery fix and signal/telemetry contracts:
+
+- **Long-Recording Recovery on Translation HTTP 400**: When long audio is chunked via Google ASR fallback and the cloud translation gateway returns HTTP 400 (e.g. payload length/schema edge cases), the full Google chunked ASR transcript is preserved rather than throwing an unhandled exception or losing user dictation.
+- **Signal Contract Maintained**: Confirmed that `CloudASRWorker.done` emits `Signal(str, str, str)` (`transcript`, `translation`, `model_override`). The contract remains unchanged across signal definitions and thread execution.
+- **History & Auto-Paste Continuity**: Normal history-before-paste (`history_store.append()`) saves and pastes the recovered transcript when translation fails with HTTP 400. Truly empty transcripts or total ASR failures still emit `CloudASRWorker.failed`.
+- **Bounded & Redacted Diagnostics**: HTTP diagnostic logging for network errors and gateway status codes is bounded in length and strictly redacts Bearer tokens/API keys.
+- **Verification Audit**:
+  - **Unit Tests**: 21/21 unittest discovery passed (`.venv\Scripts\python.exe -m unittest discover tests`).
+  - **App Import**: Isolated Python import check passed (`env -u PYTHONPATH -u PYTHONHOME .venv/Scripts/python.exe -I -c "import sys; sys.path.insert(0,'.'); import app.main; print('App imports OK')"`).
+  - **Git Diff Check**: `git diff --check` passed cleanly with no trailing whitespace or format issues.
 
 #### Closeout — Cloud Gateway Native Audio Default Documentation Update (2026-08-02)
 

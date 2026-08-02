@@ -216,8 +216,18 @@ def transcribe_and_translate(
             "Content-Type": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        result = json.loads(response.read())
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            result = json.loads(response.read())
+    except urllib.error.HTTPError as http_err:
+        from app.transcription.http_errors import http_error_detail
+        err_detail = http_error_detail(http_err)
+        try:
+            import logging
+            logging.getLogger("joyvoice.gemini_audio").warning("Gemini audio HTTP error: %s", err_detail)
+        except Exception:
+            pass
+        raise
     latency_s = time.monotonic() - t0
 
     choices = result.get("choices")

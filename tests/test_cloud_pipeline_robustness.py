@@ -222,6 +222,98 @@ class TestLongTextTranslation(unittest.TestCase):
         self.assertIn("Translated:", res)
 
 
+class TestHTTPErrorHelper(unittest.TestCase):
+    """Test app.transcription.http_errors.http_error_detail helper."""
+
+    def test_helper_safety_bound_redaction(self):
+        import urllib.error
+        from io import BytesIO
+        from app.transcription.http_errors import http_error_detail
+
+        # Create mock HTTPError with response body containing sensitive info
+        fp = BytesIO(b'{"error": {"message": "Invalid token Authorization: Bearer secret-token-xyz123", "key": "secret_key_999"}}' + b"A" * 1000)
+        exc = urllib.error.HTTPError("http://test.url", 400, "Bad Request", {}, fp)
+
+        detail = http_error_detail(exc, max_bytes=100)
+
+        self.assertIn("HTTP 400 Bad Request", detail)
+        self.assertNotIn("secret-token-xyz123", detail)
+        self.assertIn("[REDACTED]", detail)
+        # Check string length bound (HTTP 400 Bad Request: + 100 bytes)
+        self.assertLessEqual(len(detail), 150)
+
+    def test_helper_non_http_error(self):
+        from app.transcription.http_errors import http_error_detail
+        exc = ValueError("Plain error")
+        self.assertEqual(http_error_detail(exc), "Plain error")
+
+
+class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
+    """Test CloudASRWorker done/failed signals, HTTP 400 transcript salvage, and failure handling."""
+
+    @patch("app.main.transcribe_and_translate")
+    @patch("app.main.cloud_asr_transcribe_chunked")
+    @patch("app.main.cloud_llm_rewrite")
+    def test_salvage_transcript_on_translation_http_400(
+        self, mock_llm_rewrite, mock_asr_chunked, mock_transcribe_translate
+    ):
+        mock_transcribe_translate.side_effect = Exception("Gemini audio failed")
+        mock_asr_chunked.return_value = "Hello world transcript"
+        import urllib.error
+        mock_llm_rewrite.side_effect = urllib.error.HTTPError("url", 400, "Bad Request", {}, None)
+
+        worker = main_mod.CloudASRWorker(b"audio", "en", "en")
+        done_mock = MagicMock()
+        failed_mock = MagicMock()
+        worker.done.connect(done_mock)
+        worker.failed.connect(failed_mock)
+
+        worker.run()
+
+        # Signal arity check: (str, str, str)
+        done_mock.assert_called_once_with("Hello world transcript", "Hello world transcript", "")
+        failed_mock.assert_not_called()
+
+    @patch("app.main.transcribe_and_translate")
+    @patch("app.main.cloud_asr_transcribe_chunked")
+    def test_emit_failed_when_transcription_fails(
+        self, mock_asr_chunked, mock_transcribe_translate
+    ):
+        mock_transcribe_translate.side_effect = Exception("Gemini audio failed")
+        mock_asr_chunked.side_effect = Exception("Google ASR network failure")
+
+        worker = main_mod.CloudASRWorker(b"audio", "en", "en")
+        done_mock = MagicMock()
+        failed_mock = MagicMock()
+        worker.done.connect(done_mock)
+        worker.failed.connect(failed_mock)
+
+        worker.run()
+
+        done_mock.assert_not_called()
+        failed_mock.assert_called_once_with("Google ASR network failure")
+
+    @patch("app.main.transcribe_and_translate")
+    @patch("app.main.cloud_asr_transcribe_chunked")
+    def test_emit_failed_when_empty_transcript(
+        self, mock_asr_chunked, mock_transcribe_translate
+    ):
+        mock_transcribe_translate.side_effect = Exception("Gemini audio failed")
+        mock_asr_chunked.return_value = "   "
+
+        worker = main_mod.CloudASRWorker(b"audio", "en", "en")
+        done_mock = MagicMock()
+        failed_mock = MagicMock()
+        worker.done.connect(done_mock)
+        worker.failed.connect(failed_mock)
+
+        with patch("app.main.cloud_llm_rewrite", return_value=""):
+            worker.run()
+
+        done_mock.assert_not_called()
+        failed_mock.assert_called_once_with("Empty transcript")
+
+
 class TestNativeAudioRoutingConfig(unittest.TestCase):
     """Test native audio routing defaults and env overrides in resolve/apply_api_config."""
 

@@ -184,8 +184,14 @@ def _single_llm_call(text: str, style: str, target_language: str = "en") -> str:
         },
     )
 
-    with urllib.request.urlopen(req, timeout=45) as resp:
-        result = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            result = json.loads(resp.read())
+    except urllib.error.HTTPError as http_err:
+        from app.transcription.http_errors import http_error_detail
+        err_detail = http_error_detail(http_err)
+        logger.warning("LLM rewrite HTTP error: %s", err_detail)
+        raise
 
     choices = result.get("choices")
     if not choices or not isinstance(choices, list):
@@ -330,6 +336,7 @@ class CloudASRWorker(QThread):
     def run(self) -> None:
         if self._cancelled:
             return
+        transcript = None
         if NATIVE_AUDIO_ENABLED:
             try:
                 transcript, translation, override = transcribe_and_translate(
@@ -356,6 +363,8 @@ class CloudASRWorker(QThread):
             transcript = cloud_asr_transcribe_chunked(self._audio, self._lang)
             if self._cancelled:
                 return
+            if not transcript or not transcript.strip():
+                raise RuntimeError("Empty transcript")
             # Google returns text only, so detect target overrides locally and translate.
             effective, override, cleaned = resolve_effective_target(
                 transcript, self._target_lang, None
@@ -369,8 +378,15 @@ class CloudASRWorker(QThread):
         except Exception as fallback_exc:
             if self._cancelled:
                 return
-            logger.error("Cloud ASR pipeline failed: %s", fallback_exc)
-            self.failed.emit(str(fallback_exc))
+            if transcript and transcript.strip():
+                logger.warning(
+                    "Post-transcription translation error (%s); salvaging non-empty transcript.",
+                    fallback_exc,
+                )
+                self.done.emit(transcript.strip(), transcript.strip(), "")
+            else:
+                logger.error("Cloud ASR pipeline failed: %s", fallback_exc)
+                self.failed.emit(str(fallback_exc))
 
 
 class CloudLLMWorker(QThread):

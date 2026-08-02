@@ -602,8 +602,8 @@ class AppController:
     # Timers: _level_poll_timer (40ms), _visibility_timer (2s), _hotkey_health_timer (5s)
 
 class CloudASRWorker(QThread):
-    done = Signal(str, str)    # (transcript, translation)
-    failed = Signal(str)       # error message
+    done = Signal(str, str, str)    # (transcript, translation, model_override)
+    failed = Signal(str)            # error message
     # Primary: gemini_audio.transcribe_and_translate()
     # Fallback: cloud_asr.transcribe() → cloud_llm_rewrite("translate_to_english")
 

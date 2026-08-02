@@ -3,6 +3,16 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## Long-Recording Recovery & Translation Fallback Fix (2026-08-02)
+
+Fixes long-audio dictation loss when translation gateway returns HTTP 400 or payload errors.
+
+### Key Improvements & Fixes
+
+- **Long-Recording Recovery on Translation Failure**: Preserves Google chunked ASR transcript when cloud translation fails with HTTP 400 (or other gateway errors). The user's spoken transcript is preserved and pasted via normal `history_store` mechanisms rather than throwing an exception.
+- **Signal & Pipeline Integrity**: Retains `CloudASRWorker.done` signal contract (`Signal(str, str, str)`) emitting `(transcript, translation, model_override)`. Truly empty transcripts or total ASR failures continue to emit `failed`.
+- **Diagnostic Privacy & Safety**: HTTP error diagnostics are bounded in length and strictly sanitize/redact Bearer API keys.
+
 ## Cloud Gateway Native Audio Default Fix & Regression Patch (2026-08-02)
 
 Fixes transcription regressions by restoring native Gemini audio dispatch by default on configured cloud gateways.
