@@ -771,6 +771,9 @@ cat "$APPDATA/JoyVoice/joyvoice.log" | tail -20
 
 # 8. Verify settings file
 cat "$APPDATA/JoyVoice/settings.json"
+
+# 9. Git Push Auto-Sync Check
+git push origin main  # Always automatically push commits to sync remote repo after verifying & committing
 ```
 
 ---
@@ -924,6 +927,13 @@ find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null
 # Kill orphaned Python processes:
 powershell "Get-Process python* -ErrorAction SilentlyContinue | Stop-Process -Force"
 ```
+
+---
+
+## 17. GIT & DEPLOYMENT POLICY
+
+- **Automatic Remote Synchronization**: After completing, verifying, and committing any task or change, AI assistants must automatically push the committed changes to the remote repository (`git push` or `git push origin main`) to ensure the remote repository is always synchronized with local work.
+- **Documentation Safety**: All documentation files (`AGENTS.md`, `AI_STATUS.md`, etc.) must remain accurate and reflect current workflow policies without touching non-`.md` code files during documentation updates.
 
 ---
 
