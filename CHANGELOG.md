@@ -3,6 +3,16 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## Cloud Gateway Native Audio Default Fix & Regression Patch (2026-08-02)
+
+Fixes transcription regressions by restoring native Gemini audio dispatch by default on configured cloud gateways.
+
+### Key Improvements & Fixes
+
+- **Native Audio Default**: Configured cloud gateway now attempts native Gemini audio (`input_audio`) by default for single-call speech transcription and translation.
+- **Explicit Opt-Out Switch**: Setting environment variable `JV_NATIVE_AUDIO=false` explicitly disables native audio mode to force Google Web Speech ASR fallback.
+- **Fallback Chain Resilience**: Failures during native audio calls (e.g. gateway errors, invalid responses, network timeouts) seamlessly fall back to Google Web Speech ASR + Gemini text LLM translation.
+
 ## Long-Audio Truncation Fix & Telemetry Hardening (2026-08-01)
 
 Fixes cut-off transcriptions and missing translations on long audio recordings across both cloud native audio and fallback translation paths.

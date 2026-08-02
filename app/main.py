@@ -60,6 +60,14 @@ def _lazy_benchmark_dialog():
 DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
 DEFAULT_MODEL = "gemini-3.6-flash"  # verified active model on Sub2API (gpt.bdx.market)
 
+
+def is_native_audio_enabled() -> bool:
+    val = os.environ.get("JV_NATIVE_AUDIO")
+    if val is None:
+        return True
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Effective runtime API config. Initialized from the environment so the app
 # works with zero settings; AppController calls apply_api_config() to override
 # these from settings.json (API tab) at startup and whenever settings are saved.
@@ -67,10 +75,7 @@ API_KEY = os.environ.get("JV_API_KEY", "")
 API_BASE = os.environ.get("JV_API_BASE", DEFAULT_API_BASE).rstrip("/")
 FAST_MODEL = DEFAULT_MODEL
 AUDIO_MODEL = DEFAULT_MODEL
-NATIVE_AUDIO_ENABLED = os.environ.get(
-    "JV_NATIVE_AUDIO",
-    "false" if API_BASE == DEFAULT_API_BASE else "true",
-).strip().lower() in {"1", "true", "yes", "on"}
+NATIVE_AUDIO_ENABLED = is_native_audio_enabled()
 
 
 def resolve_api_config(settings: dict) -> dict:
@@ -99,10 +104,7 @@ def apply_api_config(settings: dict) -> None:
     API_KEY = cfg["api_key"]
     AUDIO_MODEL = cfg["audio_model"]
     FAST_MODEL = cfg["text_model"]
-    NATIVE_AUDIO_ENABLED = os.environ.get(
-        "JV_NATIVE_AUDIO",
-        "false" if API_BASE == DEFAULT_API_BASE else "true",
-    ).strip().lower() in {"1", "true", "yes", "on"}
+    NATIVE_AUDIO_ENABLED = is_native_audio_enabled()
 
 STYLE_PROMPTS = {
     "translate_to_english": (

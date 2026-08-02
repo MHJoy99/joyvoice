@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -219,6 +220,51 @@ class TestLongTextTranslation(unittest.TestCase):
 
         self.assertTrue(mock_single_call.call_count >= 2)
         self.assertIn("Translated:", res)
+
+
+class TestNativeAudioRoutingConfig(unittest.TestCase):
+    """Test native audio routing defaults and env overrides in resolve/apply_api_config."""
+
+    def setUp(self):
+        self._orig_env = os.environ.get("JV_NATIVE_AUDIO")
+
+    def tearDown(self):
+        if self._orig_env is None:
+            os.environ.pop("JV_NATIVE_AUDIO", None)
+        else:
+            os.environ["JV_NATIVE_AUDIO"] = self._orig_env
+
+    def test_default_gateway_native_audio_enabled_by_default(self):
+        os.environ.pop("JV_NATIVE_AUDIO", None)
+        main_mod.apply_api_config({})
+        self.assertTrue(main_mod.is_native_audio_enabled())
+        self.assertTrue(main_mod.NATIVE_AUDIO_ENABLED)
+        self.assertEqual(main_mod.API_BASE, main_mod.DEFAULT_API_BASE)
+
+    def test_native_audio_override_false(self):
+        os.environ["JV_NATIVE_AUDIO"] = "false"
+        main_mod.apply_api_config({})
+        self.assertFalse(main_mod.is_native_audio_enabled())
+        self.assertFalse(main_mod.NATIVE_AUDIO_ENABLED)
+
+    def test_native_audio_override_true(self):
+        os.environ["JV_NATIVE_AUDIO"] = "true"
+        main_mod.apply_api_config({})
+        self.assertTrue(main_mod.is_native_audio_enabled())
+        self.assertTrue(main_mod.NATIVE_AUDIO_ENABLED)
+
+    def test_resolve_api_config_preserves_resolution(self):
+        settings = {
+            "api_base": "https://custom.api/v1",
+            "api_key": "custom-key",
+            "audio_model": "custom-audio",
+            "text_model": "custom-text",
+        }
+        cfg = main_mod.resolve_api_config(settings)
+        self.assertEqual(cfg["api_base"], "https://custom.api/v1")
+        self.assertEqual(cfg["api_key"], "custom-key")
+        self.assertEqual(cfg["audio_model"], "custom-audio")
+        self.assertEqual(cfg["text_model"], "custom-text")
 
 
 if __name__ == "__main__":

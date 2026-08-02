@@ -3,10 +3,19 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-02
-- **Focus**: Git Push & Deployment Policy Documentation Update (automatic git push to remote repository after task completion and verification).
+- **Focus**: Cloud Gateway Native Audio Default Fix & Documentation Alignment.
 - **Phase**: Complete
 
 ### Session Log — 2026-08-02
+
+#### Closeout — Cloud Gateway Native Audio Default Documentation Update (2026-08-02)
+
+Updated repository documentation (`AI_STATUS.md`, `CHANGELOG.md`, `README.md`, `docs/API.md`, `docs/SETUP.md`) to document the transcription regression fix:
+
+- **Native Audio Enabled by Default**: Configured cloud gateway now attempts native Gemini audio (`input_audio`) by default.
+- **Explicit Opt-Out (`JV_NATIVE_AUDIO=false`)**: Environment variable `JV_NATIVE_AUDIO=false` explicitly opts out of native audio to force Google Web Speech ASR fallback.
+- **Automatic Fallback intact**: Native gateway failures (HTTP errors, connection failures, invalid responses) automatically fall back to Google Web Speech ASR.
+- **Staleness Audit**: Corrected stale documentation across `docs/API.md`, `docs/SETUP.md`, and `README.md` that previously stated `JV_NATIVE_AUDIO` defaults to `false` or that the gateway disabled native audio.
 
 #### Closeout — Automatic Git Push Remote Sync Policy Update (2026-08-02)
 

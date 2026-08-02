@@ -33,11 +33,11 @@ Complete reference for the API gateway, available models, request/response shape
 
 ### Environment Variables
 
-| Variable          | Required | Default                     | Description                                                                          |
-| :---------------- | :------: | :-------------------------- | :----------------------------------------------------------------------------------- |
-| `JV_API_KEY`      |  ✅ Yes  | —                           | API gateway authentication key (Bearer token)                                        |
-| `JV_API_BASE`     |  ❌ No   | `https://gpt.bdx.market/v1` | Override the gateway base URL. Useful for self-hosted proxies or migrating gateways. |
-| `JV_NATIVE_AUDIO` |  ❌ No   | `false` on `gpt.bdx.market` | Controls native audio mode (`false` default for Sub2API gateway).                    |
+| Variable          | Required | Default                     | Description                                                                            |
+| :---------------- | :------: | :-------------------------- | :------------------------------------------------------------------------------------- |
+| `JV_API_KEY`      |  ✅ Yes  | —                           | API gateway authentication key (Bearer token)                                          |
+| `JV_API_BASE`     |  ❌ No   | `https://gpt.bdx.market/v1` | Override the gateway base URL. Useful for self-hosted proxies or migrating gateways.   |
+| `JV_NATIVE_AUDIO` |  ❌ No   | `true`                      | Controls native audio mode. Set to `false` to explicitly opt into Google ASR fallback. |
 
 ### Setting the API Key
 
