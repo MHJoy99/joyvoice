@@ -2,11 +2,19 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-08-01
-- **Focus**: JoyVoice long-audio documentation audit & factual accuracy cleanup — updated `AI_STATUS.md` and `CHANGELOG.md` to accurately reflect `cloud_llm_rewrite()` chunking behavior, native Gemini audio `max_tokens` (1600 → 4096), and list only touched Markdown files.
+- **Updated Date**: 2026-08-02
+- **Focus**: Documentation update for default Discord mute hotkey (Ctrl+Alt+Shift+F12) and click-safe non-activating toast behavior (`WA_TransparentForMouseEvents` & `WA_ShowWithoutActivating`).
 - **Phase**: Complete
 
-### Session Log — 2026-08-01
+### Session Log — 2026-08-02
+
+#### Closeout — Default Discord Mute Hotkey & Click-Safe Toast Docs Update (2026-08-02)
+
+Updated repository documentation (`AGENTS.md`, `AI_STATUS.md`, `README.md`, `CHANGELOG.md`, `docs/ARCHITECTURE.md`, `docs/SETUP.md`, `docs/TROUBLESHOOTING.md`) to reflect exact system behavior:
+
+- **Discord Default Mute Hotkey Updated**: Synchronized references from `Ctrl+Shift+M` to `Ctrl+Alt+Shift+F12` across `AGENTS.md`, `CHANGELOG.md`, and `AI_STATUS.md`. Documented that Discord and Teams share `Ctrl+Alt+Shift+F12` as their default hotkey in `DEFAULT_HOTKEYS`.
+- **Click-Safe Non-Activating Toast Behavior**: Updated toast documentation across `AGENTS.md`, `README.md`, and `docs/ARCHITECTURE.md` to record that floating toasts are constructed with `Qt.WA_ShowWithoutActivating`, `Qt.WA_TransparentForMouseEvents`, and `Qt.WindowDoesNotAcceptFocus` to guarantee click-through safety and prevent stealing focus or intercepting user clicks.
+- **Staleness Audit**: Audited all touched `.md` files for outdated keybind references or incomplete toast attribute specifications.
 
 #### Closeout — Documentation Factual Accuracy Audit (2026-08-01)
 

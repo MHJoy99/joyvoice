@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-01 (v2.3.1) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, configurable API endpoint/key/models via the Settings → API tab, Free & Offline Mode (local Whisper ASR, no API key required) via the Settings → Free Mode tab, and single consolidated executable JoyVoice.exe._
+> _Last updated 2026-08-02 (v2.3.1) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, default Discord mute hotkey (Ctrl+Alt+Shift+F12), click-safe non-activating toasts (WA_ShowWithoutActivating & WA_TransparentForMouseEvents), configurable API endpoint/key/models via Settings → API tab, Free & Offline Mode via Settings → Free Mode tab, and single consolidated executable JoyVoice.exe._
 
 ---
 
@@ -378,7 +378,7 @@ Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 | `wait_for_hotkey_release`  | `true`            | `bool`            | Wait for hotkey keys to be released before pasting                                                                            |
 | `mute_other_apps`          | `"off"`           | `str`             | Call muting mode: `"off"`, `"hotkey"`, or `"virtual_device"` (legacy boolean `true` mapped to `"hotkey"`, `false` to `"off"`) |
 | `call_mute_virtual_device` | `""`              | `str`             | Selected virtual audio device endpoint/name for `"virtual_device"` muting mode                                                |
-| `call_mute_hotkeys`        | `{}`              | `dict[str,str]`   | Custom per-app mute hotkey mappings (e.g. `{"discord.exe": "Ctrl+Shift+M"}`)                                                  |
+| `call_mute_hotkeys`        | `{}`              | `dict[str,str]`   | Custom per-app mute hotkey mappings (e.g. `{"discord.exe": "Ctrl+Alt+Shift+F12"}`)                                            |
 | `api_base`                 | `""`              | `str`             | OpenAI-compatible base URL (ends in `/v1`); blank → `JV_API_BASE` env → built-in default                                      |
 | `api_key`                  | `""`              | `str`             | API key stored locally; blank falls back to `JV_API_KEY` env var                                                              |
 | `audio_model`              | `""`              | `str`             | Audio transcription model; blank = `gemini-3.6-flash`                                                                         |
@@ -632,7 +632,7 @@ Auto-fades after 3 seconds.
 
 ### Result Toast
 
-A temporary frameless QWidget notification near the mouse cursor showing first 80 characters of the result. Fades out via `QPropertyAnimation` on `windowOpacity` over 2.5 seconds. Self-deletes on finish.
+A temporary frameless QWidget notification near the mouse cursor showing first 80 characters of the result. Fades out via `QPropertyAnimation` on `windowOpacity` over 2.5 seconds. Self-deletes on finish. Click-safe and non-activating (`Qt.WA_ShowWithoutActivating` and `Qt.WA_TransparentForMouseEvents` set with `Qt.WindowDoesNotAcceptFocus`), so clicks pass cleanly through to underlying windows without stealing focus.
 
 ### Animations
 
@@ -720,7 +720,7 @@ Call muting in JoyVoice is actively managed by `app/system/call_mute.py` (`CallM
 
 - **Three Muting Modes**:
   - `"off"`: Muting disabled.
-  - `"hotkey"`: Detects running call apps via `psutil` (`discord.exe`, `zoom.exe`, `teams.exe`) and sends global mute key combinations during recording (Discord/Teams default: `Ctrl+Shift+M`, Zoom default: `Alt+A`). **Important**: Hotkey muting only works if the target application has configured and enabled that exact global shortcut inside its own settings. Custom hotkeys per application can be saved in `call_mute_hotkeys`.
+  - `"hotkey"`: Detects running call apps via `psutil` (`discord.exe`, `zoom.exe`, `teams.exe`) and sends global mute key combinations during recording (Discord/Teams default: `Ctrl+Alt+Shift+F12`, Zoom default: `Alt+A`). **Important**: Hotkey muting only works if the target application has configured and enabled that exact global shortcut inside its own settings. Custom hotkeys per application can be saved in `call_mute_hotkeys`.
   - `"virtual_device"`: Mutes a selected virtual audio capture endpoint (e.g. VB-Cable or VoiceMeeter). This is the most reliable method when VB-Cable/VoiceMeeter is installed. The selected endpoint is stored in `call_mute_virtual_device`.
 - **UI & Feedback**:
   - The Settings UI (Audio tab) features a Mode Selector combo box (`"Off"`, `"Hotkey"`, `"Virtual device"`), a Virtual Device selection dropdown, and inline guidance text detailing keybind requirements.

@@ -518,6 +518,8 @@ class FloatingWidget(QWidget):
         truncated = text[:80] + ("..." if len(text) > 80 else "")
 
         toast = QWidget()
+        toast.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        toast.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         toast.setWindowFlags(
             Qt.FramelessWindowHint
             | Qt.WindowStaysOnTopHint

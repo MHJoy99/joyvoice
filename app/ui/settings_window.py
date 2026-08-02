@@ -698,7 +698,7 @@ class SettingsWindow(QDialog):
         self.mute_device_combo.setEnabled(mode == "virtual_device")
         if mode == "hotkey":
             self.mute_help_label.setText(
-                "Hotkey mode sends a global mute key (Discord/Teams: Ctrl+Shift+M, "
+                "Hotkey mode sends a global mute key (Discord/Teams: Ctrl+Alt+Shift+F12, "
                 "Zoom: Alt+A). You must set that exact keybind inside the app "
                 "(e.g. Discord \u2192 Settings \u2192 Keybinds \u2192 Toggle Mute) or it will not mute."
             )

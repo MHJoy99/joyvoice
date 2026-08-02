@@ -23,7 +23,7 @@ Release addressing call-muting reliability and consolidating distribution into a
 
 - **Audio-tab mode selector**: Replaced the single "Mute other applications" checkbox with a mode selector: **Off**, **Hotkey**, or **Virtual device**.
 - **Virtual device muting**: Added selectable virtual device mode with an auto-detecting dropdown for VB-Cable and VoiceMeeter capture endpoints.
-- **Hotkey guidance & detection**: Hotkey mode detects active call applications (`discord.exe`, `teams.exe`, `zoom.exe`) via `psutil` and sends app mute keys (Discord/Teams: `Ctrl+Shift+M`, Zoom: `Alt+A`). Added UI guidance noting keybind requirements.
+- **Hotkey guidance & detection**: Hotkey mode detects active call applications (`discord.exe`, `teams.exe`, `zoom.exe`) via `psutil` and sends app mute keys (Discord/Teams default: `Ctrl+Alt+Shift+F12`, Zoom default: `Alt+A`). Added UI guidance noting keybind requirements.
 - **Status & Failure Feedback**: Updated `CallMuteManager.engage()` to return structured status dicts (capturing failure reasons such as no call app detected, missing virtual device, or keyboard unavailable); `app/main.py` surfaces results via widget toasts so recording never silently fails to mute.
 - **Bundled dependencies**: PyInstaller spec now explicitly bundles `pycaw`, `comtypes`, and `psutil`.
 

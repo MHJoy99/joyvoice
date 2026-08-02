@@ -42,9 +42,9 @@ except ImportError:
 
 # Default global mute hotkeys per app
 DEFAULT_HOTKEYS = {
-    "discord": "ctrl+shift+m",
+    "discord": "ctrl+alt+shift+f12",
     "zoom": "alt+a",
-    "teams": "ctrl+shift+m",
+    "teams": "ctrl+alt+shift+f12",
 }
 
 # Exact exe names → app key
@@ -114,8 +114,16 @@ class CallMuteManager:
         self._mode = mode
         if virtual_device:
             self._virtual_device_name = virtual_device
+        self._hotkeys = dict(DEFAULT_HOTKEYS)
         if hotkeys:
-            self._hotkeys.update(hotkeys)
+            # Upgrade stale legacy default "ctrl+shift+m" for discord/teams if user saved it as default override
+            upgraded_hotkeys = {}
+            for k, v in hotkeys.items():
+                if k in ("discord", "teams") and v.lower() == "ctrl+shift+m":
+                    upgraded_hotkeys[k] = DEFAULT_HOTKEYS[k]
+                else:
+                    upgraded_hotkeys[k] = v
+            self._hotkeys.update(upgraded_hotkeys)
         self.recover_leftovers()
 
     @property
@@ -161,7 +169,7 @@ class CallMuteManager:
                 names = ", ".join(muted)
                 return {"mode": self._mode, "muted": muted, "ok": True,
                         "note": f"Sent mute key to {names} \u2014 ensure each app has a mute "
-                                f"keybind set (Discord/Teams: Ctrl+Shift+M, Zoom: Alt+A)."}
+                                f"keybind set (Discord/Teams: Ctrl+Alt+Shift+F12, Zoom: Alt+A)."}
             return {"mode": self._mode, "muted": [], "ok": False,
                     "note": self._last_failure or "No call apps detected"}
         return {"mode": self._mode, "muted": [], "ok": True, "note": ""}
