@@ -3,6 +3,17 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.2 — Long-Audio Reliability & Release Workflow (2026-08-03)
+
+This release consolidates the six commits already on `master` into the v2.3.2 public-release preparation line:
+
+- **Long-audio reliability**: chunk long recordings, raise token budgets, and reject truncated (`finish_reason=length`) outputs instead of silently publishing partial text.
+- **Call-mute safety**: harden call-mute hotkey handling and click-safe, non-activating status toasts.
+- **Documentation synchronization**: align the project knowledge base and release-facing documentation with the implemented behavior.
+- **Native audio default**: use native audio by default on configured gateways, with an explicit opt-out switch for fallback-only operation.
+- **Transcript preservation**: retain and paste the recovered transcript when translation fails after successful ASR.
+- **Metadata, build, and release workflow**: synchronize version surfaces and document the guarded tag, exact-tag build, EXE verification, and GitHub publication sequence.
+
 ## Long-Recording Recovery & Translation Fallback Fix (2026-08-02)
 
 Fixes long-audio dictation loss when translation gateway returns HTTP 400 or payload errors.

@@ -2,9 +2,19 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-08-02
-- **Focus**: JoyVoice Long-Recording Recovery & Documentation Audit.
+- **Updated Date**: 2026-08-03
+- **Focus**: JoyVoice v2.3.2 release-preparation documentation pass.
 - **Phase**: Complete
+
+### Session Log — 2026-08-03
+
+#### Closeout — v2.3.2 Release-Preparation Documentation Pass (2026-08-03)
+
+- Added the canonical bug-fix-to-public-release checklist at `docs/RELEASE.md`, including guarded verification, exact-tag build, EXE publication, public-release confirmation, and stop/report safety rules.
+- Updated the Markdown release surfaces for v2.3.2: `AGENTS.md`, `README.md`, `CHANGELOG.md`, and `AI_STATUS.md`.
+- Recorded the six commits already on `master`: long-audio reliability, call-mute hotkey/toast safety, documentation synchronization, native-audio default with opt-out, transcript preservation on translation failure, and metadata/build/release workflow.
+- **Scope**: Markdown files only. No source, tests, git state, credentials, EXEs, `dist`, or release artifacts were modified.
+- **Verification**: Documentation-only closeout; release tests, guards, commit/push, tag, build, and publication remain checklist gates for the actual release sequence.
 
 ### Session Log — 2026-08-02
 

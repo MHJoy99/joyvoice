@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-02 (v2.3.1) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, default Discord mute hotkey (Ctrl+Alt+Shift+F12), click-safe non-activating toasts (WA_ShowWithoutActivating & WA_TransparentForMouseEvents), configurable API endpoint/key/models via Settings → API tab, Free & Offline Mode via Settings → Free Mode tab, and single consolidated executable JoyVoice.exe._
+> _Last updated 2026-08-03 (v2.3.2) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, default Discord mute hotkey (Ctrl+Alt+Shift+F12), click-safe non-activating toasts (WA_ShowWithoutActivating & WA_TransparentForMouseEvents), configurable API endpoint/key/models via Settings → API tab, Free & Offline Mode via Settings → Free Mode tab, single consolidated executable JoyVoice.exe, long-audio reliability fixes, transcript preservation on translation failure, and canonical guarded release workflow._
 
 ---
 
@@ -31,8 +31,8 @@ Cloud mode is the default: zero local models, zero GPU, pure cloud pipeline. Fre
 
 | Item                  | Value                                                                  |
 | :-------------------- | :--------------------------------------------------------------------- |
-| **Repo root**         | `C:\Users\Administrator\VoiceFloat\joyvoice`                           |
-| **Venv**              | `C:\Users\Administrator\VoiceFloat\joyvoice\.venv` (Python 3.11 ONLY)  |
+| **Repo root**         | `E:\Relocated_Storage\VoiceFloat\joyvoice`                             |
+| **Venv**              | `E:\Relocated_Storage\VoiceFloat\joyvoice\.venv` (Python 3.11 ONLY)    |
 | **Settings file**     | `%APPDATA%\JoyVoice\settings.json`                                     |
 | **History file**      | `%APPDATA%\JoyVoice\history.json`                                      |
 | **Log file**          | `%APPDATA%\JoyVoice\joyvoice.log`                                      |
@@ -42,8 +42,8 @@ Cloud mode is the default: zero local models, zero GPU, pure cloud pipeline. Fre
 | **Entry point**       | `app/main.py` (AppController class)                                    |
 | **Standalone script** | `joyvoice.py` (Tkinter fallback, single-file)                          |
 | **Run script**        | `run.bat` (visible console, debuggable)                                |
-| **App icon**          | `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico` (root, 11KB)     |
-| **Assets icon**       | `C:\Users\Administrator\VoiceFloat\joyvoice\assets\icon.ico` (bundled) |
+| **App icon**          | `E:\Relocated_Storage\VoiceFloat\joyvoice\icon.ico` (root, 11KB)       |
+| **Assets icon**       | `E:\Relocated_Storage\VoiceFloat\joyvoice\assets\icon.ico` (bundled)   |
 | **Python version**    | 3.11.9                                                                 |
 | **API base**          | `https://gpt.bdx.market/v1`                                            |
 | **API key env var**   | `JV_API_KEY` (required; NEVER hardcode)                                |
@@ -61,21 +61,21 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 ### Root Files
 
-| File                                                          | Lines | Purpose                                                                                                                                                                                |
-| :------------------------------------------------------------ | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\app\main.py`      |  602  | **Entry point.** AppController state machine, CloudASRWorker(QThread), CloudLLMWorker(QThread), LLM rewrite, signal wiring, robustness timers, language switcher popup, first-run flow |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\joyvoice.py`      |  307  | Standalone single-file Tkinter version — self-contained dictation app (legacy, NOT the active pipeline)                                                                                |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\run.bat`          |  13   | Visible-console launcher — runs `.venv\Scripts\python app\main.py` with error pause                                                                                                    |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\check_python.bat` |   3   | Quick Python version check                                                                                                                                                             |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\build_exe.bat`    |   —   | PyInstaller packaging script                                                                                                                                                           |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\JoyVoice.spec`    |   —   | PyInstaller spec for frozen build                                                                                                                                                      |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\requirements.txt` |   7   | Pip dependencies (no versions pinned loosely except minimums)                                                                                                                          |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\.gitignore`       |  82   | Standard Python .gitignore + JoyVoice-specific paths                                                                                                                                   |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico`         |   —   | App icon (11,354 bytes, root level)                                                                                                                                                    |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\LICENSE`          |   —   | MIT License                                                                                                                                                                            |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\README.md`        |  382  | GitHub-facing project readme with badges, features table, architecture                                                                                                                 |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\CHANGELOG.md`     |   —   | Version history                                                                                                                                                                        |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\CONTRIBUTING.md`  |   —   | Developer contribution guide                                                                                                                                                           |
+| File                                                        | Lines | Purpose                                                                                                                                                                                |
+| :---------------------------------------------------------- | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\app\main.py`      |  602  | **Entry point.** AppController state machine, CloudASRWorker(QThread), CloudLLMWorker(QThread), LLM rewrite, signal wiring, robustness timers, language switcher popup, first-run flow |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\joyvoice.py`      |  307  | Standalone single-file Tkinter version — self-contained dictation app (legacy, NOT the active pipeline)                                                                                |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\run.bat`          |  13   | Visible-console launcher — runs `.venv\Scripts\python app\main.py` with error pause                                                                                                    |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\check_python.bat` |   3   | Quick Python version check                                                                                                                                                             |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\build_exe.bat`    |   —   | PyInstaller packaging script                                                                                                                                                           |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\JoyVoice.spec`    |   —   | PyInstaller spec for frozen build                                                                                                                                                      |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\requirements.txt` |   7   | Pip dependencies (no versions pinned loosely except minimums)                                                                                                                          |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\.gitignore`       |  82   | Standard Python .gitignore + JoyVoice-specific paths                                                                                                                                   |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\icon.ico`         |   —   | App icon (11,354 bytes, root level)                                                                                                                                                    |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\LICENSE`          |   —   | MIT License                                                                                                                                                                            |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\README.md`        |  382  | GitHub-facing project readme with badges, features table, architecture                                                                                                                 |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\CHANGELOG.md`     |   —   | Version history                                                                                                                                                                        |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\CONTRIBUTING.md`  |   —   | Developer contribution guide                                                                                                                                                           |
 
 ### `app/audio/` — Audio Capture Subsystem
 
@@ -201,17 +201,17 @@ Every source file in the repo, with purpose, line count, and what it contains.
 ### Other Directories
 
 | Path                                   | Purpose                                                      |
-| :------------------------------------- | :----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| :------------------------------------- | :----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tools/translation_benchmark.py`       | Standalone translation benchmark tool                        |
 | `tools/test_free_mode.py`              | Free Mode headless engine smoke test (v2.3.0)                |
 | `tools/test_free_speech.py`            | Free Mode real-speech offline test via Windows SAPI (v2.3.0) |
 | `tools/diag_free_crash.py`             | Free Mode diagnostics (v2.3.0)                               |
 | `tools/diag_free_crash2.py`            | Free Mode diagnostics (v2.3.0)                               |
-| `JoyVoice.spec`                        | —                                                            | PyInstaller spec for single consolidated frozen build (`dist/JoyVoice.exe`) bundling cloud + offline libs (`pycaw`, `comtypes`, `psutil`, `faster-whisper`, etc.) |
-| `JoyVoice-free.spec`                   | —                                                            | PyInstaller spec (legacy standalone free build spec, consolidated into `JoyVoice.spec` in v2.3.1)                                                                 |
-| `build/`                               | —                                                            | PyInstaller build artifacts                                                                                                                                       |
-| `dist/JoyVoice.exe`                    | —                                                            | Consolidated executable (~173MB) — full bundle (cloud mode + offline faster-whisper/ctranslate2/av/onnxruntime)                                                   |
-| `release/`                             | —                                                            | Release packages                                                                                                                                                  |
+| `JoyVoice.spec`                        | —                                                            | **Authoritative PyInstaller spec** for the single consolidated frozen build (`dist/JoyVoice.exe`) bundling cloud + offline libs (`pycaw`, `comtypes`, `psutil`, `faster-whisper`, etc.) |
+| `JoyVoice-free.spec`                   | —                                                            | Legacy standalone free-build spec retained for historical reference only; it is not authoritative and is not used for releases                                                          |
+| `build/`                               | —                                                            | PyInstaller build artifacts                                                                                                                                                             |
+| `dist/JoyVoice.exe`                    | —                                                            | Consolidated executable (~173MB) — full bundle (cloud mode + offline faster-whisper/ctranslate2/av/onnxruntime)                                                                         |
+| `release/`                             | —                                                            | Release packages                                                                                                                                                                        |
 | `__pycache__/joyvoice.cpython-311.pyc` | Compiled `joyvoice.py` (DANGER: see pitfall #7)              |
 
 ---
@@ -504,7 +504,7 @@ If you change the API key or model name and things mysteriously still use the ol
 find . -name "__pycache__" -type d -exec rm -rf {} +
 ```
 
-In particular: `C:\Users\Administrator\VoiceFloat\joyvoice\__pycache__\joyvoice.cpython-311.pyc` — this is a cached version of the standalone `joyvoice.py` script and may contain hardcoded paths/settings.
+In particular: `E:\Relocated_Storage\VoiceFloat\joyvoice\__pycache__\joyvoice.cpython-311.pyc` — this is a cached version of the standalone `joyvoice.py` script and may contain hardcoded paths/settings.
 
 The `.gitignore` excludes `__pycache__/` but they accumulate locally.
 
@@ -835,10 +835,10 @@ The `joyvoice` Hermes skill auto-loads this knowledge before any JoyVoice debugg
 
 The app icon exists in two locations:
 
-| Path                                                         | Size         | Purpose                                                  |
-| :----------------------------------------------------------- | :----------- | :------------------------------------------------------- |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\icon.ico`        | 11,354 bytes | Root level — used by `build_exe.bat` (`--icon=icon.ico`) |
-| `C:\Users\Administrator\VoiceFloat\joyvoice\assets\icon.ico` | —            | Bundled — loaded at runtime by `paths.icon_path()`       |
+| Path                                                       | Size         | Purpose                                                  |
+| :--------------------------------------------------------- | :----------- | :------------------------------------------------------- |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\icon.ico`        | 11,354 bytes | Root level — used by `build_exe.bat` (`--icon=icon.ico`) |
+| `E:\Relocated_Storage\VoiceFloat\joyvoice\assets\icon.ico` | —            | Bundled — loaded at runtime by `paths.icon_path()`       |
 
 At runtime, `paths.icon_path()` checks:
 
@@ -851,7 +851,7 @@ If the icon file doesn't exist, `tray.py` generates a fallback icon programmatic
 
 ## 16. VENV COMMANDS
 
-All commands assume you are in the repo root: `C:\Users\Administrator\VoiceFloat\joyvoice`
+All commands assume you are in the repo root: `E:\Relocated_Storage\VoiceFloat\joyvoice`
 
 ### Creating the venv
 
@@ -932,8 +932,17 @@ powershell "Get-Process python* -ErrorAction SilentlyContinue | Stop-Process -Fo
 
 ## 17. GIT & DEPLOYMENT POLICY
 
-- **Automatic Remote Synchronization**: After completing, verifying, and committing any task or change, AI assistants must automatically push the committed changes to the remote repository (`git push` or `git push origin main`) to ensure the remote repository is always synchronized with local work.
-- **Documentation Safety**: All documentation files (`AGENTS.md`, `AI_STATUS.md`, etc.) must remain accurate and reflect current workflow policies without touching non-`.md` code files during documentation updates.
+Every requested bug fix follows this automatic sequence: **fix → verify → commit → push → public release**. Do not pause for a confirmation prompt between these steps.
+
+1. **Fix** the reported issue and keep the change scoped to the requested files.
+2. **Verify** with the project tests, isolated import checks, `git diff --check`, and `python bin/guard.py pre-commit`. Confirm `.env`, credentials, EXEs, `dist`, and release artifacts are not staged. Update every version surface (`pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md`), then inspect `git status`, `git diff`, and `git log`.
+3. **Commit** only the requested files.
+4. **Push** only after `python bin/guard.py pre-push` passes: push the commit with `git push origin master`, fetch tags, then create and push an annotated `vX.Y.Z` tag.
+5. **Public release** from the exact tag: build with `build_exe.bat` and the authoritative `JoyVoice.spec`, verify the EXE, publish with `gh release create` attaching `dist\\JoyVoice.exe`, verify the public release metadata and asset, and update `AI_STATUS.md` with evidence.
+
+Never force-push, never publish from a dirty tree, and never include secrets. Stop and report if a guard, test, authentication, or GitHub capability blocks the sequence. The canonical detailed checklist is [`docs/RELEASE.md`](docs/RELEASE.md).
+
+**Documentation safety**: All documentation files (`AGENTS.md`, `AI_STATUS.md`, etc.) must remain accurate and reflect current workflow policies without touching non-`.md` code files during documentation updates.
 
 ---
 
