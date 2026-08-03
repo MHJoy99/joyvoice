@@ -8,6 +8,15 @@
 
 ### Session Log — 2026-08-03
 
+#### Closeout — v2.3.2 Public Release (2026-08-03)
+
+- **Release completed and publicly released**: JoyVoice v2.3.2 was completed and released from commit `21348b242442124d1fbfb1c161d5d7b9faba46fe`; annotated tag `v2.3.2` was pushed to GitHub.
+- **Public release**: [GitHub release](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.2) · [JoyVoice.exe asset](https://github.com/MHJoy99/joyvoice/releases/download/v2.3.2/JoyVoice.exe).
+- **Exact-tag build**: `.\build_exe.bat` succeeded at the exact `v2.3.2` tag. The resulting `dist\JoyVoice.exe` is `184429864` bytes with local SHA-256 `93eb73d770f9252db41488b185e304bae4a310e6468c85b7c4f361f5dddfdc09`.
+- **GitHub API confirmation**: The release is publicly published, with `draft=false` and `prerelease=false` (not draft/prerelease), and the uploaded asset digest matches the local SHA-256.
+- **Verification**: 21/21 unittest tests passed; isolated app import passed; metadata/spec parity passed; `git diff --check` passed; and both pre-commit and pre-push guards passed.
+- **Repository safety**: The unrelated untracked `.go-local-workspace/` directory was preserved. No secrets or build/release artifacts were committed.
+
 #### Closeout — v2.3.2 Release-Preparation Documentation Pass (2026-08-03)
 
 - Added the canonical bug-fix-to-public-release checklist at `docs/RELEASE.md`, including guarded verification, exact-tag build, EXE publication, public-release confirmation, and stop/report safety rules.
