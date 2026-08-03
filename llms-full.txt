@@ -5,7 +5,8 @@
 ## Repository Metadata
 
 - **Name:** JoyVoice
-- **Repository Path:** `C:\Users\Administrator\VoiceFloat\joyvoice`
+- **Repository URL:** `https://github.com/MHJoy99/joyvoice`
+- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.2`
 - **License:** MIT License
 - **Target Platform:** Windows 10 / Windows 11 (64-bit)
 - **Primary Language:** Python 3.11
@@ -83,8 +84,8 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 ## 4. How to Run JoyVoice Directly from this Folder
 
 ```cmd
-:: 1. Navigate to directory
-cd C:\Users\Administrator\VoiceFloat\joyvoice
+:: 1. Navigate to repository root
+cd joyvoice
 
 :: 2. Activate virtual environment
 .venv\Scripts\activate

@@ -17,7 +17,7 @@ JoyVoice solves the friction of cross-application multilingual typing and voice 
 
 ## Direct Execution Guide (Run from this Folder)
 
-To run JoyVoice directly from this directory (`C:\Users\Administrator\VoiceFloat\joyvoice`):
+To run JoyVoice directly from the repository root:
 
 1. **Environment Setup:** Ensure Python 3.11 is installed.
 2. **Virtual Environment:**
@@ -61,13 +61,13 @@ To run JoyVoice directly from this directory (`C:\Users\Administrator\VoiceFloat
 
 ## Primary Documentation Links
 
-- [Project README](file:///C:/Users/Administrator/VoiceFloat/joyvoice/README.md) - Main documentation, feature overview, and visual guides.
-- [Setup & Installation Guide](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/SETUP.md) - Step-by-step installation instructions for local development and EXE usage.
-- [Architecture & Design](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/ARCHITECTURE.md) - Complete system architecture, state machine, and signal flow documentation.
-- [API Gateway Reference](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/API.md) - Gateway specifications, model configuration, and endpoint usage.
-- [Troubleshooting & Pitfalls](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/TROUBLESHOOTING.md) - Known edge cases, environment setup, and resolution steps.
-- [SEO & Discovery Strategy](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/SEO_AND_DISCOVERY.md) - Search engine, AEO, and AGO optimization strategy.
-- [AEO FAQ Reference](file:///C:/Users/Administrator/VoiceFloat/joyvoice/docs/FAQ.md) - Direct Q&A pairs for answer engines and search engines.
+- [Project README](https://github.com/MHJoy99/joyvoice/blob/master/README.md) - Main documentation, feature overview, and visual guides.
+- [Setup & Installation Guide](https://github.com/MHJoy99/joyvoice/blob/master/docs/SETUP.md) - Step-by-step installation instructions for local development and EXE usage.
+- [Architecture & Design](https://github.com/MHJoy99/joyvoice/blob/master/docs/ARCHITECTURE.md) - Complete system architecture, state machine, and signal flow documentation.
+- [API Gateway Reference](https://github.com/MHJoy99/joyvoice/blob/master/docs/API.md) - Gateway specifications, model configuration, and endpoint usage.
+- [Troubleshooting & Pitfalls](https://github.com/MHJoy99/joyvoice/blob/master/docs/TROUBLESHOOTING.md) - Known edge cases, environment setup, and resolution steps.
+- [SEO & Discovery Strategy](https://github.com/MHJoy99/joyvoice/blob/master/docs/SEO_AND_DISCOVERY.md) - Search engine, AEO, and AGO optimization strategy.
+- [AEO FAQ Reference](https://github.com/MHJoy99/joyvoice/blob/master/docs/FAQ.md) - Direct Q&A pairs for answer engines and search engines.
 
 ---
 

@@ -22,8 +22,8 @@ instantly, pasted where the cursor is.
 ## 2. Hardware / environment
 
 - Windows 11, NVIDIA RTX 5070 (12 GB VRAM, Blackwell / sm_120)
-- Python 3.13, virtual env at `.venv`
-- Repo root: `C:\Users\Administrator\VoiceFloat\joyvoice`
+- Python 3.11 / 3.13, virtual env at `.venv`
+- Repo root: repo-relative directory (`joyvoice/`)
 
 ## 3. Live pipeline (current)
 
@@ -107,6 +107,7 @@ in `%LOCALAPPDATA%\JoyVoice\models\`; Ollama models on `E:\Models AI`.
 ## 6. Models
 
 ### ASR engines (see bengali-asr-benchmark.md for full outputs)
+
 - **IndicConformer RNNT** — LIVE DEFAULT. Fast (~1.75s), faithful, preserves
   Bangla-English code-switching. Needs HF gated access + trust_remote_code;
   runs on GPU via onnxruntime-gpu.
@@ -116,6 +117,7 @@ in `%LOCALAPPDATA%\JoyVoice\models\`; Ollama models on `E:\Models AI`.
 - **BanglaASR, Shrutimala** — fast but too noisy/unreliable on test clip.
 
 ### LLMs (Ollama, local)
+
 - **qwen2.5:7b** — default for translate + rewrite (fast, reliable).
 - **qwen2.5:14b** — higher quality, slower; installed and available.
 - Research verdict: generic 1-3B models would worsen Bengali faithfulness;
@@ -123,6 +125,7 @@ in `%LOCALAPPDATA%\JoyVoice\models\`; Ollama models on `E:\Models AI`.
   the reliability floor.
 
 ## 7. Bugs found & fixed
+
 - cuBLAS/cuDNN DLLs needed `PATH` (not just `add_dll_directory`) for CUDA.
 - Floating widget stole keyboard focus on click → Ctrl+V went to itself.
 - Widget stuck on "Loading model..." after a live reload.
@@ -133,6 +136,7 @@ in `%LOCALAPPDATA%\JoyVoice\models\`; Ollama models on `E:\Models AI`.
   exploratory speech; fixed with a faithfulness-first prompt rule.
 
 ## 8. Performance tuning
+
 - Whisper `beam_size` 5 → 2 (faster live decode).
 - Ollama rewrite capped at `num_predict=256` tokens.
 - `127.0.0.1` fix removed ~2s/call latency.
@@ -140,12 +144,14 @@ in `%LOCALAPPDATA%\JoyVoice\models\`; Ollama models on `E:\Models AI`.
   (when model resident); Whisper large-v3 ~10-15x realtime.
 
 ## 9. External setup completed
+
 - Ollama installed (winget), `OLLAMA_MODELS=E:\Models AI`, models pulled.
 - `HF_TOKEN` set (user env var) for gated IndicConformer access.
 - `onnxruntime` → `onnxruntime-gpu` swapped (IndicConformer on GPU).
 - Desktop + Start-Menu shortcuts (`pythonw.exe`, no console window).
 
 ## 10. Current live settings (%APPDATA%\JoyVoice\settings.json)
+
 - asr_engine: `indic_conformer`
 - model_size: `large-v3` (used when asr_engine=whisper)
 - language: `bn`, output_mode: `translation`
@@ -153,6 +159,7 @@ in `%LOCALAPPDATA%\JoyVoice\models\`; Ollama models on `E:\Models AI`.
 - hotkey: F8, toggle mode
 
 ## 11. Git commit history
+
 ```
 d0ab0b8 Fix the core faithfulness problem: stop AI styles from padding/fabricating
 1e61470 Log actual transcript/translation/rewrite text, not just timing
@@ -163,9 +170,11 @@ e381cf9 Add precise per-call timing logs for Whisper transcription and Ollama AI
 47fdf67 Add Output Mode/Text Style, pluggable ASR benchmark engines, and reliability fixes
 455d2ea Initial JoyVoice MVP: local voice dictation for Windows
 ```
+
 (All work is committed to git — this is the durable record; nothing is lost.)
 
 ## 12. How to run
+
 - From source: Desktop "JoyVoice" shortcut, or `python app/main.py` from repo root.
 - Build EXE: `build_exe.bat` → `dist\JoyVoice\JoyVoice.exe`.
 
@@ -173,17 +182,18 @@ e381cf9 Add precise per-call timing logs for Whisper transcription and Ollama AI
 
 Benchmarked ~12 models on the user's real Banglish transcripts (see
 `translation-benchmark.md`). Conclusions:
+
 - **qwen2.5:7b is the best overall live translator** (fast + faithful + keeps
   brand/tech terms); **qwen2.5:14b** for max quality (~2x latency).
 - **Qwen3 (8b/14b/30b-a3b) did NOT beat qwen2.5** — slower, no more faithful;
   30b-a3b ignored no-think and emitted reasoning. Deleted.
 - **Rule: any model that offloads to system RAM is disqualified** (too slow for
   a live pipeline) — this is why Hunyuan-MT-7B and other >12GB models are out.
-- **Bengali→English SOTA context (web-researched):** on *clean formal*
-  benchmarks (FLORES/COMET) the leaders are small *specialized* MT models —
+- **Bengali→English SOTA context (web-researched):** on _clean formal_
+  benchmarks (FLORES/COMET) the leaders are small _specialized_ MT models —
   **IndicTrans2** (AI4Bharat, 1.1B) and **NLLB** (3.3B; 54B-MoE is SOTA but
-  impractical) — not 14B general LLMs. BUT for the user's *messy code-switched
-  Banglish* with tech/brand terms, a general LLM (qwen2.5) genuinely does
+  impractical) — not 14B general LLMs. BUT for the user's _messy code-switched
+  Banglish_ with tech/brand terms, a general LLM (qwen2.5) genuinely does
   better, because specialized MT models are trained on clean text and stumble
   on code-switching. So qwen2.5 is the right call for this specific use case.
 - IndicTrans2 remains the one untested specialized contender (blocked by
@@ -194,7 +204,7 @@ Benchmarked ~12 models on the user's real Banglish transcripts (see
 
 Goal: make long dictation feel near-instant, and make qwen2.5:14b viable by
 hiding its latency. Approach: segment speech on VAD pauses; translate each
-completed *sentence* in the background while the user keeps talking. When they
+completed _sentence_ in the background while the user keeps talking. When they
 stop, only the final sentence needs translating (~1s tail) regardless of total
 length — because the model (~1s/sentence) easily keeps up with speaking pace
 (~3-5s/sentence). Constraint: can't translate mid-sentence faithfully (Bengali
@@ -204,6 +214,7 @@ a real pipeline rebuild (chunked recording, VAD segmentation, concurrent
 ASR+translate workers, in-order reassembly, last-chunk handling).
 
 ## 15. Open items / next steps
+
 1. Confirm the faithfulness fix holds on real long dictations (retest).
 2. Build the 3→2-step pipeline refactor (translate+format in one LLM pass) —
    planned earlier; would pair well with streaming (section 14).

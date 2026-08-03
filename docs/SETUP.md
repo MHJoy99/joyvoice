@@ -36,7 +36,7 @@ Complete step-by-step instructions to get JoyVoice running from a fresh clone to
 ## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/MHJoy/joyvoice.git
+git clone https://github.com/MHJoy99/joyvoice.git
 cd joyvoice
 ```
 
@@ -288,7 +288,7 @@ For daily one-click launch without opening a terminal:
 ### Method B: Direct Python Shortcut
 
 1. Right-click on Desktop → **New → Shortcut**
-2. Location: `C:\Users\Administrator\VoiceFloat\joyvoice\.venv\Scripts\pythonw.exe C:\Users\Administrator\VoiceFloat\joyvoice\app\main.py`
+2. Location: `"C:\path\to\joyvoice\.venv\Scripts\pythonw.exe" "C:\path\to\joyvoice\app\main.py"`
 3. Name: `JoyVoice`
 4. Right-click → **Properties** → **Change Icon...** → browse to `joyvoice/assets/icon.ico`
 5. Set **Run:** to `Minimized` (hides the brief console flash)
