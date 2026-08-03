@@ -14,6 +14,7 @@ This is the canonical checklist for moving a reported JoyVoice bug from a fix to
 - Run `python bin/guard.py pre-commit`.
 - Confirm that `.env`, credentials, EXEs, `dist`, and release artifacts are not staged.
 - Update all version surfaces: `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md`.
+- Perform discovery and SEO verification before tagging: verify `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, `README.md`, `robots.txt`, repository topics, and GitHub homepage/description are current and reference canonical URLs and the new version.
 - Inspect `git status`, `git diff`, and `git log`.
 - Commit only the requested files.
 

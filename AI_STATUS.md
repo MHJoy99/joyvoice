@@ -3,10 +3,15 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-03
-- **Focus**: JoyVoice v2.3.2 release-preparation documentation pass.
+- **Focus**: JoyVoice release checklist update for discovery/SEO verification.
 - **Phase**: Complete
 
 ### Session Log — 2026-08-03
+
+#### Closeout — Discovery & SEO Verification Pre-Tagging Update (2026-08-03)
+
+- **Updated `docs/RELEASE.md` and `AGENTS.md`**: Explicitly updated the verification step in the canonical bug-fix-to-public-release checklist and Section 17 Git & Deployment policy to mandate discovery/SEO verification before tagging (`llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, `README.md`, `robots.txt`, repository topics, and GitHub homepage/description must be current and reference canonical URLs and the new version).
+- **Documentation Scope**: Strictly updated Markdown files (`docs/RELEASE.md`, `AGENTS.md`, `AI_STATUS.md`). No non-Markdown files, source code, tests, git state, or public releases were touched.
 
 #### Closeout — v2.3.2 Public Release (2026-08-03)
 
