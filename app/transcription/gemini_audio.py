@@ -102,6 +102,8 @@ def _parse_result(content: str) -> tuple[str, str, str | None]:
         code = str(raw_override).strip().lower()
         if code in _VALID_CODES:
             override = code
+    if not transcript and not translation:
+        return "", "", None
     if not transcript or not translation:
         raise ValueError("Gemini returned an incomplete audio result")
     return transcript, translation, override
@@ -164,6 +166,10 @@ def transcribe_and_translate(
         f'keys "transcript", "translation", and "target_override". {transcript_instruction} '
         f"— preserve every intended word, name, number, and technical term. Do not guess, "
         f"summarize, or add meaning.\n\n"
+        f"CRITICAL SILENCE RULE:\n"
+        f"If the audio is silent, mostly static, breathing, or background noise, YOU MUST RETURN EMPTY STRINGS. "
+        f"Do NOT guess words. Do NOT invent subtitles like 'thank you' or 'subscribe'. "
+        f"If there is no clear speech, output exactly: {{\"transcript\": \"\", \"translation\": \"\", \"target_override\": null}}\n\n"
         f"ENDING RULES (critical):\n"
         f"- Both transcript and translation must end on a complete sentence with proper "
         f"terminal punctuation (. ! ? or CJK equivalents).\n"
@@ -193,6 +199,10 @@ def transcribe_and_translate(
             "model": model,
             "messages": [
                 {
+                    "role": "system",
+                    "content": "You are a speech transcription engine. You have no tools and must output pure JSON."
+                },
+                {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
@@ -206,6 +216,7 @@ def transcribe_and_translate(
             # transcript + translation JSON; long speech was truncating mid-sentence.
             "max_tokens": 4096,
             "temperature": 0,
+            "tool_choice": "none"
         }
     ).encode("utf-8")
     request = urllib.request.Request(
