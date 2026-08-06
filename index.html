@@ -7,7 +7,7 @@
     <!-- Primary SEO Meta Tags -->
     <title>JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows</title>
     <meta name="title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows">
-    <meta name="description" content="Ultra-low latency AI floating mic dictation & speech translation software for Windows 10/11. Speak in 10 languages (Bangla, Hindi, Russian, Arabic, etc.), get clean translated text auto-pasted in ~3.3s. Zero GPU required.">
+    <meta name="description" content="Ultra-low latency AI floating mic dictation & speech translation software for Windows 10/11. Speak in 10 languages (Bangla, Hindi, Russian, Arabic, etc.), get clean translated text auto-pasted automatically. Zero GPU required.">
     <meta name="keywords" content="Bangla voice typing, JoyVoice, Gemini voice dictation, speech translation Windows 11, floating mic app, voice to text auto paste, speech to text bangla english, open source voice typing, zero gpu dictation">
     <meta name="author" content="MH Joy">
     <meta name="robots" content="index, follow">
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://github.com/MHJoy99/joyvoice">
     <meta property="og:title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation">
-    <meta property="og:description" content="Speak in any of 10 languages. Get clean translated text pasted directly into your application in ~3.3s. Zero GPU required.">
+    <meta property="og:description" content="Speak in any of 10 languages. Get clean translated text pasted directly into your application automatically. Zero GPU required in cloud mode.">
     <meta property="og:image" content="assets/desktop-mockup.png">
 
     <!-- Twitter -->
@@ -40,8 +40,8 @@
       "name": "JoyVoice",
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Windows 10, Windows 11",
-      "softwareVersion": "2.3.2",
-      "description": "Ultra-low latency AI floating mic dictation and real-time speech translation tool for Windows powered by Gemini 3.1 Flash Lite.",
+      "softwareVersion": "2.3.8",
+      "description": "Ultra-low latency AI floating mic dictation and real-time speech translation tool for Windows powered by Gemini 3.6 Flash.",
       "license": "https://opensource.org/licenses/MIT",
       "author": {
         "@type": "Person",
@@ -399,12 +399,12 @@
 
     <main>
         <section class="hero">
-            <div class="badge-pill">⚡ Powered by Gemini 3.1 Flash Lite · Zero GPU Burden</div>
+            <div class="badge-pill">⚡ Powered by Gemini 3.6 Flash · Zero GPU Burden</div>
             <h1>Speak Any Language.<br><span>Get Clean Translations Instantly.</span></h1>
-            <p>JoyVoice is an open-source Windows floating microphone dictation app. Press <code>F8</code>, speak in any of 10 languages (Bangla, Hindi, Russian, Arabic, etc.), and clean translated text appears directly wherever your cursor is in ~3.3 seconds.</p>
+            <p>JoyVoice is an open-source Windows floating microphone dictation app. Press <code>F8</code>, speak in any of 10 languages (Bangla, Hindi, Russian, Arabic, etc.), and clean translated text appears directly wherever your cursor is.</p>
             <div class="cta-group">
                 <button class="btn btn-primary" id="run-local-cta" onclick="location.href='#install'">⚡ Run Directly From Folder</button>
-                <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.2" class="btn btn-secondary" id="download-exe-cta">🪟 Download Windows EXE</a>
+                <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8" class="btn btn-secondary" id="download-exe-cta">🪟 Download Windows EXE</a>
             </div>
         </section>
 
@@ -449,8 +449,8 @@
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🧠</div>
-                <h3>Gemini Native Audio</h3>
-                <p>Uses Gemini 3.1 Flash Lite native audio understanding to transcribe and translate in a single API call (~3.0s wall-clock time).</p>
+                <h3>Cloud ASR + Gemini AI</h3>
+                <p>Uses Google Web Speech ASR for reliable speech recognition and Gemini 3.6 Flash for translation and intelligent text styling.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🪟</div>
@@ -465,12 +465,12 @@
             <div class="feature-card">
                 <div class="feature-icon">⚡</div>
                 <h3>Zero GPU Overhead</h3>
-                <p>Pure cloud pipeline running on integrated graphics. No heavy local model downloads, no VRAM consumption.</p>
+                <p>Pure cloud pipeline running on integrated graphics. No heavy local model downloads, no VRAM consumption in cloud mode.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🛡️</div>
-                <h3>Built-in Fallback Chain</h3>
-                <p>Automatic failover to free Google Web Speech API if the primary audio API is temporarily offline.</p>
+                <h3>Opt-in Modes</h3>
+                <p>Support for opt-in Free/Offline local Whisper transcription and optional native audio mode when enabled.</p>
             </div>
         </section>
 
@@ -485,7 +485,7 @@ cd joyvoice
 set JV_API_KEY=your_api_key
 run.bat</pre>
 
-            <p style="margin-top: 16px; color: var(--text-secondary);">Or download the prebuilt <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.2" style="color: var(--accent-cyan);">JoyVoice.exe (v2.3.2)</a> for zero-config Windows launch.</p>
+            <p style="margin-top: 16px; color: var(--text-secondary);">Or download the prebuilt <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8" style="color: var(--accent-cyan);">JoyVoice.exe (v2.3.8)</a> for zero-config Windows launch.</p>
         </section>
     </main>
 
@@ -541,17 +541,17 @@ run.bat</pre>
 
             setTimeout(() => {
                 widget.className = 'widget-pill-demo processing';
-                status.textContent = 'Gemini 3.1 Flash Processing...';
-                output.innerHTML = `> Gemini 3.1 Flash Lite API Call in flight (~3.0s)...`;
+                status.textContent = 'Cloud ASR & Gemini AI Processing...';
+                output.innerHTML = `> Google ASR + Gemini text processing in progress...`;
             }, 1800);
 
             setTimeout(() => {
                 widget.className = 'widget-pill-demo pasted';
                 status.textContent = 'Pasted via Ctrl+V!';
-                output.innerHTML = 
+                output.innerHTML =
                     `> Spoken Speech: "${simData[currentLang].spoken}"<br>` +
                     `> Clean Output: "${simData[currentLang].pasted}"<br>` +
-                    `> ✅ Auto-pasted into active window in 3.3s.`;
+                    `> ✅ Auto-pasted directly into active window.`;
             }, 3600);
 
             setTimeout(() => {

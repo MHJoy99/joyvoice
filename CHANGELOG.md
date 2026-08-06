@@ -3,6 +3,16 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.8 — Reliable ASR & Fidelity Prompt Contracts (2026-08-06)
+
+This release stabilizes cloud transcription fidelity, fixes long-prompt context truncation, and formalizes prompt delivery contracts:
+
+- **Google ASR Primary by Default**: Speech transcription defaults to Google Web Speech ASR for maximum reliability across long and short audio chunks, reserving Gemini native audio as an explicit opt-in (`JV_NATIVE_AUDIO=true`).
+- **Transcript Salvage**: If cloud translation fails after successful ASR, the user's transcript is preserved and pasted safely without text loss.
+- **Style-Specific Prompt Contracts & Fidelity**: Hardened system prompts with explicit no-summary, no-omission, and no-invention guarantees across text styles.
+- **Cohesive Context Window**: Expanded `prompt_for_ai` context budget to 4000 characters (retaining 1500 for standard styles) to preserve complete long-dictation instruction contexts.
+- **Regression Protection & Live Verification**: Verified against comprehensive unit test suite (36 tests passing) and validated with a live 20.8s Bengali voice request processed in 14.08s total pipeline execution time.
+
 ## v2.3.2 — Long-Audio Reliability & Release Workflow (2026-08-03)
 
 This release consolidates the six commits already on `master` into the v2.3.2 public-release preparation line:

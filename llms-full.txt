@@ -6,13 +6,13 @@
 
 - **Name:** JoyVoice
 - **Repository URL:** `https://github.com/MHJoy99/joyvoice`
-- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.2`
+- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8`
 - **License:** MIT License
 - **Target Platform:** Windows 10 / Windows 11 (64-bit)
 - **Primary Language:** Python 3.11
 - **UI Architecture:** PySide6 (Qt 6.7) floating glass-morphism widget
 - **Audio Capture:** WASAPI via `sounddevice` (16,000 Hz, mono float32)
-- **Cloud Models:** `gemini-3.6-flash` (native audio mode), Google Web Speech API (fallback)
+- **Cloud Models:** Google Web Speech API (primary ASR), `gemini-3.6-flash` (translation & text styles)
 - **Settings Path:** `%APPDATA%\JoyVoice\settings.json`
 - **History Path:** `%APPDATA%\JoyVoice\history.json`
 - **Log File Path:** `%APPDATA%\JoyVoice\joyvoice.log`
@@ -23,8 +23,8 @@
 
 JoyVoice is designed for professionals, developers, and multilingual creators who communicate across languages and software applications. The application addresses three core friction points in desktop voice input:
 
-1. **Language Barrier in Real-Time Dictation:** Translating spoken thoughts into English or another target language usually requires typing into web translators and copying results. JoyVoice translates directly from speech into active text fields in under 3.5 seconds.
-2. **Resource Consumption of Local ASR Models:** Local Whisper installations demand heavy GPU memory (VRAM), long initialization times, and high CPU loads. JoyVoice uses lightweight cloud endpoints, achieving superior speed (~3.3s) with 0% GPU load.
+1. **Language Barrier in Real-Time Dictation:** Translating spoken thoughts into English or another target language usually requires typing into web translators and copying results. JoyVoice translates directly from speech into active text fields automatically.
+2. **Resource Consumption of Local ASR Models:** Local Whisper installations demand heavy GPU memory (VRAM), long initialization times, and high CPU loads. JoyVoice default cloud mode uses lightweight cloud endpoints with 0% local GPU load.
 3. **App Integration & Clipboard Fragility:** Standard voice dictation tools often misfire when pasting or erase existing clipboard contents. JoyVoice implements a defense-in-depth paste mechanism that backs up existing clipboard data, sends `Ctrl+V` with exponential backoff retries, and restores the original clipboard.
 
 ---
@@ -41,8 +41,9 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 - `app/audio/decode.py` - PyAV audio decoder utility for benchmark file conversion.
 
 ### Transcription & AI Subsystem (`app/transcription/`)
-- `app/transcription/gemini_audio.py` - Gemini 3.1 Flash Lite native audio API integration. Converts float32 audio to int16 PCM base64 WAV payload and sends JSON schema structured prompt.
-- `app/transcription/cloud_asr.py` - Google Web Speech API fallback module via `SpeechRecognition`.
+- `app/transcription/cloud_asr.py` - Primary cloud ASR using Google Web Speech API.
+- `app/transcription/gemini_audio.py` - Gemini Flash audio API integration (opt-in native audio via JV_NATIVE_AUDIO).
+- `app/transcription/free_asr.py` - Opt-in local faster-whisper Free & Offline ASR worker.
 - `app/transcription/text_cleaner.py` - Deterministic text cleanup rules: filler word removal, stutter collapse, custom word replacement table, whitespace normalization.
 
 ### Storage & Persistence (`app/storage/`)
@@ -69,15 +70,12 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 2. **State Transition:** `AppController` sets state to `recording`. Audio feedback sound `play_start()` triggers (800Hz beep).
 3. **Audio Capture:** `Recorder.start()` captures 16,000 Hz float32 mono stream from selected microphone. A 40ms Qt timer updates live audio levels on `FloatingWidget`.
 4. **User Deactivation:** Press `F8` again. `Recorder.stop()` returns float32 numpy array.
-5. **PCM Conversion:** `AppController` clips float32 audio `[-1.0, 1.0]` and converts to signed 16-bit PCM (`int16`) bytes in `< 50ms`.
-6. **Cloud API Dispatch:** `CloudASRWorker` (QThread) encodes PCM to WAV base64 and posts to `https://gpt.bdx.market/v1/chat/completions` requesting `gemini-3.6-flash`.
-7. **Processing & Fallback:**
-   - **Primary:** Gemini native audio API responds with raw transcript and target translation in JSON format (~3.0s).
-   - **Fallback:** If Gemini times out or returns an error, `CloudASRWorker` falls back to Google Web Speech API for transcript, followed by Gemini Text LLM for translation.
-8. **Text Formatting & Cleanup:** `text_cleaner.clean_text()` applies rule-based fixes and user replacement tables.
-9. **History Save:** Result is committed to `%APPDATA%\JoyVoice\history.json` before clipboard interaction (ensuring 0% data loss).
-10. **Auto-Paste:** `app.system.paste.paste_text()` backs up existing clipboard, copies cleaned text, fires `Ctrl+V` with up to 3 retries, and restores original clipboard.
-11. **UI Feedback:** Floating widget displays green `pasted` state with scale-pop animation for 1.2s and plays completion chime `play_done()`.
+5. **PCM Conversion:** `AppController` converts float32 audio to signed 16-bit PCM (`int16`) bytes.
+6. **Cloud ASR & LLM Dispatch:** `CloudASRWorker` sends PCM audio to Google Web Speech API for transcript, followed by Gemini 3.6 Flash text API for translation / styling (or uses native audio if `JV_NATIVE_AUDIO` is explicitly true).
+7. **Text Formatting & Cleanup:** `text_cleaner.clean_text()` applies rule-based fixes and user replacement tables.
+8. **History Save:** Result is committed to `%APPDATA%\JoyVoice\history.json` before clipboard interaction (ensuring 0% data loss).
+9. **Auto-Paste:** `app.system.paste.paste_text()` backs up existing clipboard, copies cleaned text, fires `Ctrl+V` with up to 3 retries, and restores original clipboard.
+10. **UI Feedback:** Floating widget displays green `pasted` state with scale-pop animation for 1.2s and plays completion chime `play_done()`.
 
 ---
 

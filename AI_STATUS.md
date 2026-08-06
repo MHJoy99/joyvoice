@@ -2,9 +2,27 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-08-03
-- **Focus**: JoyVoice release checklist update for discovery/SEO verification.
-- **Phase**: Complete
+- **Updated Date**: 2026-08-06
+- **Focus**: JoyVoice v2.3.8 release documentation preparation and fidelity verification log.
+- **Phase**: Pre-Release Preparation
+
+### Session Log — 2026-08-06
+
+#### Pre-Release Verification & Documentation — v2.3.8 Preparation (2026-08-06)
+
+- **Release Documentation Preparation**: Updated Markdown release surfaces (`README.md`, `CHANGELOG.md`, `AGENTS.md`, `AI_STATUS.md`, `docs/SEO_AND_DISCOVERY.md`) for v2.3.8.
+- **Fidelity & Prompt Contracts Recorded**:
+  - Speech dictation defaults to Google Web Speech ASR for primary reliability, with Gemini native audio available via explicit opt-in (`JV_NATIVE_AUDIO=true`).
+  - Added style-specific system prompts with explicit contracts preventing summaries, omissions, or inventions across text styles.
+  - Expanded `prompt_for_ai` context limit to 4000 characters (preserving 1500 chars for standard styles) to maintain full context for long dictations.
+  - Preserves Google ASR transcript on translation failure.
+- **Pre-Release Verification Evidence Obtained**:
+  - **Unit Tests**: 36/36 tests passed (`tests/test_cloud_pipeline_robustness.py` and test suite).
+  - **App Import & Syntax**: Isolated Python import and compile check passed.
+  - **Git Diff**: Clean `git diff --check`.
+  - **Independent Audits**: Verifier review PASS; Security audit PASS (with optional boundary-delimiter recommendation).
+  - **Live Request Validation**: A live 20.8s Bengali voice dictation was captured in a single Google ASR chunk and translated into a faithful prompt in 14.08s total pipeline time.
+- **Planned Next Steps**: Execution of git commit, annotated tag `v2.3.8`, `build_exe.bat` binary build, EXE verification, and GitHub release publishing per `docs/RELEASE.md` sequence. (Not yet executed in this documentation pass).
 
 ### Session Log — 2026-08-03
 

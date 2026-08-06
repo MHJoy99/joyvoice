@@ -6,10 +6,9 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.2-22d3ee?style=flat-square" alt="Version 2.3.2"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.8-22d3ee?style=flat-square" alt="Version 2.3.8"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Latency-~3.3s-22d3ee?style=flat-square" alt="Latency ~3.3s"></a>
   <a href="llms.txt"><img src="https://img.shields.io/badge/AGO-llms.txt-22d3ee?style=flat-square" alt="llms.txt compliant"></a>
   <a href="docs/SEO_AND_DISCOVERY.md"><img src="https://img.shields.io/badge/AEO-Verified-22d3ee?style=flat-square" alt="AEO Verified"></a>
   <a href="docs/FAQ.md"><img src="https://img.shields.io/badge/GPU-Zero%20Required-22d3ee?style=flat-square" alt="Zero GPU Required"></a>
@@ -18,7 +17,7 @@
 <p align="center">
   <strong>Floating Mic Dictation — Speak Any Language, Get Clean Translations Instantly</strong><br>
   Click mic &nbsp;→&nbsp; Speak in any of 10 languages &nbsp;→&nbsp; Clean translation pasted into any app<br>
-  <sub>~3.3 seconds end-to-end. Pure cloud pipeline powered by Gemini 3.6 Flash — or switch on Free &amp; Offline Mode (local Whisper, no API key).</sub>
+  <sub>High-accuracy speech dictation with Google ASR &amp; Gemini text processing — or switch on Free &amp; Offline Mode (local Whisper, no API key).</sub>
 </p>
 
 <hr>
@@ -27,7 +26,7 @@
 
 <blockquote>
 
-**Press `F8` → speak in your language → the floating mic pulses with a live waveform → 3.3 seconds later clean translated text appears wherever your cursor is.**
+**Press `F8` → speak in your language → the floating mic pulses with a live waveform → clean translated text appears wherever your cursor is.**
 
 That's it. No window switching. No copy-paste. No language selection. Just speak and keep typing.
 
@@ -49,16 +48,16 @@ That's it. No window switching. No copy-paste. No language selection. Just speak
 
 > **Auto-detect means you never touch a language setting.** Switch from Bengali to Russian to Chinese mid-conversation — JoyVoice figures it out. Or lock a source language if you prefer.
 
-| Step | What Happens                                                                            |       Time |
-| :--: | :-------------------------------------------------------------------------------------- | ---------: |
-|  🎙️  | Record via your mic (16 kHz mono, float32)                                              |          — |
-|  🔢  | Convert to signed int16 PCM                                                             |    < 50 ms |
-|  🧠  | **Gemini 3.1 Flash Lite** detects language + transcribes + translates (single API call) |     ~3.0 s |
-|  ✨  | Punctuation & capitalization cleanup                                                    |    < 50 ms |
-|  📋  | Clipboard-safe paste via `Ctrl+V` with exponential retry                                |    ~300 ms |
-|  ✅  | **Done. Text is in your app.**                                                          | **~3.3 s** |
+| Step | What Happens                                                                   |                 Time |
+| :--: | :----------------------------------------------------------------------------- | -------------------: |
+|  🎙️  | Record via your mic (16 kHz mono, float32)                                     |                    — |
+|  🔢  | Convert to signed int16 PCM                                                    |              < 50 ms |
+|  🧠  | **Google Web Speech ASR** transcribes speech (or optional Gemini native audio) |              Dynamic |
+|  ✨  | **Gemini LLM** translates & applies text style prompts faithfully              |              Dynamic |
+|  📋  | Clipboard-safe paste via `Ctrl+V` with exponential retry                       |              ~300 ms |
+|  ✅  | **Done. Text is in your app.**                                                 | **Varies by length** |
 
-> **Fallback chain built in.** If Gemini is unreachable, Google Web Speech API takes over automatically — zero config, zero downtime.
+> **Reliable pipeline.** Google Web Speech ASR provides zero-config primary transcription, with Gemini text LLM handling translation and formatting. Native Gemini audio remains available via opt-in (`JV_NATIVE_AUDIO=true`). Latency depends on audio length (e.g. a 20.8s recording was processed in 14.08s total during verification).
 
 ---
 
@@ -161,18 +160,17 @@ python app\main.py
 
 ### 🌐 10-Language Dictation + Translation
 
-|     | Feature                       | Detail                                                                                                             |
-| :-: | ----------------------------- | :----------------------------------------------------------------------------------------------------------------- |
-| 🗣️  | **10 Languages**              | Bangla · English · Russian · Hindi · Spanish · Arabic · Chinese · Japanese · French · Portuguese                   |
-| 🔍  | **Auto-Detect Language**      | Speak naturally — JoyVoice detects your language. No manual switching.                                             |
-| 🎯  | **Target Language Selection** | Translate into any of the 10 supported languages, not just English.                                                |
-| 🌐  | **Single API Call**           | Native audio transcription + translation in one Gemini request. No text round-trip.                                |
-| ⚡  | **~3.3s End-to-End**          | Mic to paste in under four seconds — faster than you can type.                                                     |
-| 🔄  | **Automatic Fallback**        | Google Web Speech API kicks in if Gemini is unreachable. Zero config.                                              |
-| 🎛️  | **Dynamic Output Modes**      | Source transcript only · Target translation only · Both side-by-side. Labels adapt to your selected language pair. |
-| 📝  | **5 Text Styles**             | Clean English · Raw transcript · AI prompt · Formal email · Custom rewrite                                         |
-| 🔌  | **Configurable API**          | Set the OpenAI-compatible base URL, API key, and audio/text models from the Settings UI — no env vars required.    |
-| 🆓  | **Free & Offline Mode**       | Run totally free with no API key — local Whisper ASR, one-click setup, built-in offline Bangla → English.          |
+|     | Feature                          | Detail                                                                                                             |
+| :-: | -------------------------------- | :----------------------------------------------------------------------------------------------------------------- |
+| 🗣️  | **10 Languages**                 | Bangla · English · Russian · Hindi · Spanish · Arabic · Chinese · Japanese · French · Portuguese                   |
+| 🔍  | **Auto-Detect Language**         | Speak naturally — JoyVoice detects your language. No manual switching.                                             |
+| 🎯  | **Target Language Selection**    | Translate into any of the 10 supported languages, not just English.                                                |
+| 🌐  | **Google ASR + Gemini LLM**      | Reliable Google Web Speech ASR paired with Gemini LLM for translation and style formatting.                        |
+| 🔄  | **Automatic Fallback & Salvage** | Google ASR primary with Gemini fallback, plus transcript salvage if cloud translation fails.                       |
+| 🎛️  | **Dynamic Output Modes**         | Source transcript only · Target translation only · Both side-by-side. Labels adapt to your selected language pair. |
+| 📝  | **5 Text Styles**                | Clean English · Raw transcript · AI prompt · Formal email · Custom rewrite                                         |
+| 🔌  | **Configurable API**             | Set the OpenAI-compatible base URL, API key, and audio/text models from the Settings UI — no env vars required.    |
+| 🆓  | **Free & Offline Mode**          | Run totally free with no API key — local Whisper ASR, one-click setup, built-in offline Bangla → English.          |
 
 ### 🆓 Free & Offline Mode (v2.3.0)
 
@@ -228,27 +226,19 @@ python app\main.py
 ```
 ┌──────────┐    ┌──────────┐    ┌─────────────────────┐    ┌──────────────────┐    ┌──────────┐
 │   🎙️    │    │   🔢     │    │        🧠           │    │   🌐 + ✨        │    │   📋     │
-│   Mic    │───▶│  PCM16   │───▶│  Gemini 3.1 Flash    │───▶│  Multi-Language  │───▶│  Paste   │
-│          │    │          │    │  Lite                │    │                  │    │          │
-│ Any mic  │    │ float→   │    │                      │    │ Auto-detect      │    │ Ctrl+V   │
-│ 16 kHz   │    │  int16   │    │ Native audio →       │    │ source language  │    │ retry×3  │
-│ float32  │    │ < 50ms   │    │ (transcript,         │    │ Transcribe +     │    │ restore  │
-│          │    │          │    │  translation)        │    │ Translate +      │    │ clipbrd  │
-└──────────┘    └──────────┘    └───────┬──────────────┘    │ Cleanup          │    └──────────┘
-                                        │ on failure        └──────────────────┘
+│   Mic    │───▶│  PCM16   │───▶│  Google Web Speech  │───▶│  Gemini Text     │───▶│  Paste   │
+│          │    │          │    │  ASR (Primary)      │    │  LLM             │    │          │
+│ Any mic  │    │ float→   │    │                     │    │ Translate +      │    │ Ctrl+V   │
+│ 16 kHz   │    │  int16   │    │ Transcribe →        │    │ Style Cleanup +  │    │ retry×3  │
+│ float32  │    │ < 50ms   │    │ transcript          │    │ Transcript       │    │ restore  │
+│          │    │          │    │                     │    │ Salvage          │    │ clipbrd  │
+└──────────┘    └──────────┘    └───────┬─────────────┘    └──────────────────┘    └──────────┘
+                                        │ (Optional native audio opt-in)
                                         ▼
                                  ┌─────────────────┐
-                                 │  🔄  Fallback    │
-                                 │  Google Web      │
-                                 │  Speech API      │
-                                 │  (free, no key)  │
-                                 └────────┬────────┘
-                                          │
-                                          ▼
-                                 ┌─────────────────┐
-                                 │  Gemini Text LLM │
-                                 │  translate →     │
-                                 │  target language │
+                                 │  Gemini Audio   │
+                                 │  (JV_NATIVE_    │
+                                 │   AUDIO=true)   │
                                  └─────────────────┘
 ```
 
@@ -304,15 +294,15 @@ Widget states: `idle` (gray), `recording` (orange pulsing), `transcribing` (blue
 
 ### Tech Stack
 
-| Layer             | Technology                   | Why                                                          |
-| :---------------- | ---------------------------- | :----------------------------------------------------------- |
-| **UI Framework**  | PySide6 (Qt 6)               | Native Windows look, system tray, global hotkeys             |
-| **Audio Capture** | `sounddevice`                | Direct WASAPI access, float32 buffers, low latency           |
-| **Primary ASR**   | Gemini 3.1 Flash Lite        | Native audio mode — no intermediate text step needed         |
-| **Fallback ASR**  | Google Web Speech API        | Free, reliable, no API key needed (via `SpeechRecognition`)  |
-| **API Gateway**   | OpenAI-compatible            | Single endpoint for both audio and text models               |
-| **Clipboard**     | `pyperclip` + `keyboard`     | Clipboard save → paste → restore; safe for password managers |
-| **Persistence**   | JSON (`%APPDATA%\JoyVoice\`) | Settings + history. Human-readable, easy to debug            |
+| Layer             | Technology                   | Why                                                                  |
+| :---------------- | ---------------------------- | :------------------------------------------------------------------- |
+| **UI Framework**  | PySide6 (Qt 6)               | Native Windows look, system tray, global hotkeys                     |
+| **Audio Capture** | `sounddevice`                | Direct WASAPI access, float32 buffers, low latency                   |
+| **Primary ASR**   | Google Web Speech ASR        | Highly reliable cloud ASR (native Gemini audio available via opt-in) |
+| **Translation**   | Gemini LLM (3.6 Flash)       | Text translation & style prompts via OpenAI-compatible endpoint      |
+| **API Gateway**   | OpenAI-compatible            | Single endpoint for both audio and text models                       |
+| **Clipboard**     | `pyperclip` + `keyboard`     | Clipboard save → paste → restore; safe for password managers         |
+| **Persistence**   | JSON (`%APPDATA%\JoyVoice\`) | Settings + history. Human-readable, easy to debug                    |
 
 ### Audio Feedback
 
@@ -347,7 +337,7 @@ Uses `winsound.Beep` (stdlib, no deps). Silent no-op on non-Windows or Terminal 
 |  `fr`  | French      | Français  | `fr-FR`    |     ✅      |     ✅      |
 |  `pt`  | Portuguese  | Português | `pt-BR`    |     ✅      |     ✅      |
 
-> **Auto-detect is the default.** The Gemini prompt dynamically switches from "transcribe in {language}" to "detect the spoken language" when `auto` is active. Google fallback also supports native auto-detection.
+> **Auto-detect is the default.** The Gemini prompt dynamically switches from "transcribe in {language}" to "detect the spoken language" when `auto` is active. Google ASR primary also supports native auto-detection.
 
 > **Quick switcher:** Press `Ctrl+Shift+L` anywhere to cycle language pairs without opening Settings.
 
@@ -360,7 +350,7 @@ Uses `winsound.Beep` (stdlib, no deps). Silent no-op on non-Windows or Terminal 
 | **10 Languages**          |     ✅ With auto-detect     |   ⚠️ Select few   |    ⚠️ Model-dependent    | ❌ Typed text only |
 | **Auto-Detect Lang**      |         ✅ Default          |     ❌ Manual     |            ❌            |         ❌         |
 | **Translate to Any Lang** |        ✅ 10 targets        |  ❌ English-only  | ⚠️ Two-step (ASR + LLM)  |   ❌ Typed only    |
-| **Latency**               |            ~3.3s            |       ~2–5s       |       10–30s (CPU)       |  N/A (not speech)  |
+| **Latency**               |      Varies by length       |       ~2–5s       |       10–30s (CPU)       |  N/A (not speech)  |
 | **GPU Required**          |            ❌ No            |       ❌ No       |      ⚠️ Recommended      |       ❌ No        |
 | **Auto-Paste**            |        ✅ With retry        |      ✅ Yes       |        ❌ Manual         |       ❌ N/A       |
 | **Glass UI Widget**       |      ✅ Frosted glass       | ❌ OS-level only  |         ❌ No UI         |       ❌ No        |
@@ -480,8 +470,8 @@ joyvoice/
 │   ├── audio/
 │   │   └── recorder.py                 ← sounddevice InputStream (float32, 16 kHz)
 │   ├── transcription/
-│   │   ├── gemini_audio.py             ← Gemini native audio → (transcript, translation)
-│   │   ├── cloud_asr.py                ← Google Web Speech fallback (10-language auto-detect)
+│   │   ├── gemini_audio.py             ← Gemini native audio (optional opt-in via JV_NATIVE_AUDIO=true)
+│   │   ├── cloud_asr.py                ← Google Web Speech primary ASR (10-language auto-detect)
 │   │   ├── text_cleaner.py             ← Punctuation/capitalization cleanup
 │   │   └── whisper_engine.py           ← Legacy local Whisper (repaired, inactive)
 │   ├── storage/
@@ -597,7 +587,7 @@ sounddevice >= 0.5      → WASAPI audio capture
 numpy >= 1.26           → Audio buffer math
 pyperclip >= 1.9        → Clipboard read/write
 keyboard >= 0.13        → Global hotkey hooks
-SpeechRecognition >= 3.17 → Google Web Speech fallback
+SpeechRecognition >= 3.17 → Google Web Speech ASR (primary default)
 typing_extensions >= 4.16 → Required by SpeechRecognition
 faster-whisper >= 1.0.0 → Free Mode local Whisper ASR (offline)
 ctranslate2 >= 4.6.0    → Inference engine behind faster-whisper
@@ -628,7 +618,7 @@ All pure Python or prebuilt wheels. **Cloud mode needs no CUDA, no PyTorch, and 
 
 <details open>
 <summary><strong>Q: What is JoyVoice and how does it work?</strong></summary>
-<p>JoyVoice is an open-source Windows dictation tool that converts speech in 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese) into clean, translated text in ~3.3 seconds. Pressing <code>F8</code> captures audio, sends it to Gemini 3.1 Flash Lite via a single API request, cleans up punctuation, and pastes the result directly into your focused application.</p>
+<p>JoyVoice is an open-source Windows dictation tool that converts speech in 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese) into clean, translated text. Pressing <code>F8</code> captures audio, transcribes it via Google Web Speech ASR, processes translation and formatting using Gemini 3.6 Flash, cleans up punctuation, and pastes the result directly into your focused application.</p>
 </details>
 
 <details open>
@@ -687,6 +677,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.2 · August 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.8 · August 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>

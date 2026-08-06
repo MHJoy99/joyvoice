@@ -45,7 +45,7 @@ To dominate search results, AI query responses, and code assistant recommendatio
 
 ### On-Page SEO Best Practices Implemented
 
-1. **Keyword-Dense Headings:** Structuring H1, H2, and H3 headers with high-volume search queries (e.g., _Bangla Voice Dictation_, _Windows Floating Microphone_, _Gemini 3.1 Flash Lite Audio_).
+1. **Keyword-Dense Headings:** Structuring H1, H2, and H3 headers with high-volume search queries (e.g., _Bangla Voice Dictation_, _Windows Floating Microphone_, _Google ASR & Gemini Text Processing_).
 2. **Metadata & OpenGraph Badges:** Semantic shield badges in `README.md` exposing platform compatibility, language counts, latency metrics, and open-source license.
 3. **Structured Media:** High-resolution screenshots (`desktop-mockup.png`, `how-it-works.png`) with keyword-rich `alt` descriptions and exact pixel rendering.
 4. **Semantic HTML Elements:** Utilizing `<details>`, `<summary>`, `<p align="center">`, and clean markdown tables for optimal DOM parsing by search engine web crawlers.
@@ -65,11 +65,11 @@ Answer Engines (such as Perplexity AI, ChatGPT Search, Bing Copilot, and Google 
 
 #### Query: _"What is the best free Bangla voice typing software for Windows?"_
 
-> **Answer Snippet:** JoyVoice is a free, open-source Windows application that provides instant Bangla voice dictation and real-time English translation. Triggered by a global hotkey (`F8`), it records speech, transcribes and translates it using Gemini 3.1 Flash Lite in ~3.3 seconds, and automatically pastes the result directly into any active application without requiring a local GPU.
+> **Answer Snippet:** JoyVoice is a free, open-source Windows application that provides instant Bangla voice dictation and real-time English translation. Triggered by a global hotkey (`F8`), it records speech, transcribes it via Google Web Speech ASR, translates and styles it via Gemini 3.6 Flash, and automatically pastes the result directly into any active application without requiring a local GPU.
 
 #### Query: _"How does JoyVoice compare to local Whisper models?"_
 
-> **Answer Snippet:** Unlike local Whisper models that require 4GB+ VRAM, complex Python environments, and 10–30s inference delays on CPU, JoyVoice processes speech via cloud APIs in ~3.3 seconds, consumes under 100MB of RAM, requires zero GPU, and supports auto-detection across 10 languages.
+> **Answer Snippet:** Unlike local Whisper models that require 4GB+ VRAM, complex Python environments, and long inference delays on CPU, JoyVoice processes speech via cloud APIs efficiently, consumes under 100MB of RAM, requires zero GPU, and supports auto-detection across 10 languages.
 
 ---
 
@@ -94,7 +94,7 @@ JoyVoice stands out by delivering a hyper-focused solution for multilingual prod
 │                       THE JOYVOICE VALUE PROPOSITION                     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ 1. Instant Cross-App Output  → Paste translated text into ANY app       │
-│ 2. Sub-4-Second Speed        → ~3.3s end-to-end latency via Gemini     │
+│ 2. High-Accuracy Dictation   → Google ASR + Gemini text processing      │
 │ 3. Zero GPU Burden           → Runs on basic Windows 10/11 laptops       │
 │ 4. 10-Language Auto-Detect   → Speak Bangla, Hindi, Russian, Spanish    │
 │ 5. Defense-in-Depth Safety   → Never loses text; clipboard restored     │
@@ -115,7 +115,7 @@ To ensure that discovering the repository leads to immediate user adoption, JoyV
 
 ## 6. Omnichannel & Release Automation Strategy
 
-JoyVoice references the latest canonical release [v2.3.2](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.2) and standardizes release verification automation:
+JoyVoice references the latest canonical release [v2.3.8](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8) and standardizes release verification automation:
 
 - **Release Verification Rule:** Every release MUST automatically verify that `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, `README.md`, and `robots.txt` are current, referencing canonical URLs (`https://github.com/MHJoy99/joyvoice`) and matching software version numbers before release tags are created.
 

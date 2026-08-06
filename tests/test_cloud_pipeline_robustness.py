@@ -431,6 +431,91 @@ class TestLongTextTranslation(unittest.TestCase):
         self.assertEqual(payload["max_tokens"], 4096)
 
     @patch("urllib.request.urlopen")
+    def test_translate_to_target_payload_fidelity(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "choices": [{"finish_reason": "stop", "message": {"content": "Translated text"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }).encode("utf-8")
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        sample_input = "Sample dictated text for translation."
+        res = main_mod._single_llm_call(sample_input, "translate_to_target", "en")
+        self.assertEqual(res, "Translated text")
+
+        req_args = mock_urlopen.call_args[0]
+        payload = json.loads(req_args[0].data.decode("utf-8"))
+        messages = payload.get("messages", [])
+        self.assertEqual(len(messages), 2)
+
+        sys_msg = next(m for m in messages if m.get("role") == "system")
+        user_msg = next(m for m in messages if m.get("role") == "user")
+
+        sys_content = sys_msg.get("content", "").lower()
+        user_content = user_msg.get("content", "")
+
+        self.assertIn("translator", sys_content)
+        self.assertIn("preserve", sys_content)
+        self.assertIn("fact", sys_content)
+        self.assertIn("summarize", sys_content)
+
+        self.assertIn(sample_input, user_content)
+        user_content_lower = user_content.lower()
+        self.assertIn("preserve", user_content_lower)
+        self.assertIn("detail", user_content_lower)
+        self.assertIn("summarize", user_content_lower)
+        self.assertIn("translation", user_content_lower)
+
+    @patch("urllib.request.urlopen")
+    def test_prompt_for_ai_payload_fidelity(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "choices": [{"finish_reason": "stop", "message": {"content": "Formatted prompt"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+        }).encode("utf-8")
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        sample_input = "Write a python script to parse logs."
+        res = main_mod._single_llm_call(sample_input, "prompt_for_ai", "en")
+        self.assertEqual(res, "Formatted prompt")
+
+        req_args = mock_urlopen.call_args[0]
+        payload = json.loads(req_args[0].data.decode("utf-8"))
+        messages = payload.get("messages", [])
+
+        sys_msg = next(m for m in messages if m.get("role") == "system")
+        user_msg = next(m for m in messages if m.get("role") == "user")
+
+        sys_content = sys_msg.get("content", "")
+        user_content = user_msg.get("content", "")
+
+        self.assertIn("prompt editor", sys_content.lower())
+        self.assertNotIn("direct translator", sys_content.lower())
+
+        sys_lower = sys_content.lower()
+        self.assertIn("preserve", sys_lower)
+        self.assertIn("detail", sys_lower)
+        self.assertIn("summarize", sys_lower)
+
+        self.assertIn(sample_input, user_content)
+        user_lower = user_content.lower()
+        self.assertIn("preserve", user_lower)
+        self.assertIn("detail", user_lower)
+        self.assertIn("requirement", user_lower)
+        self.assertIn("constraint", user_lower)
+        self.assertIn("name", user_lower)
+        self.assertIn("number", user_lower)
+        self.assertIn("technical term", user_lower)
+        self.assertIn("qualifier", user_lower)
+        self.assertIn("uncertainty", user_lower)
+        self.assertIn("summarize", user_lower)
+        self.assertIn("omit", user_lower)
+        self.assertIn("invent", user_lower)
+        self.assertIn("answer", user_lower)
+
+    @patch("urllib.request.urlopen")
     @patch("app.storage.usage_store.append")
     def test_single_llm_call_length_rejection(self, mock_usage_append, mock_urlopen):
         mock_response = MagicMock()
@@ -657,11 +742,26 @@ class TestTextStyleRoutesAndChunkingRegression(unittest.TestCase):
             self.assertEqual(style_arg, style)
 
     @patch("app.main._single_llm_call")
+    def test_prompt_for_ai_representative_long_input_single_call(self, mock_single_call):
+        sentence = "This is a detailed dictation chunk with instructions, numbers 12345, constraints, and technical specs. "
+        long_input = sentence * 33  # ~3531 chars
+        self.assertGreater(len(long_input), 1500)
+        self.assertLessEqual(len(long_input), 4000)
+
+        mock_single_call.return_value = "Mocked single prompt output"
+
+        res = main_mod.cloud_llm_rewrite(long_input, "prompt_for_ai", "en")
+
+        self.assertEqual(res, "Mocked single prompt output")
+        self.assertEqual(mock_single_call.call_count, 1)
+        mock_single_call.assert_called_once_with(long_input.strip(), "prompt_for_ai", target_language="en")
+
+    @patch("app.main._single_llm_call")
     def test_long_bengali_prompt_for_ai_chunking_routing(self, mock_single_call):
         bengali_sentence = "আমি আজ সকালে অফিসে গিয়েছিলাম এবং সেখানে একটি গুরুত্বপূর্ণ মিটিং সম্পন্ন করেছি। "
-        long_bengali_input = bengali_sentence * 25
+        long_bengali_input = bengali_sentence * 55  # ~4510 chars > 4000
 
-        self.assertGreater(len(long_bengali_input), 1500)
+        self.assertGreater(len(long_bengali_input), 4000)
 
         mock_single_call.side_effect = lambda text, style, target_language="en": f"[AI_STYLE:{style}:{len(text)}]"
 

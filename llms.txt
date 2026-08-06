@@ -1,17 +1,17 @@
 # JoyVoice: AI Floating Mic Dictation & Speech Translation for Windows
 
-> JoyVoice is an open-source, ultra-low latency (~3.3s) floating microphone dictation and real-time speech translation application for Windows 10/11. Powered by Gemini 3.1 Flash Lite native audio understanding, JoyVoice allows users to press a global hotkey (F8), speak in any of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and automatically paste clean, polished translated text into any active Windows application.
+> JoyVoice is an open-source, low-latency floating microphone dictation and real-time speech translation application for Windows 10/11. Powered by Google Web Speech primary ASR and Gemini 3.6 Flash translation/styling (with optional native audio mode), JoyVoice allows users to press a global hotkey (F8), speak in any of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and automatically paste clean, polished translated text into any active Windows application.
 
 ## Overview & Purpose
 
-JoyVoice solves the friction of cross-application multilingual typing and voice dictation. Unlike heavy local Whisper models requiring expensive GPUs or built-in OS dictation tools restricted to single languages, JoyVoice provides a lightweight, GPU-free, cloud-accelerated dictation pipeline packaged inside a sleek glass-morphism desktop widget.
+JoyVoice solves the friction of cross-application multilingual typing and voice dictation. Unlike heavy local Whisper models requiring expensive GPUs or built-in OS dictation tools restricted to single languages, JoyVoice provides a lightweight, cloud-accelerated dictation pipeline packaged inside a sleek glass-morphism desktop widget.
 
 ### Key Highlights
-- **Zero Local GPU Overhead:** Runs effortlessly on integrated graphics; all ASR and neural translation execute via cloud API.
-- **Native Audio Understanding:** Uses Gemini 3.1 Flash Lite in native audio mode (single API call for both transcription and translation in ~3.0 seconds).
+- **Zero Local GPU Overhead:** Runs effortlessly on integrated graphics in default cloud mode; all ASR and neural translation execute via cloud API.
+- **Cloud ASR + Gemini AI:** Uses Google Web Speech ASR for reliable speech recognition and Gemini 3.6 Flash for translation and intelligent text styling (opt-in native audio via JV_NATIVE_AUDIO).
 - **Automatic Language Detection:** Speak naturally in any supported language without manual toggle; JoyVoice identifies the source language instantly.
 - **Direct Clipboard-Safe Paste:** Automatically pastes output into the focused window (Slack, Notion, VS Code, Word, Chrome) using `Ctrl+V` with exponential backoff retry and clipboard preservation.
-- **Robust Fallback Engine:** Automatic failover to Google Web Speech API + Gemini Text LLM if the primary audio API is temporarily unavailable.
+- **Opt-in Free & Offline Mode:** Supports local faster-whisper dictation without requiring cloud APIs when enabled.
 
 ---
 
@@ -75,14 +75,11 @@ To run JoyVoice directly from the repository root:
 
 ```
 Microphone (16 kHz float32)
-   └── float32 -> int16 PCM conversion (<50ms)
-       └── Base64 WAV Payload
-           └── Gemini 3.1 Flash Lite API Call (~3.0s)
-               ├── Primary Output: Clean Translation / Transcript
-               └── Fallback: Google Web Speech API -> Gemini Text LLM
-                   └── Rule-based Text Cleaner (text_cleaner.py)
-                       └── History Store Persistence (%APPDATA%\JoyVoice\history.json)
-                           └── Clipboard Safe Auto-Paste (Ctrl+V with retry x3)
+   └── Cloud ASR (Google Web Speech API) -> Spoken Transcript
+       └── Gemini 3.6 Flash Text API -> Target Translation / Style Rewrite
+           └── Rule-based Text Cleaner (text_cleaner.py)
+               └── History Store Persistence (%APPDATA%\JoyVoice\history.json)
+                   └── Clipboard Safe Auto-Paste (Ctrl+V with retry x3)
 ```
 
 ---

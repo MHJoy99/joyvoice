@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-03 (v2.3.2) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, default Discord mute hotkey (Ctrl+Alt+Shift+F12), click-safe non-activating toasts (WA_ShowWithoutActivating & WA_TransparentForMouseEvents), configurable API endpoint/key/models via Settings → API tab, Free & Offline Mode via Settings → Free Mode tab, single consolidated executable JoyVoice.exe, long-audio reliability fixes, transcript preservation on translation failure, and canonical guarded release workflow._
+> _Last updated 2026-08-06 (v2.3.8) — Google ASR primary by default (Gemini native audio opt-in via JV_NATIVE_AUDIO=true), Gemini text LLM translation and style processing, transcript salvage on translation failure, lossless style-specific prompt contracts, 4000-char cohesive AI prompt context, glass-morphism widget, full robustness features, call muting selector with toasts, and canonical release workflow._
 
 ---
 
@@ -12,9 +12,9 @@
 
 **JoyVoice** is a PySide6 floating microphone dictation app for Windows. Press a global hotkey (F8), speak in any of 10 supported languages, and clean translated text is automatically pasted into whatever app currently has focus.
 
-**Primary path:** Speech → Gemini 3.1 Flash Lite (single API call: transcript + translation) → rule-based cleanup → clipboard-safe auto-paste.
+**Primary path:** Speech → Google Web Speech API (primary ASR) → Gemini text LLM (translation & style handling) → rule-based cleanup → clipboard-safe auto-paste. Native Gemini audio is optional via `JV_NATIVE_AUDIO=true`.
 
-**Fallback path:** Speech → Google Web Speech API (free ASR) → Gemini text LLM (translation) → paste.
+**Audio fallback path:** Gemini native audio (`JV_NATIVE_AUDIO=true`) → rule-based cleanup → paste. If cloud translation fails, the Google ASR transcript is preserved and pasted.
 
 **Free & Offline path (v2.3.0, opt-in):** Speech → local faster-whisper Whisper model (`FreeASRWorker`) → rule-based cleanup → paste. No API key, no cloud; Bangla→English translation is built in via Whisper's `translate` task.
 
@@ -91,8 +91,8 @@ Every source file in the repo, with purpose, line count, and what it contains.
 | File                                                | Lines | Purpose                                                                                                                                                                                                                                                                                                                                     |
 | :-------------------------------------------------- | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `app/transcription/__init__.py`                     |   0   | Package init                                                                                                                                                                                                                                                                                                                                |
-| `app/transcription/gemini_audio.py`                 |  172  | **Primary ASR.** `transcribe_and_translate()` — PCM16 → WAV base64 → Gemini native audio → (transcript, translation). Contains LANGUAGES dict with all 10 languages + hints. Language-aware prompt building. JSON parsing from markdown fences                                                                                              |
-| `app/transcription/cloud_asr.py`                    |  51   | **Fallback ASR.** Google Web Speech API via SpeechRecognition. `GOOGLE_LANGUAGE_TAGS` mapping (bn→bn-BD, etc.)                                                                                                                                                                                                                              |
+| `app/transcription/gemini_audio.py`                 |  172  | **Native Audio ASR.** `transcribe_and_translate()` — PCM16 → WAV base64 → Gemini native audio (optional opt-in via `JV_NATIVE_AUDIO=true`). Contains LANGUAGES dict with all 10 languages + hints. Language-aware prompt building. JSON parsing from markdown fences                                                                        |
+| `app/transcription/cloud_asr.py`                    |  51   | **Primary/Default ASR.** Google Web Speech API via SpeechRecognition. `GOOGLE_LANGUAGE_TAGS` mapping (bn→bn-BD, etc.)                                                                                                                                                                                                                       |
 | `app/transcription/free_asr.py`                     |   —   | **Free & Offline ASR (v2.3.0).** `FreeASRWorker(QThread)` — local faster-whisper Whisper model, no API key. Keeps float32 audio; model auto-downloads once to `%LOCALAPPDATA%\JoyVoice\models\`. Bangla→English via Whisper `translate` task. Emits the same `done`/`failed` signals as `CloudASRWorker`. Used when `engine_mode == "free"` |
 | `app/transcription/text_cleaner.py`                 |  89   | Rule-based cleanup: filler removal, Latin-script stutter collapse, user-defined replacements, whitespace normalize, capitalize. `clean_text()` and `DEFAULT_REPLACEMENTS`                                                                                                                                                                   |
 | `app/transcription/ai_stylist.py`                   |  364  | Local Ollama text rewriting for AI text styles (prompt_for_ai, professional_message, facebook_post). AIStylist(QObject) + AIStylistWorker(QThread). Model start/stop, GPU residency check, faithfulness-first prompts. NOT used in current cloud pipeline                                                                                   |
@@ -224,23 +224,22 @@ Every source file in the repo, with purpose, line count, and what it contains.
 │                                                                        │
 │  ┌──────────┐    ┌──────────┐    ┌─────────────────┐                   │
 │  │   🎙️    │    │   🔢     │    │      🧠         │                   │
-│  │   Mic    │───▶│  PCM16   │───▶│  Gemini Audio   │                   │
-│  │          │    │          │    │                  │                   │
-│  │ 16 kHz   │    │ float→   │    │ 3.1-flash-lite  │                   │
-│  │ float32  │    │  int16   │    │ native audio    │                   │
-│  │ mono     │    │ np.clip  │    │ ~3.3s call      │                   │
-│  └──────────┘    └──────────┘    └───────┬──────────┘                   │
-│                                          │ on failure                   │
-│                                          ▼                              │
-│                                   ┌─────────────────┐                   │
-│                                   │  🔄  Fallback    │                   │
-│                                   │  Google Web      │                   │
-│                                   │  Speech API      │                   │
-│                                   │  + Gemini Text   │                   │
-│                                   │  LLM translate   │                   │
-│                                   └────────┬────────┘                   │
-│                                            │                            │
-│                                            ▼                            │
+│  │   Mic    │───▶│  PCM16   │───▶│  Google Web     │                   │
+│  │          │    │          │    │  Speech ASR     │                   │
+│  │ 16 kHz   │    │ float→   │    │  (Primary ASR)  │                   │
+│  │ float32  │    │  int16   │    │  transcribe →   │                   │
+│  │ mono     │    │ np.clip  │    │  transcript     │                   │
+│  └──────────┘    └──────────┘    └───────┬─────────┘                   │
+│                                          │                             │
+│                                          ▼                             │
+│                                   ┌─────────────────┐                  │
+│                                   │  Gemini Text    │                  │
+│                                   │  LLM            │                  │
+│                                   │  Translate +    │                  │
+│                                   │  Style Processing│                 │
+│                                   └────────┬────────┘                  │
+│                                            │                           │
+│                                            ▼                           │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │  _on_asr_done() — UI thread via Qt Signal                        │  │
 │  │  • Apply output_mode: original / translation / both              │  │
@@ -256,7 +255,7 @@ Every source file in the repo, with purpose, line count, and what it contains.
 │  │ Ctrl+V   │    │  (text never lost)   │                              │
 │  └──────────┘    └──────────────────────┘                              │
 │                                                                        │
-│  Latency: asr ~3.0s + llm ~0.1s + paste ~0.3s = ~3.3s total           │
+│  Latency: Varies dynamically by recording length                       │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -264,9 +263,8 @@ Every source file in the repo, with purpose, line count, and what it contains.
 
 - Recorder produces **float32** numpy arrays (`Recorder.stop()`)
 - Conversion to **int16 PCM** happens in `app/main.py` line 322: `(np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()`
-- PCM bytes wrapped as WAV base64 in `gemini_audio.py._wav_base64()`
-- Gemini native audio endpoint: `POST {API_BASE}/chat/completions` with `input_audio` content type
-- Fallback: Google Web Speech (`SpeechRecognition.recognize_google()`) → Gemini text LLM for translation
+- Google Web Speech ASR (`SpeechRecognition.recognize_google()`) is primary by default → Gemini text LLM for translation & style handling
+- Optional native audio: Gemini native audio endpoint (`POST {API_BASE}/chat/completions` with `input_audio`) via `JV_NATIVE_AUDIO=true`
 - History saved to `history.json` BEFORE paste attempt — text is never lost
 - Paste: clipboard save → copy text → Ctrl+V (3 retries) → restore original clipboard
 
@@ -280,7 +278,7 @@ Every source file in the repo, with purpose, line count, and what it contains.
 | :------------- | :-------------------- | :---------------- | :------------------------------------ | :------------------------------------------------------------------ |
 | `idle`         | `#3a3f4b` (dark gray) | Until user action | Ready, waiting                        | Glass pill, no waveform, "Ready" label                              |
 | `recording`    | `#e0622a` (orange)    | Until F8 toggle   | Hotkey press or mic click             | 5-waveform bar animation, timer, level polling, pulse animation     |
-| `transcribing` | `#2a6fe0` (blue)      | ~3.3s             | Recording stopped, API call in flight | Blue accent border glow                                             |
+| `transcribing` | `#2a6fe0` (blue)      | Dynamic           | Recording stopped, API call in flight | Blue accent border glow                                             |
 | `pasted`       | `#2ecc71` (green)     | 1.2s              | Text successfully pasted              | Scale pulse animation (1.0→1.05→1.0 over 400ms), toast notification |
 | `error`        | `#e74c3c` (red)       | 3.0s              | API failure or other error            | Error message in tooltip                                            |
 
@@ -317,7 +315,7 @@ HotkeyManager.hold_ended      ──→ AppController.stop_recording()
 FloatingWidget.mic_clicked    ──→ AppController.on_toggle()
 
 AppController → Recorder.start() → QTimer(40ms) → widget.set_level()
-AppController → Recorder.stop()  → CloudASRWorker(QThread) → Gemini audio API
+AppController → Recorder.stop()  → CloudASRWorker(QThread) → Google Web Speech ASR (or Gemini audio API if opt-in)
 CloudASRWorker.done   ──→ _on_asr_done() → widget.set_preview(), set_confidence()
 CloudASRWorker.failed ──→ _on_asr_failed() → widget.set_state("error")
 
@@ -328,7 +326,7 @@ CloudLLMWorker.failed ──→ _show_error()
 HotkeyManager.language_switcher_requested ──→ show_language_switcher() popup
 ```
 
-**Engine routing (v2.3.0):** `AppController.stop_recording()` checks `engine_mode`. When `engine_mode == "free"` it dispatches the recorded float32 audio to `FreeASRWorker` (`app/transcription/free_asr.py`, local Whisper); otherwise it uses the existing `CloudASRWorker` (Gemini audio API). Both workers emit the same `done` / `failed` signals, so `_on_asr_done()` / `_on_asr_failed()` and all downstream result handling are unchanged. Cloud mode is the default and is untouched. AI text styles run only when `engine_mode != "free"`; in Free Mode the cleaned text is pasted and a toast informs the user.
+**Engine routing (v2.3.0):** `AppController.stop_recording()` checks `engine_mode`. When `engine_mode == "free"` it dispatches the recorded float32 audio to `FreeASRWorker` (`app/transcription/free_asr.py`, local Whisper); otherwise it uses `CloudASRWorker` (Google Web Speech ASR primary, or Gemini audio API if opt-in). Both workers emit the same `done` / `failed` signals, so `_on_asr_done()` / `_on_asr_failed()` and all downstream result handling are unchanged. Cloud mode is the default and is untouched. AI text styles run only when `engine_mode != "free"`; in Free Mode the cleaned text is pasted and a toast informs the user.
 
 ---
 
@@ -789,7 +787,7 @@ Complete list with versions and WHY each is needed:
 | `numpy`             | ≥ 1.26      | 1.26.x | Audio buffer math — float32→int16 conversion, np.clip, np.concatenate, peak level computation                                                                                            |
 | `pyperclip`         | ≥ 1.9       | 1.9.x  | Cross-platform clipboard access — save clipboard, copy result, restore original. Handles Unicode (Bangla) correctly                                                                      |
 | `keyboard`          | ≥ 0.13      | 0.13.x | Global hotkey hooks — keyboard.add_hotkey() for toggle mode, keyboard.hook_key() for hold mode, keyboard.send("ctrl+v") for paste, keyboard.is_pressed() for key-release detection       |
-| `SpeechRecognition` | ≥ 3.17      | 3.17   | Google Web Speech API fallback — sr.Recognizer().recognize_google(). Free, no API key, 80+ languages                                                                                     |
+| `SpeechRecognition` | ≥ 3.17      | 3.17   | Google Web Speech API ASR (primary default) — sr.Recognizer().recognize_google(). Free, no API key, 80+ languages                                                                        |
 | `typing_extensions` | ≥ 4.16      | 4.16   | **Required by SpeechRecognition.** Without it, recognize_google() silently fails. NOT optional despite the name                                                                          |
 | `pycaw`             | ≥ 20240210  | —      | Windows Core Audio API wrapper — enumerates audio sessions and mutes/unmutes other apps' `SimpleAudioVolume` while recording (opt-in `mute_other_apps`). Gracefully disabled if absent   |
 | `comtypes`          | ≥ 1.4.0     | —      | COM bindings required by `pycaw` — `CoInitialize`/`CoUninitialize` apartment management for audio session calls                                                                          |

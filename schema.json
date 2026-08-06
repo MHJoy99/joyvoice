@@ -6,10 +6,10 @@
       "@id": "https://github.com/MHJoy99/joyvoice#software",
       "name": "JoyVoice",
       "alternateName": ["JoyVoice AI Floating Mic", "JoyVoice Dictation"],
-      "description": "Ultra-low latency AI floating microphone dictation and real-time speech translation tool for Windows 10/11 powered by Gemini 3.1 Flash Lite.",
+      "description": "Ultra-low latency AI floating microphone dictation and real-time speech translation tool for Windows 10/11 powered by Gemini 3.6 Flash.",
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Windows 10, Windows 11",
-      "softwareVersion": "2.3.2",
+      "softwareVersion": "2.3.8",
       "license": "https://opensource.org/licenses/MIT",
       "programmingLanguage": "Python 3.11",
       "author": {
@@ -25,11 +25,11 @@
       "featureList": [
         "10-Language Dictation & Speech Translation (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese)",
         "Automatic Speech Language Detection",
-        "Single Gemini 3.1 Flash Lite API Call for Transcription + Translation (~3.3s end-to-end)",
+        "Cloud Speech Recognition (Google Web Speech primary ASR + Gemini 3.6 Flash translation) or Opt-in Free/Offline local Whisper mode",
         "Glass-Morphism Floating Microphone Pill Widget with Live Waveform Animation",
         "Automatic Clipboard-Safe Paste into Any Focused Windows Application (Slack, Notion, VS Code, Word, Chrome)",
-        "Zero Local GPU Requirement",
-        "Automatic Fallback to Google Web Speech API"
+        "Zero Local GPU Requirement (in default cloud mode)",
+        "Opt-in Native Gemini Audio or Local Faster-Whisper ASR"
       ]
     },
     {
@@ -82,7 +82,7 @@
           "name": "Does JoyVoice require a graphics card (GPU)?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. JoyVoice relies entirely on cloud API endpoints (Gemini 3.1 Flash Lite) for native audio transcription and translation. It runs smoothly on any basic Windows 10/11 laptop or PC with integrated graphics."
+            "text": "No. In standard cloud mode, JoyVoice relies on cloud Speech Recognition and Gemini 3.6 Flash text translation. It runs smoothly on any basic Windows 10/11 laptop or PC with integrated graphics."
           }
         },
         {
@@ -90,7 +90,7 @@
           "name": "How fast is JoyVoice speech translation?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "JoyVoice achieves an end-to-end latency of approximately 3.3 seconds from microphone stop to text paste, using a single Gemini native audio API call."
+            "text": "JoyVoice provides fast end-to-end speech recognition and text translation direct to paste, varying with speech length and network connectivity."
           }
         },
         {
