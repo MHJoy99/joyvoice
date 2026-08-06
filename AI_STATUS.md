@@ -3,26 +3,28 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-06
-- **Focus**: JoyVoice v2.3.8 release documentation preparation and fidelity verification log.
-- **Phase**: Pre-Release Preparation
+- **Focus**: JoyVoice v2.3.8 public release closeout and verification ledger.
+- **Phase**: Public Release Complete
 
 ### Session Log — 2026-08-06
 
-#### Pre-Release Verification & Documentation — v2.3.8 Preparation (2026-08-06)
+#### Closeout — v2.3.8 Public Release (2026-08-06)
 
-- **Release Documentation Preparation**: Updated Markdown release surfaces (`README.md`, `CHANGELOG.md`, `AGENTS.md`, `AI_STATUS.md`, `docs/SEO_AND_DISCOVERY.md`) for v2.3.8.
-- **Fidelity & Prompt Contracts Recorded**:
-  - Speech dictation defaults to Google Web Speech ASR for primary reliability, with Gemini native audio available via explicit opt-in (`JV_NATIVE_AUDIO=true`).
-  - Added style-specific system prompts with explicit contracts preventing summaries, omissions, or inventions across text styles.
-  - Expanded `prompt_for_ai` context limit to 4000 characters (preserving 1500 chars for standard styles) to maintain full context for long dictations.
-  - Preserves Google ASR transcript on translation failure.
-- **Pre-Release Verification Evidence Obtained**:
-  - **Unit Tests**: 36/36 tests passed (`tests/test_cloud_pipeline_robustness.py` and test suite).
-  - **App Import & Syntax**: Isolated Python import and compile check passed.
-  - **Git Diff**: Clean `git diff --check`.
-  - **Independent Audits**: Verifier review PASS; Security audit PASS (with optional boundary-delimiter recommendation).
-  - **Live Request Validation**: A live 20.8s Bengali voice dictation was captured in a single Google ASR chunk and translated into a faithful prompt in 14.08s total pipeline time.
-- **Planned Next Steps**: Execution of git commit, annotated tag `v2.3.8`, `build_exe.bat` binary build, EXE verification, and GitHub release publishing per `docs/RELEASE.md` sequence. (Not yet executed in this documentation pass).
+- **Release Completed and Publicly Released**: JoyVoice v2.3.8 was completed and released from release target commit `291c68b4ddf093bfdf1c05bcffc902a432ee1e8a`; local HEAD, origin master, and annotated tag `v2.3.8` matched at publication time.
+- **Public Release Details**:
+  - Release URL: [GitHub Release v2.3.8](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8)
+  - Public Asset URL: [JoyVoice.exe Asset](https://github.com/MHJoy99/joyvoice/releases/download/v2.3.8/JoyVoice.exe)
+  - GitHub Confirmation: API confirms `draft=false`, `prerelease=false`, and latest release is `v2.3.8`.
+- **Exact-Tag Binary Build & Artifact Evidence**:
+  - `call .\build_exe.bat` succeeded at exact tag `v2.3.8`.
+  - EXE File Size: `184431753` bytes.
+  - SHA-256 Digest: `F7022C00B7220D74542B3FED566FAB04A5CE855BF531768B00D24982C8B2B7C9` (GitHub asset digest matches local SHA-256).
+  - Executable Integrity: Valid PE/MZ header verified.
+  - Authenticode Status: `NotSigned` (Windows SmartScreen/Defender may display standard unsigned binary warnings).
+- **Verification & Guard Summary**:
+  - **Unit Tests**: 36/36 tests passed.
+  - **Guards**: Pre-commit, pre-push, and pre-deploy guards passed.
+  - **Live Request Validation**: Recorded a live 20.8s Bengali voice dictation completed in 14.08s total pipeline time (noting measured execution time for this run without claiming fixed latency).
 
 ### Session Log — 2026-08-03
 
