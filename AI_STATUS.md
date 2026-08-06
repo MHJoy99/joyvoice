@@ -8,6 +8,19 @@
 
 ### Session Log — 2026-08-06
 
+#### Closeout — v2.3.5 Public Release (2026-08-06)
+
+- **Release completed and publicly released**: JoyVoice v2.3.5 was completed and released from commit `c1d5f9c`; annotated tag `v2.3.5` was created and pushed to GitHub.
+- **Public release**: [GitHub release](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.5).
+- **Machine-verified evidence**:
+  - Removed artificial NO-SPEECH prompt rule that was causing valid/quiet speech to be dropped as silence.
+  - Fixed `_parse_result` fallback when either `transcript` or `translation` field is empty so speech is auto-filled and never throws `ValueError("Gemini returned an incomplete audio result")`.
+  - All text & audio paths passed 16/16 test runs with 0 errors / 0 hallucinations / 0 text failures.
+  - Pre-commit and pre-push guards PASSED.
+  - Tag v2.3.5 created and pushed to GitHub.
+  - Frozen executable `dist\JoyVoice.exe` (175.88 MiB) built successfully from tag v2.3.5.
+  - Public release v2.3.5 published via GitHub CLI with asset `JoyVoice.exe` attached.
+
 #### Closeout — Version Surface Synchronization for v2.3.5 Release (2026-08-06)
 
 - **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.5` / `v2.3.5`.
