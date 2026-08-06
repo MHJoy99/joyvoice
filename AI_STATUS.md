@@ -3,10 +3,22 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-06
-- **Focus**: Version surface synchronization for v2.3.3 release.
+- **Focus**: v2.3.3 Public Release documentation & closeout
 - **Phase**: Complete
 
 ### Session Log — 2026-08-06
+
+#### Closeout — v2.3.3 Public Release (2026-08-06)
+
+- **Release completed and publicly released**: JoyVoice v2.3.3 was completed and released from commit `fcf175b`; annotated tag `v2.3.3` was created and pushed to GitHub.
+- **Public release**: [GitHub release](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.3).
+- **Machine-verified evidence**:
+  - Prompt hardening & gateway `tool_calls` fix applied & tested.
+  - 0 hallucinations / 0 errors on silence & tone tests.
+  - Pre-commit and pre-push guards PASSED.
+  - Tag `v2.3.3` created and pushed to GitHub.
+  - Frozen executable `dist\JoyVoice.exe` (175.88 MiB) built successfully from tag `v2.3.3`.
+  - Public release v2.3.3 published via GitHub CLI with asset `JoyVoice.exe` attached.
 
 #### Closeout — Version Surface Synchronization for v2.3.3 Release (2026-08-06)
 
