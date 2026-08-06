@@ -78,12 +78,6 @@ LANGUAGES = {
 
 _VALID_CODES = set(LANGUAGES.keys())
 
-_SYSTEM_PROMPT = (
-    "You are an automatic speech transcription and translation engine. You have no "
-    "tools and must never attempt to call any tool or function. Respond with a single "
-    "JSON object and nothing else."
-)
-
 
 def _wav_base64(pcm16: bytes) -> str:
     buffer = io.BytesIO()
@@ -96,52 +90,20 @@ def _wav_base64(pcm16: bytes) -> str:
 
 
 def _parse_result(content: str) -> tuple[str, str, str | None]:
-    content_clean = content.strip()
-    if not content_clean:
-        return "", "", None
-
-    transcript = ""
-    translation = ""
-    override = None
-
     match = re.search(r"\{.*\}", content, re.DOTALL)
-    if match:
-        try:
-            result = json.loads(match.group())
-            if isinstance(result, dict):
-                transcript = str(
-                    result.get("transcript")
-                    or result.get("text")
-                    or result.get("speech")
-                    or result.get("transcription")
-                    or ""
-                ).strip()
-                translation = str(
-                    result.get("translation")
-                    or result.get("translated")
-                    or result.get("output")
-                    or ""
-                ).strip()
-                raw_override = result.get("target_override", None)
-                if raw_override is not None and str(raw_override).strip().lower() not in ("", "null", "none"):
-                    code = str(raw_override).strip().lower()
-                    if code in _VALID_CODES:
-                        override = code
-                if not transcript and not translation:
-                    return "", "", None
-                if not translation:
-                    translation = transcript
-                if not transcript:
-                    transcript = translation
-                return transcript, translation, override
-        except Exception:
-            pass
-
-    plain_text = re.sub(r"^```[a-z]*\n?", "", content_clean, flags=re.IGNORECASE)
-    plain_text = re.sub(r"\n?```$", "", plain_text).strip()
-    transcript = plain_text
-    translation = plain_text
-
+    if not match:
+        raise ValueError("Gemini returned no JSON result")
+    result = json.loads(match.group())
+    transcript = str(result.get("transcript", "")).strip()
+    translation = str(result.get("translation", "")).strip()
+    raw_override = result.get("target_override", None)
+    override = None
+    if raw_override is not None and str(raw_override).strip().lower() not in ("", "null", "none"):
+        code = str(raw_override).strip().lower()
+        if code in _VALID_CODES:
+            override = code
+    if not transcript or not translation:
+        raise ValueError("Gemini returned an incomplete audio result")
     return transcript, translation, override
 
 
@@ -230,7 +192,6 @@ def transcribe_and_translate(
         {
             "model": model,
             "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
                 {
                     "role": "user",
                     "content": [
@@ -245,10 +206,6 @@ def transcribe_and_translate(
             # transcript + translation JSON; long speech was truncating mid-sentence.
             "max_tokens": 4096,
             "temperature": 0,
-            # Gateway has account-level tools (e.g. google_drive) that the model would
-            # otherwise call instead of transcribing, yielding a content-less reply.
-            "tool_choice": "none",
-            "tools": [],
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -307,12 +264,5 @@ def transcribe_and_translate(
     if finish_reason == "length":
         raise ValueError("Gemini native audio response exceeded max_tokens (finish_reason='length')")
 
-    message = choice.get("message", {}) or {}
-    if finish_reason == "tool_calls" or message.get("tool_calls"):
-        raise ValueError(
-            "Gemini returned a tool call instead of a transcript "
-            "(gateway account tools are enabled)"
-        )
-
-    content = message.get("content") or ""
+    content = choice.get("message", {}).get("content", "")
     return _parse_result(content)

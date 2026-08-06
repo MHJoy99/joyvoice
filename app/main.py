@@ -108,9 +108,9 @@ def apply_api_config(settings: dict) -> None:
 
 STYLE_PROMPTS = {
     "translate_to_english": (
-        "Translate the following speech transcript into clean, natural English.\n"
-        "Output ONLY the English translation. Do NOT output commentary, notes, "
-        "analysis, or the original text.\n\nTranscript:\n{text}"
+        "You are a faithful translator. Translate the following Bengali speech "
+        "transcript to clean, natural English. Output ONLY the English translation, "
+        "nothing else.\n\nBengali transcript:\n{text}"
     ),
     "translate_to_target": (
         "Translate the following speech transcript into clean, natural {target_name} ({target_native}).\n"
@@ -118,34 +118,20 @@ STYLE_PROMPTS = {
         "Transcript:\n{text}"
     ),
     "clean_english": (
-        "You are an invisible text processor; your output is pasted directly into the "
-        "user's active app, so output ONLY the cleaned text with no preamble.\n"
-        "Clean up this dictated text: fix filler words (um, uh, like), punctuation, and "
-        "capitalization. Keep the original language and meaning. If the text is a "
-        "question, clean the question — do NOT answer it.\n\n{text}"
+        "Clean up this dictated text: fix filler words (um, uh, like), punctuation, "
+        "and capitalization. Keep the original language. Output ONLY the cleaned text.\n\n{text}"
     ),
     "prompt_for_ai": (
-        "You are an invisible text processor; your output is pasted directly into the "
-        "user's active app, so output ONLY the rewritten prompt with no preamble.\n"
-        "Rewrite the following dictated text into a clear, well-structured prompt for an "
-        "AI assistant. Preserve the user's intent and facts. If the text is itself a "
-        "question, keep it phrased as a prompt — do NOT answer it.\n\n{text}"
+        "Rewrite the following dictated text into a clear, well-structured prompt "
+        "for an AI assistant. Output ONLY the prompt.\n\n{text}"
     ),
     "professional_message": (
-        "You are an invisible text processor; your output is pasted directly into the "
-        "user's active app, so output ONLY the rewritten message with no preamble or "
-        "commentary.\n"
-        "Rewrite the following dictated text into a professional, polite message suitable "
-        "for email, Slack, or Teams. Fix grammar and tone but keep the original meaning "
-        "and facts. If the text is a question, rewrite the question professionally — do "
-        "NOT answer it.\n\n{text}"
+        "Rewrite the following dictated text into a professional email or message. "
+        "Output ONLY the rewritten message.\n\n{text}"
     ),
     "facebook_post": (
-        "You are an invisible text processor; your output is pasted directly into the "
-        "user's active app, so output ONLY the post text with no preamble or commentary.\n"
-        "Rewrite the following dictated text into an engaging, natural Facebook post. Keep "
-        "the original meaning and facts. If the text is a question, rewrite it as an "
-        "engaging post — do NOT answer it.\n\n{text}"
+        "Rewrite the following dictated text into an engaging Facebook post. "
+        "Output ONLY the post.\n\n{text}"
     ),
 }
 
@@ -176,34 +162,17 @@ def _single_llm_call(text: str, style: str, target_language: str = "en") -> str:
                 target_native=tgt["native"],
             )
 
-    no_tools = (
-        " You have no tools and must never attempt to call any tool or function."
-    )
-    if style in ("translate_to_target", "translate_to_english"):
-        system_content = (
-            "You are a direct translator. Output ONLY the translated text. Never "
-            "include explanations, commentary, original text, notes, or quote blocks."
-            + no_tools
-        )
-    else:
-        system_content = (
-            "You are an invisible background text processor for a dictation app. Your "
-            "output is pasted directly into the user's active application. Output ONLY "
-            "the finished text — never add greetings, preambles, explanations, or quote "
-            "blocks, and never answer a question contained in the input; rewrite it instead."
-            + no_tools
-        )
     payload = json.dumps({
         "model": FAST_MODEL,
         "messages": [
-            {"role": "system", "content": system_content},
+            {
+                "role": "system",
+                "content": "You are a direct translator. Output ONLY the translated text. Never include explanations, commentary, original text, notes, or quote blocks.",
+            },
             {"role": "user", "content": prompt},
         ],
         "max_tokens": 4096,
         "temperature": 0.0,
-        # Gateway account-level tools would otherwise return a content-less reply.
-        "tool_choice": "none",
-        "tools": [],
     }).encode()
 
     req = urllib.request.Request(
@@ -229,10 +198,7 @@ def _single_llm_call(text: str, style: str, target_language: str = "en") -> str:
         raise ValueError("LLM returned invalid response choices")
     choice = choices[0]
     finish_reason = choice.get("finish_reason")
-    message = choice.get("message", {}) or {}
-    if finish_reason == "tool_calls" or message.get("tool_calls"):
-        raise ValueError("LLM returned a tool call instead of text")
-    output = (message.get("content") or "").strip()
+    output = choice.get("message", {}).get("content", "").strip()
     latency_s = time.monotonic() - t0
     usage = usage_store.extract_usage(result)
     usage["finish_reason"] = finish_reason
@@ -348,7 +314,6 @@ class CloudASRWorker(QThread):
     # transcript, translation, model_target_override_or_empty
     done = Signal(str, str, str)
     failed = Signal(str)
-    silent = Signal()  # no clear speech; caller should no-op back to idle
 
     def __init__(
         self,
@@ -384,7 +349,7 @@ class CloudASRWorker(QThread):
                 )
                 if self._cancelled:
                     return
-                logger.info("Gemini audio (%s): %s", AUDIO_MODEL, (transcript or translation)[:80])
+                logger.info("Gemini audio (%s): %s", AUDIO_MODEL, transcript[:80])
                 self.done.emit(transcript, translation, override or "")
                 return
             except Exception as gemini_exc:
@@ -736,10 +701,6 @@ class AppController:
         self._pending_asr.failed.connect(
             lambda message, jid=job_id: self._on_asr_failed(message, jid)
         )
-        if hasattr(self._pending_asr, "silent"):
-            self._pending_asr.silent.connect(
-                lambda jid=job_id: self._on_asr_silent(jid)
-            )
         asr_worker = self._pending_asr
         asr_worker.finished.connect(
             lambda worker=asr_worker: self._release_worker(worker, "asr")
@@ -903,8 +864,8 @@ class AppController:
             else:
                 # Pure command with no content — nothing useful to paste.
                 self._phase = "idle"
-                logger.info("Pure override command with no content — silent no-op, returning to idle")
-                self.widget.set_state("idle")
+                self.widget.set_state("error", "No content to translate")
+                QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
                 return
 
         # Show a live preview on the widget immediately.
@@ -916,8 +877,8 @@ class AppController:
 
         if not base_text.strip():
             self._phase = "idle"
-            logger.info("No speech detected — silent no-op, returning to idle")
-            self.widget.set_state("idle")
+            self.widget.set_state("error", "No speech detected")
+            QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
             return
 
         translation = self._style_text(translation)
@@ -944,21 +905,9 @@ class AppController:
             return
         self._timing = None
         self._phase = "idle"
-        if any(term in message.lower() for term in ("unintelligible", "no speech", "unknownvalueerror")):
-            logger.info("ASR reported no intelligible speech (%s) — silent no-op, returning to idle", message)
-            self.widget.set_state("idle")
-            return
         logger.error("Cloud ASR failed: %s", message)
         sounds.play_error()
         self._show_error(f"Transcription failed: {message}")
-
-    def _on_asr_silent(self, job_id: int) -> None:
-        if job_id != self._active_job_id:
-            return
-        self._timing = None
-        self._phase = "idle"
-        logger.info("No speech detected — silent no-op, returning to idle")
-        self.widget.set_state("idle")
 
     def _style_text(self, raw_text: str) -> str:
         if self.settings.get("text_style", "clean_english") == "raw":

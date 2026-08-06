@@ -3,34 +3,6 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
-## v2.3.6 — Robust Response Parser Fallback (2026-08-06)
-
-This release upgrades response parsing robustness for Gemini audio completions:
-
-- **Robust Response Parser with Plain-Text / Markdown / Alternate Key Fallback**: Updated response parser to handle non-standard model outputs seamlessly, including plain text responses, raw markdown code fences, missing outer braces, and alternate JSON keys (e.g., `bengali_transcript`, `english_translation`, `text`, `response`).
-
-## v2.3.5 — NO-SPEECH Removal & Transcript Fallback Fix (2026-08-06)
-
-This release refines silence detection and single-field JSON transcript fallbacks:
-
-- **Removal of Artificial NO-SPEECH Rule**: Removed artificial rules forcing `NO-SPEECH` string outputs, allowing Gemini to transcribe natural low-volume speech and background-matched utterances naturally without false non-speech triggers.
-- **Single-Field Transcript Fallback Fix**: Fixed single-field JSON output parsing when Gemini only returns a transcript or single key, ensuring transcripts are correctly preserved and pasted.
-
-## v2.3.4 — No-Speech Popup Removal & Silent No-Op Fix (2026-08-06)
-
-This release removes intrusive error popups on empty or unintelligible speech input:
-
-- **No-Speech Error Popup Removal**: Removed error state transitions, error sound feedback, and UI tooltips when no speech is detected or audio is unintelligible.
-- **Silent No-Op Behavior**: Empty or silent transcriptions now seamlessly return the floating mic widget to idle state without disrupting workflow or showing error toasts.
-
-## v2.3.3 — Prompt Hardening & Tool Calls Payload Fix (2026-08-06)
-
-This release implements LLM prompt hardening and fixes API gateway payload issues:
-
-- **Prompt Hardening**: Upgraded system prompts to explicitly reject background noise, hallucinations, and unwanted conversational responses during silent audio.
-- **Tool Calls Payload Fix**: Resolved sub2api gateway compatibility issue where empty `tool_calls` fields caused HTTP 400 validation errors on OpenAI-compatible audio completions.
-- **Silence Contract**: Enforced explicit silence handling across Gemini native audio and fallback translation paths.
-
 ## v2.3.2 — Long-Audio Reliability & Release Workflow (2026-08-03)
 
 This release consolidates the six commits already on `master` into the v2.3.2 public-release preparation line:

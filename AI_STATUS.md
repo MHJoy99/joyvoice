@@ -2,65 +2,11 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-08-06
-- **Focus**: v2.3.6 Public Release documentation & closeout
+- **Updated Date**: 2026-08-03
+- **Focus**: JoyVoice release checklist update for discovery/SEO verification.
 - **Phase**: Complete
 
-### Session Log — 2026-08-06
-
-#### Closeout — Version Surface Synchronization for v2.3.6 Release (2026-08-06)
-
-- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.6` / `v2.3.6`.
-- **Release Documentation**: Added `v2.3.6` release section in `CHANGELOG.md` detailing the robust response parser with plain-text/markdown/alternate key fallback.
-- **Verification**: Verified python compilation on `app/main.py` and `app/transcription/gemini_audio.py`.
-
-#### Closeout — v2.3.5 Public Release (2026-08-06)
-
-- **Release completed and publicly released**: JoyVoice v2.3.5 was completed and released from commit `c1d5f9c`; annotated tag `v2.3.5` was created and pushed to GitHub.
-- **Public release**: [GitHub release](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.5).
-- **Machine-verified evidence**:
-  - Removed artificial NO-SPEECH prompt rule that was causing valid/quiet speech to be dropped as silence.
-  - Fixed `_parse_result` fallback when either `transcript` or `translation` field is empty so speech is auto-filled and never throws `ValueError("Gemini returned an incomplete audio result")`.
-  - All text & audio paths passed 16/16 test runs with 0 errors / 0 hallucinations / 0 text failures.
-  - Pre-commit and pre-push guards PASSED.
-  - Tag v2.3.5 created and pushed to GitHub.
-  - Frozen executable `dist\JoyVoice.exe` (175.88 MiB) built successfully from tag v2.3.5.
-  - Public release v2.3.5 published via GitHub CLI with asset `JoyVoice.exe` attached.
-
-#### Closeout — Version Surface Synchronization for v2.3.5 Release (2026-08-06)
-
-- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.5` / `v2.3.5`.
-- **Release Documentation**: Added `v2.3.5` release section in `CHANGELOG.md` detailing the removal of artificial NO-SPEECH rule and single-field JSON transcript fallback fix.
-- **Verification**: Verified python compilation on `app/main.py` and `app/transcription/gemini_audio.py`.
-
-#### Closeout — Version Surface Synchronization for v2.3.4 Release (2026-08-06)
-
-- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.4` / `v2.3.4`.
-- **Release Documentation**: Added `v2.3.4` release section in `CHANGELOG.md` detailing the removal of no-speech / unintelligible audio error popups and implementation of silent no-op returns.
-- **Verification**: Verified python compilation on `app/main.py` and `app/transcription/gemini_audio.py`.
-
-#### Closeout — v2.3.3 Public Release (2026-08-06)
-
-- **Release completed and publicly released**: JoyVoice v2.3.3 was completed and released from commit `fcf175b`; annotated tag `v2.3.3` was created and pushed to GitHub.
-- **Public release**: [GitHub release](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.3).
-- **Machine-verified evidence**:
-  - Prompt hardening & gateway `tool_calls` fix applied & tested.
-  - 0 hallucinations / 0 errors on silence & tone tests.
-  - Pre-commit and pre-push guards PASSED.
-  - Tag `v2.3.3` created and pushed to GitHub.
-  - Frozen executable `dist\JoyVoice.exe` (175.88 MiB) built successfully from tag `v2.3.3`.
-  - Public release v2.3.3 published via GitHub CLI with asset `JoyVoice.exe` attached.
-
-#### Closeout — Version Surface Synchronization for v2.3.3 Release (2026-08-06)
-
-- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.3` / `v2.3.3`.
-- **Release Documentation**: Added `v2.3.3` release section in `CHANGELOG.md` detailing LLM prompt hardening and `tool_calls` API gateway compatibility fixes.
-- **Verification**: Verified zero compilation errors on `app/main.py` and `app/transcription/gemini_audio.py`. Executed `bin/guard.py pre-commit` successfully.
-
-#### Closeout — LLM Prompt Hardening Plan Documentation Created (2026-08-06)
-
-- **Created `docs/PROMPT_HARDENING_PLAN.md`**: Created the execution specification documenting prompt hardening objectives, scope, silence path design decisions, exact changes across `gemini_audio.py` and `main.py`, verification checks, rollback steps, and deployment blockers.
-- **Documentation Scope**: Updated `docs/PROMPT_HARDENING_PLAN.md` and `AI_STATUS.md`. No code files, non-Markdown files, or git operations executed.
+### Session Log — 2026-08-03
 
 #### Closeout — Discovery & SEO Verification Pre-Tagging Update (2026-08-03)
 
