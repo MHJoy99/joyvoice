@@ -81,8 +81,7 @@ _VALID_CODES = set(LANGUAGES.keys())
 _SYSTEM_PROMPT = (
     "You are an automatic speech transcription and translation engine. You have no "
     "tools and must never attempt to call any tool or function. Respond with a single "
-    "JSON object and nothing else. If the audio contains no clear speech, return empty "
-    "strings rather than inventing any words."
+    "JSON object and nothing else."
 )
 
 
@@ -110,10 +109,11 @@ def _parse_result(content: str) -> tuple[str, str, str | None]:
         if code in _VALID_CODES:
             override = code
     if not transcript and not translation:
-        # Deliberate no-speech result — signal silence, not an error.
         return "", "", None
-    if not transcript or not translation:
-        raise ValueError("Gemini returned an incomplete audio result")
+    if not translation:
+        translation = transcript
+    if not transcript:
+        transcript = translation
     return transcript, translation, override
 
 
@@ -174,11 +174,6 @@ def transcribe_and_translate(
         f'keys "transcript", "translation", and "target_override". {transcript_instruction} '
         f"— preserve every intended word, name, number, and technical term. Do not guess, "
         f"summarize, or add meaning.\n\n"
-        f"NO-SPEECH RULE (critical):\n"
-        f"- If the audio has no clear speech (only silence, breathing, keyboard clicks, "
-        f"or background noise), return empty strings for BOTH transcript and translation "
-        f"and set target_override to null. Never invent filler such as "
-        f"'thank you for watching', 'thanks', or subtitle credits.\n\n"
         f"ENDING RULES (critical):\n"
         f"- Both transcript and translation must end on a complete sentence with proper "
         f"terminal punctuation (. ! ? or CJK equivalents).\n"

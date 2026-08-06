@@ -384,11 +384,7 @@ class CloudASRWorker(QThread):
                 )
                 if self._cancelled:
                     return
-                if not transcript and not translation:
-                    logger.info("Gemini audio (%s): no speech detected", AUDIO_MODEL)
-                    self.silent.emit()
-                    return
-                logger.info("Gemini audio (%s): %s", AUDIO_MODEL, transcript[:80])
+                logger.info("Gemini audio (%s): %s", AUDIO_MODEL, (transcript or translation)[:80])
                 self.done.emit(transcript, translation, override or "")
                 return
             except Exception as gemini_exc:

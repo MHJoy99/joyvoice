@@ -3,6 +3,13 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.5 — NO-SPEECH Removal & Transcript Fallback Fix (2026-08-06)
+
+This release refines silence detection and single-field JSON transcript fallbacks:
+
+- **Removal of Artificial NO-SPEECH Rule**: Removed artificial rules forcing `NO-SPEECH` string outputs, allowing Gemini to transcribe natural low-volume speech and background-matched utterances naturally without false non-speech triggers.
+- **Single-Field Transcript Fallback Fix**: Fixed single-field JSON output parsing when Gemini only returns a transcript or single key, ensuring transcripts are correctly preserved and pasted.
+
 ## v2.3.4 — No-Speech Popup Removal & Silent No-Op Fix (2026-08-06)
 
 This release removes intrusive error popups on empty or unintelligible speech input:
