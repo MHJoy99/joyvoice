@@ -96,24 +96,52 @@ def _wav_base64(pcm16: bytes) -> str:
 
 
 def _parse_result(content: str) -> tuple[str, str, str | None]:
-    match = re.search(r"\{.*\}", content, re.DOTALL)
-    if not match:
-        raise ValueError("Gemini returned no JSON result")
-    result = json.loads(match.group())
-    transcript = str(result.get("transcript", "")).strip()
-    translation = str(result.get("translation", "")).strip()
-    raw_override = result.get("target_override", None)
-    override = None
-    if raw_override is not None and str(raw_override).strip().lower() not in ("", "null", "none"):
-        code = str(raw_override).strip().lower()
-        if code in _VALID_CODES:
-            override = code
-    if not transcript and not translation:
+    content_clean = content.strip()
+    if not content_clean:
         return "", "", None
-    if not translation:
-        translation = transcript
-    if not transcript:
-        transcript = translation
+
+    transcript = ""
+    translation = ""
+    override = None
+
+    match = re.search(r"\{.*\}", content, re.DOTALL)
+    if match:
+        try:
+            result = json.loads(match.group())
+            if isinstance(result, dict):
+                transcript = str(
+                    result.get("transcript")
+                    or result.get("text")
+                    or result.get("speech")
+                    or result.get("transcription")
+                    or ""
+                ).strip()
+                translation = str(
+                    result.get("translation")
+                    or result.get("translated")
+                    or result.get("output")
+                    or ""
+                ).strip()
+                raw_override = result.get("target_override", None)
+                if raw_override is not None and str(raw_override).strip().lower() not in ("", "null", "none"):
+                    code = str(raw_override).strip().lower()
+                    if code in _VALID_CODES:
+                        override = code
+                if not transcript and not translation:
+                    return "", "", None
+                if not translation:
+                    translation = transcript
+                if not transcript:
+                    transcript = translation
+                return transcript, translation, override
+        except Exception:
+            pass
+
+    plain_text = re.sub(r"^```[a-z]*\n?", "", content_clean, flags=re.IGNORECASE)
+    plain_text = re.sub(r"\n?```$", "", plain_text).strip()
+    transcript = plain_text
+    translation = plain_text
+
     return transcript, translation, override
 
 

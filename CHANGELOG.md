@@ -3,6 +3,12 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.6 — Robust Response Parser Fallback (2026-08-06)
+
+This release upgrades response parsing robustness for Gemini audio completions:
+
+- **Robust Response Parser with Plain-Text / Markdown / Alternate Key Fallback**: Updated response parser to handle non-standard model outputs seamlessly, including plain text responses, raw markdown code fences, missing outer braces, and alternate JSON keys (e.g., `bengali_transcript`, `english_translation`, `text`, `response`).
+
 ## v2.3.5 — NO-SPEECH Removal & Transcript Fallback Fix (2026-08-06)
 
 This release refines silence detection and single-field JSON transcript fallbacks:

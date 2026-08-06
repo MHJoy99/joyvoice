@@ -3,10 +3,16 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-06
-- **Focus**: v2.3.5 Public Release documentation & closeout
+- **Focus**: v2.3.6 Public Release documentation & closeout
 - **Phase**: Complete
 
 ### Session Log — 2026-08-06
+
+#### Closeout — Version Surface Synchronization for v2.3.6 Release (2026-08-06)
+
+- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.6` / `v2.3.6`.
+- **Release Documentation**: Added `v2.3.6` release section in `CHANGELOG.md` detailing the robust response parser with plain-text/markdown/alternate key fallback.
+- **Verification**: Verified python compilation on `app/main.py` and `app/transcription/gemini_audio.py`.
 
 #### Closeout — v2.3.5 Public Release (2026-08-06)
 
