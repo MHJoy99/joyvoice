@@ -64,7 +64,7 @@ DEFAULT_MODEL = "gemini-3.6-flash"  # verified active model on Sub2API (gpt.bdx.
 def is_native_audio_enabled() -> bool:
     val = os.environ.get("JV_NATIVE_AUDIO")
     if val is None:
-        return True
+        return False
     return val.strip().lower() in {"1", "true", "yes", "on"}
 
 

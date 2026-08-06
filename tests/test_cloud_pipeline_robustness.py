@@ -92,19 +92,36 @@ class TestGeminiAudio(unittest.TestCase):
         transcript, translation, override = gemini_audio.transcribe_and_translate(
             pcm,
             api_base="https://mock.api/v1",
-            api_key="test-key",
+            api_key="",
             model="gemini-3.6-flash",
         )
 
         self.assertEqual(transcript, "হ্যালো")
         self.assertEqual(translation, "Hello")
         self.assertIsNone(override)
+        self.assertEqual(mock_urlopen.call_count, 1)
 
-        # Check payload max_tokens=4096
+        # Check payload max_tokens=4096 and deterministic prompt contract
         req_args, req_kwargs = mock_urlopen.call_args
         request_obj = req_args[0]
         payload = json.loads(request_obj.data.decode("utf-8"))
         self.assertEqual(payload["max_tokens"], 4096)
+        self.assertNotIn("tools", payload)
+        self.assertNotIn("tool_choice", payload)
+
+        messages = payload.get("messages", [])
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0].get("role"), "user")
+        content_items = messages[0].get("content", [])
+        text_content = next((item["text"] for item in content_items if item.get("type") == "text"), "")
+
+        self.assertIn("faithful", text_content.lower())
+        self.assertIn("code-switching", text_content.lower())
+        self.assertIn("do not answer", text_content.lower())
+        self.assertIn("do not guess", text_content.lower())
+        self.assertIn('"transcript"', text_content)
+        self.assertIn('"translation"', text_content)
+        self.assertIn('"target_override"', text_content)
 
         # Check usage telemetry append included finish_reason='stop'
         self.assertTrue(mock_usage_append.called)
@@ -136,7 +153,7 @@ class TestGeminiAudio(unittest.TestCase):
             gemini_audio.transcribe_and_translate(
                 pcm,
                 api_base="https://mock.api/v1",
-                api_key="test-key",
+                api_key="",
                 model="gemini-3.6-flash",
             )
 
@@ -144,6 +161,233 @@ class TestGeminiAudio(unittest.TestCase):
         self.assertTrue(mock_usage_append.called)
         usage_event = mock_usage_append.call_args[0][0]
         self.assertEqual(usage_event.get("finish_reason"), "length")
+        self.assertEqual(mock_urlopen.call_count, 1)
+
+    @patch("urllib.request.urlopen")
+    @patch("app.storage.usage_store.append")
+    def test_gemini_audio_retry_on_no_json(self, mock_usage_append, mock_urlopen):
+        resp_no_json = MagicMock()
+        resp_no_json.read.return_value = json.dumps({
+            "choices": [{"finish_reason": "stop", "message": {"content": "Not JSON text"}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+        }).encode("utf-8")
+        resp_no_json.__enter__.return_value = resp_no_json
+
+        resp_valid = MagicMock()
+        resp_valid.read.return_value = json.dumps({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": '{"transcript":"হ্যালো","translation":"Hello","target_override":null}'},
+            }],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 20, "total_tokens": 140},
+        }).encode("utf-8")
+        resp_valid.__enter__.return_value = resp_valid
+
+        mock_urlopen.side_effect = [resp_no_json, resp_valid]
+
+        pcm = b"\x00" * 3200
+        tr, tl, ov = gemini_audio.transcribe_and_translate(
+            pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+        )
+        self.assertEqual(tr, "হ্যালো")
+        self.assertEqual(tl, "Hello")
+        self.assertEqual(mock_urlopen.call_count, 2)
+        req2 = json.loads(mock_urlopen.call_args_list[1][0][0].data.decode("utf-8"))
+        self.assertIn("CRITICAL REPAIR", req2["messages"][0]["content"][0]["text"])
+
+    @patch("urllib.request.urlopen")
+    @patch("app.storage.usage_store.append")
+    def test_gemini_audio_retry_on_incomplete_json(self, mock_usage_append, mock_urlopen):
+        resp_incomplete = MagicMock()
+        resp_incomplete.read.return_value = json.dumps({
+            "choices": [{"finish_reason": "stop", "message": {"content": '{"transcript":"","translation":"Hello"}'}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+        }).encode("utf-8")
+        resp_incomplete.__enter__.return_value = resp_incomplete
+
+        resp_valid = MagicMock()
+        resp_valid.read.return_value = json.dumps({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": '{"transcript":"হ্যালো","translation":"Hello","target_override":null}'},
+            }],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 20, "total_tokens": 140},
+        }).encode("utf-8")
+        resp_valid.__enter__.return_value = resp_valid
+
+        mock_urlopen.side_effect = [resp_incomplete, resp_valid]
+
+        pcm = b"\x00" * 3200
+        tr, tl, ov = gemini_audio.transcribe_and_translate(
+            pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+        )
+        self.assertEqual(tr, "হ্যালো")
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    @patch("app.storage.usage_store.append")
+    def test_gemini_audio_retry_on_finish_reason_tool_calls(self, mock_usage_append, mock_urlopen):
+        resp_tc = MagicMock()
+        resp_tc.read.return_value = json.dumps({
+            "choices": [{"finish_reason": "tool_calls", "message": {"content": None}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 5, "total_tokens": 105},
+        }).encode("utf-8")
+        resp_tc.__enter__.return_value = resp_tc
+
+        resp_valid = MagicMock()
+        resp_valid.read.return_value = json.dumps({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": '{"transcript":"হ্যালো","translation":"Hello","target_override":null}'},
+            }],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 20, "total_tokens": 140},
+        }).encode("utf-8")
+        resp_valid.__enter__.return_value = resp_valid
+
+        mock_urlopen.side_effect = [resp_tc, resp_valid]
+
+        pcm = b"\x00" * 3200
+        tr, tl, ov = gemini_audio.transcribe_and_translate(
+            pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+        )
+        self.assertEqual(tr, "হ্যালো")
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    @patch("app.storage.usage_store.append")
+    def test_gemini_audio_retry_on_invalid_choices(self, mock_usage_append, mock_urlopen):
+        resp_invalid_choices = MagicMock()
+        resp_invalid_choices.read.return_value = json.dumps({
+            "choices": [],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 0, "total_tokens": 100},
+        }).encode("utf-8")
+        resp_invalid_choices.__enter__.return_value = resp_invalid_choices
+
+        resp_valid = MagicMock()
+        resp_valid.read.return_value = json.dumps({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": '{"transcript":"হ্যালো","translation":"Hello","target_override":null}'},
+            }],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 20, "total_tokens": 140},
+        }).encode("utf-8")
+        resp_valid.__enter__.return_value = resp_valid
+
+        mock_urlopen.side_effect = [resp_invalid_choices, resp_valid]
+
+        pcm = b"\x00" * 3200
+        tr, tl, ov = gemini_audio.transcribe_and_translate(
+            pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+        )
+        self.assertEqual(tr, "হ্যালো")
+        self.assertEqual(tl, "Hello")
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    def test_gemini_audio_two_contract_failures_raise(self, mock_urlopen):
+        resp_no_json = MagicMock()
+        resp_no_json.read.return_value = json.dumps({
+            "choices": [{"finish_reason": "stop", "message": {"content": "Not JSON text"}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110},
+        }).encode("utf-8")
+        resp_no_json.__enter__.return_value = resp_no_json
+
+        mock_urlopen.side_effect = [resp_no_json, resp_no_json]
+
+        pcm = b"\x00" * 3200
+        with self.assertRaises(ValueError):
+            gemini_audio.transcribe_and_translate(
+                pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+            )
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    def test_gemini_audio_malformed_top_level_json_then_valid(self, mock_urlopen):
+        resp_bad_json = MagicMock()
+        resp_bad_json.read.return_value = b"<html>502 Bad Gateway</html>"
+        resp_bad_json.__enter__.return_value = resp_bad_json
+
+        resp_valid = MagicMock()
+        resp_valid.read.return_value = json.dumps({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": '{"transcript":"হ্যালো","translation":"Hello","target_override":null}'},
+            }],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 20, "total_tokens": 140},
+        }).encode("utf-8")
+        resp_valid.__enter__.return_value = resp_valid
+
+        mock_urlopen.side_effect = [resp_bad_json, resp_valid]
+
+        pcm = b"\x00" * 3200
+        tr, tl, ov = gemini_audio.transcribe_and_translate(
+            pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+        )
+        self.assertEqual(tr, "হ্যালো")
+        self.assertEqual(tl, "Hello")
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    def test_gemini_audio_two_malformed_top_level_json_raises(self, mock_urlopen):
+        resp_bad_json = MagicMock()
+        resp_bad_json.read.return_value = b"<html>502 Bad Gateway</html>"
+        resp_bad_json.__enter__.return_value = resp_bad_json
+
+        mock_urlopen.side_effect = [resp_bad_json, resp_bad_json]
+
+        pcm = b"\x00" * 3200
+        with self.assertRaises(ValueError) as ctx:
+            gemini_audio.transcribe_and_translate(
+                pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+            )
+        self.assertIn("invalid response JSON", str(ctx.exception))
+        self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    def test_gemini_audio_rejects_null_or_non_string_fields(self, mock_urlopen):
+        cases = [
+            '{"transcript": null, "translation": "Hello"}',
+            '{"transcript": "Hello", "translation": null}',
+            '{"transcript": 123, "translation": "Hello"}',
+            '{"transcript": "Hello", "translation": ["list"]}',
+        ]
+        for content in cases:
+            mock_urlopen.reset_mock()
+            resp_invalid = MagicMock()
+            resp_invalid.read.return_value = json.dumps({
+                "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+            }).encode("utf-8")
+            resp_invalid.__enter__.return_value = resp_invalid
+
+            resp_valid = MagicMock()
+            resp_valid.read.return_value = json.dumps({
+                "choices": [{
+                    "finish_reason": "stop",
+                    "message": {"content": '{"transcript":"হ্যালো","translation":"Hello","target_override":null}'},
+                }],
+            }).encode("utf-8")
+            resp_valid.__enter__.return_value = resp_valid
+
+            mock_urlopen.side_effect = [resp_invalid, resp_valid]
+
+            pcm = b"\x00" * 3200
+            tr, tl, ov = gemini_audio.transcribe_and_translate(
+                pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+            )
+            self.assertEqual(tr, "হ্যালো")
+            self.assertEqual(mock_urlopen.call_count, 2)
+
+    @patch("urllib.request.urlopen")
+    def test_gemini_audio_http_error_does_not_retry(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.HTTPError("https://mock.api/v1", 500, "Server Error", {}, None)
+
+        pcm = b"\x00" * 3200
+        with self.assertRaises(urllib.error.HTTPError):
+            gemini_audio.transcribe_and_translate(
+                pcm, api_base="https://mock.api/v1", api_key="", model="gemini-3.6-flash"
+            )
+        self.assertEqual(mock_urlopen.call_count, 1)
 
 
 class TestLongTextTranslation(unittest.TestCase):
@@ -254,6 +498,30 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
     @patch("app.main.transcribe_and_translate")
     @patch("app.main.cloud_asr_transcribe_chunked")
     @patch("app.main.cloud_llm_rewrite")
+    def test_default_native_audio_disabled_uses_google_asr(
+        self, mock_llm_rewrite, mock_asr_chunked, mock_transcribe_translate
+    ):
+        mock_asr_chunked.return_value = "Hello world transcript"
+        mock_llm_rewrite.return_value = "Hello world translation"
+
+        worker = main_mod.CloudASRWorker(b"audio", "en", "en")
+        done_mock = MagicMock()
+        failed_mock = MagicMock()
+        worker.done.connect(done_mock)
+        worker.failed.connect(failed_mock)
+
+        with patch("app.main.NATIVE_AUDIO_ENABLED", False):
+            worker.run()
+
+        mock_transcribe_translate.assert_not_called()
+        mock_asr_chunked.assert_called_once_with(b"audio", "en")
+        mock_llm_rewrite.assert_called_once_with("Hello world transcript", "translate_to_target", target_language="en")
+        done_mock.assert_called_once_with("Hello world transcript", "Hello world translation", "")
+        failed_mock.assert_not_called()
+
+    @patch("app.main.transcribe_and_translate")
+    @patch("app.main.cloud_asr_transcribe_chunked")
+    @patch("app.main.cloud_llm_rewrite")
     def test_salvage_transcript_on_translation_http_400(
         self, mock_llm_rewrite, mock_asr_chunked, mock_transcribe_translate
     ):
@@ -326,11 +594,11 @@ class TestNativeAudioRoutingConfig(unittest.TestCase):
         else:
             os.environ["JV_NATIVE_AUDIO"] = self._orig_env
 
-    def test_default_gateway_native_audio_enabled_by_default(self):
+    def test_default_gateway_native_audio_disabled_by_default(self):
         os.environ.pop("JV_NATIVE_AUDIO", None)
         main_mod.apply_api_config({})
-        self.assertTrue(main_mod.is_native_audio_enabled())
-        self.assertTrue(main_mod.NATIVE_AUDIO_ENABLED)
+        self.assertFalse(main_mod.is_native_audio_enabled())
+        self.assertFalse(main_mod.NATIVE_AUDIO_ENABLED)
         self.assertEqual(main_mod.API_BASE, main_mod.DEFAULT_API_BASE)
 
     def test_native_audio_override_false(self):
@@ -357,6 +625,60 @@ class TestNativeAudioRoutingConfig(unittest.TestCase):
         self.assertEqual(cfg["api_key"], "custom-key")
         self.assertEqual(cfg["audio_model"], "custom-audio")
         self.assertEqual(cfg["text_model"], "custom-text")
+
+
+class TestTextStyleRoutesAndChunkingRegression(unittest.TestCase):
+    """Deterministic no-network tests for text style routing and chunking regression coverage."""
+
+    @patch("app.main._single_llm_call")
+    def test_text_style_routes_and_prompts(self, mock_single_call):
+        styles = [
+            "clean_english",
+            "prompt_for_ai",
+            "professional_message",
+            "facebook_post",
+            "translate_to_target",
+        ]
+        sample_input = "Hello world text sample"
+
+        mock_single_call.side_effect = lambda text, style, target_language="en": f"Mocked output for {style}"
+
+        for style in styles:
+            mock_single_call.reset_mock()
+            output = main_mod.cloud_llm_rewrite(sample_input, style, target_language="en")
+
+            self.assertEqual(output, f"Mocked output for {style}")
+            self.assertEqual(mock_single_call.call_count, 1)
+
+            call_args = mock_single_call.call_args[0]
+            text_arg, style_arg = call_args[0], call_args[1]
+
+            self.assertEqual(text_arg, sample_input)
+            self.assertEqual(style_arg, style)
+
+    @patch("app.main._single_llm_call")
+    def test_long_bengali_prompt_for_ai_chunking_routing(self, mock_single_call):
+        bengali_sentence = "আমি আজ সকালে অফিসে গিয়েছিলাম এবং সেখানে একটি গুরুত্বপূর্ণ মিটিং সম্পন্ন করেছি। "
+        long_bengali_input = bengali_sentence * 25
+
+        self.assertGreater(len(long_bengali_input), 1500)
+
+        mock_single_call.side_effect = lambda text, style, target_language="en": f"[AI_STYLE:{style}:{len(text)}]"
+
+        output = main_mod.cloud_llm_rewrite(long_bengali_input, "prompt_for_ai", target_language="en")
+
+        self.assertGreater(mock_single_call.call_count, 1)
+
+        recombined_input = ""
+        for call_args in mock_single_call.call_args_list:
+            text_arg, style_arg = call_args[0][0], call_args[0][1]
+            self.assertEqual(style_arg, "prompt_for_ai")
+            recombined_input += text_arg
+
+        self.assertEqual("".join(recombined_input.split()), "".join(long_bengali_input.split()))
+
+        for i in range(mock_single_call.call_count):
+            self.assertIn("[AI_STYLE:prompt_for_ai:", output)
 
 
 if __name__ == "__main__":

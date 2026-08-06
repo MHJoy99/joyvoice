@@ -6,6 +6,7 @@ echo  ================================================
 echo  [Process Supervisor Active: Auto-restarts on any failure]
 echo.
 cd /d "%~dp0"
+set "JV_NATIVE_AUDIO=false"
 
 :restart
 echo [%date% %time%] Starting JoyVoice...
