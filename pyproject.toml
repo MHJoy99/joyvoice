@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "joyvoice"
-version = "2.3.2"
+version = "2.3.3"
 description = "Ultra-low latency AI floating mic dictation and real-time speech translation software for Windows powered by Gemini 3.6 Flash."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"

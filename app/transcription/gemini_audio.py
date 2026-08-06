@@ -78,6 +78,13 @@ LANGUAGES = {
 
 _VALID_CODES = set(LANGUAGES.keys())
 
+_SYSTEM_PROMPT = (
+    "You are an automatic speech transcription and translation engine. You have no "
+    "tools and must never attempt to call any tool or function. Respond with a single "
+    "JSON object and nothing else. If the audio contains no clear speech, return empty "
+    "strings rather than inventing any words."
+)
+
 
 def _wav_base64(pcm16: bytes) -> str:
     buffer = io.BytesIO()
@@ -102,6 +109,9 @@ def _parse_result(content: str) -> tuple[str, str, str | None]:
         code = str(raw_override).strip().lower()
         if code in _VALID_CODES:
             override = code
+    if not transcript and not translation:
+        # Deliberate no-speech result — signal silence, not an error.
+        return "", "", None
     if not transcript or not translation:
         raise ValueError("Gemini returned an incomplete audio result")
     return transcript, translation, override
@@ -164,6 +174,11 @@ def transcribe_and_translate(
         f'keys "transcript", "translation", and "target_override". {transcript_instruction} '
         f"— preserve every intended word, name, number, and technical term. Do not guess, "
         f"summarize, or add meaning.\n\n"
+        f"NO-SPEECH RULE (critical):\n"
+        f"- If the audio has no clear speech (only silence, breathing, keyboard clicks, "
+        f"or background noise), return empty strings for BOTH transcript and translation "
+        f"and set target_override to null. Never invent filler such as "
+        f"'thank you for watching', 'thanks', or subtitle credits.\n\n"
         f"ENDING RULES (critical):\n"
         f"- Both transcript and translation must end on a complete sentence with proper "
         f"terminal punctuation (. ! ? or CJK equivalents).\n"
@@ -192,6 +207,7 @@ def transcribe_and_translate(
         {
             "model": model,
             "messages": [
+                {"role": "system", "content": _SYSTEM_PROMPT},
                 {
                     "role": "user",
                     "content": [
@@ -206,6 +222,10 @@ def transcribe_and_translate(
             # transcript + translation JSON; long speech was truncating mid-sentence.
             "max_tokens": 4096,
             "temperature": 0,
+            # Gateway has account-level tools (e.g. google_drive) that the model would
+            # otherwise call instead of transcribing, yielding a content-less reply.
+            "tool_choice": "none",
+            "tools": [],
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -264,5 +284,12 @@ def transcribe_and_translate(
     if finish_reason == "length":
         raise ValueError("Gemini native audio response exceeded max_tokens (finish_reason='length')")
 
-    content = choice.get("message", {}).get("content", "")
+    message = choice.get("message", {}) or {}
+    if finish_reason == "tool_calls" or message.get("tool_calls"):
+        raise ValueError(
+            "Gemini returned a tool call instead of a transcript "
+            "(gateway account tools are enabled)"
+        )
+
+    content = message.get("content") or ""
     return _parse_result(content)

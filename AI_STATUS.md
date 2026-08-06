@@ -2,11 +2,22 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-08-03
-- **Focus**: JoyVoice release checklist update for discovery/SEO verification.
+- **Updated Date**: 2026-08-06
+- **Focus**: Version surface synchronization for v2.3.3 release.
 - **Phase**: Complete
 
-### Session Log — 2026-08-03
+### Session Log — 2026-08-06
+
+#### Closeout — Version Surface Synchronization for v2.3.3 Release (2026-08-06)
+
+- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.3` / `v2.3.3`.
+- **Release Documentation**: Added `v2.3.3` release section in `CHANGELOG.md` detailing LLM prompt hardening and `tool_calls` API gateway compatibility fixes.
+- **Verification**: Verified zero compilation errors on `app/main.py` and `app/transcription/gemini_audio.py`. Executed `bin/guard.py pre-commit` successfully.
+
+#### Closeout — LLM Prompt Hardening Plan Documentation Created (2026-08-06)
+
+- **Created `docs/PROMPT_HARDENING_PLAN.md`**: Created the execution specification documenting prompt hardening objectives, scope, silence path design decisions, exact changes across `gemini_audio.py` and `main.py`, verification checks, rollback steps, and deployment blockers.
+- **Documentation Scope**: Updated `docs/PROMPT_HARDENING_PLAN.md` and `AI_STATUS.md`. No code files, non-Markdown files, or git operations executed.
 
 #### Closeout — Discovery & SEO Verification Pre-Tagging Update (2026-08-03)
 

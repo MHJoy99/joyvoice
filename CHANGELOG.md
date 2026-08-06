@@ -3,6 +3,14 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.3 — Prompt Hardening & Tool Calls Payload Fix (2026-08-06)
+
+This release implements LLM prompt hardening and fixes API gateway payload issues:
+
+- **Prompt Hardening**: Upgraded system prompts to explicitly reject background noise, hallucinations, and unwanted conversational responses during silent audio.
+- **Tool Calls Payload Fix**: Resolved sub2api gateway compatibility issue where empty `tool_calls` fields caused HTTP 400 validation errors on OpenAI-compatible audio completions.
+- **Silence Contract**: Enforced explicit silence handling across Gemini native audio and fallback translation paths.
+
 ## v2.3.2 — Long-Audio Reliability & Release Workflow (2026-08-03)
 
 This release consolidates the six commits already on `master` into the v2.3.2 public-release preparation line:

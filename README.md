@@ -6,7 +6,7 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.2-22d3ee?style=flat-square" alt="Version 2.3.2"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.3-22d3ee?style=flat-square" alt="Version 2.3.3"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="#"><img src="https://img.shields.io/badge/Latency-~3.3s-22d3ee?style=flat-square" alt="Latency ~3.3s"></a>
@@ -687,6 +687,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.2 · August 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.3 · August 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>
