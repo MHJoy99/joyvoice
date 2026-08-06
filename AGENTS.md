@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-06 (v2.3.3) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, default Discord mute hotkey (Ctrl+Alt+Shift+F12), click-safe non-activating toasts (WA_ShowWithoutActivating & WA_TransparentForMouseEvents), configurable API endpoint/key/models via Settings → API tab, Free & Offline Mode via Settings → Free Mode tab, single consolidated executable JoyVoice.exe, prompt hardening & tool_calls payload fixes, and canonical guarded release workflow._
+> _Last updated 2026-08-06 (v2.3.4) — cloud pipeline with 10-language support, AI text style cloud rewrite, glass-morphism widget, full robustness features, call muting mode selector (off / hotkey / virtual device) with status toasts, default Discord mute hotkey (Ctrl+Alt+Shift+F12), click-safe non-activating toasts (WA_ShowWithoutActivating & WA_TransparentForMouseEvents), configurable API endpoint/key/models via Settings → API tab, Free & Offline Mode via Settings → Free Mode tab, single consolidated executable JoyVoice.exe, prompt hardening & tool_calls payload fixes, no-speech popup removal & silent no-op fix, and canonical guarded release workflow._
 
 ---
 

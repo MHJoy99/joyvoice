@@ -907,8 +907,8 @@ class AppController:
             else:
                 # Pure command with no content — nothing useful to paste.
                 self._phase = "idle"
-                self.widget.set_state("error", "No content to translate")
-                QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+                logger.info("Pure override command with no content — silent no-op, returning to idle")
+                self.widget.set_state("idle")
                 return
 
         # Show a live preview on the widget immediately.
@@ -920,8 +920,8 @@ class AppController:
 
         if not base_text.strip():
             self._phase = "idle"
-            self.widget.set_state("error", "No speech detected")
-            QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
+            logger.info("No speech detected — silent no-op, returning to idle")
+            self.widget.set_state("idle")
             return
 
         translation = self._style_text(translation)
@@ -948,6 +948,10 @@ class AppController:
             return
         self._timing = None
         self._phase = "idle"
+        if any(term in message.lower() for term in ("unintelligible", "no speech", "unknownvalueerror")):
+            logger.info("ASR reported no intelligible speech (%s) — silent no-op, returning to idle", message)
+            self.widget.set_state("idle")
+            return
         logger.error("Cloud ASR failed: %s", message)
         sounds.play_error()
         self._show_error(f"Transcription failed: {message}")

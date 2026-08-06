@@ -3,6 +3,13 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.4 — No-Speech Popup Removal & Silent No-Op Fix (2026-08-06)
+
+This release removes intrusive error popups on empty or unintelligible speech input:
+
+- **No-Speech Error Popup Removal**: Removed error state transitions, error sound feedback, and UI tooltips when no speech is detected or audio is unintelligible.
+- **Silent No-Op Behavior**: Empty or silent transcriptions now seamlessly return the floating mic widget to idle state without disrupting workflow or showing error toasts.
+
 ## v2.3.3 — Prompt Hardening & Tool Calls Payload Fix (2026-08-06)
 
 This release implements LLM prompt hardening and fixes API gateway payload issues:

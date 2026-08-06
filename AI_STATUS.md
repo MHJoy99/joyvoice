@@ -3,10 +3,16 @@
 ## Current Session
 
 - **Updated Date**: 2026-08-06
-- **Focus**: v2.3.3 Public Release documentation & closeout
+- **Focus**: v2.3.4 Public Release documentation & closeout
 - **Phase**: Complete
 
 ### Session Log — 2026-08-06
+
+#### Closeout — Version Surface Synchronization for v2.3.4 Release (2026-08-06)
+
+- **Version Surface Updates**: Updated software version across `pyproject.toml`, `schema.json`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, and `AI_STATUS.md` to `2.3.4` / `v2.3.4`.
+- **Release Documentation**: Added `v2.3.4` release section in `CHANGELOG.md` detailing the removal of no-speech / unintelligible audio error popups and implementation of silent no-op returns.
+- **Verification**: Verified python compilation on `app/main.py` and `app/transcription/gemini_audio.py`.
 
 #### Closeout — v2.3.3 Public Release (2026-08-06)
 
