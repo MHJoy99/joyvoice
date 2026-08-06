@@ -3,11 +3,6 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
-## v2.3.7 — Quiet Silence Handling & Output Parsing Fix (2026-08-06)
-
-- **Quiet Silence Handling**: Added silent/quiet audio detection and graceful fallback handling to prevent errors when recording background noise or silence.
-- **`_parse_result` Empty String Fix**: Fixed `_parse_result` in `gemini_audio.py` to handle empty or invalid JSON string returns gracefully without raising unexpected exceptions.
-
 ## v2.3.2 — Long-Audio Reliability & Release Workflow (2026-08-03)
 
 This release consolidates the six commits already on `master` into the v2.3.2 public-release preparation line:

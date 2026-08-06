@@ -877,7 +877,8 @@ class AppController:
 
         if not base_text.strip():
             self._phase = "idle"
-            self.widget.set_state("idle")
+            self.widget.set_state("error", "No speech detected")
+            QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
             return
 
         translation = self._style_text(translation)
