@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import io
+import re
 import speech_recognition as sr
 
 logger = logging.getLogger("joyvoice.cloud_asr")
@@ -25,6 +26,74 @@ GOOGLE_LANGUAGE_TAGS = {
     "pt": "pt-BR",
 }
 
+AUTO_LANGUAGE_CODES = ("bn", "en")
+_BENGALI_CHARS = re.compile(r"[\u0980-\u09ff]")
+_LATIN_CHARS = re.compile(r"[A-Za-z]")
+_ENGLISH_HINTS = {
+    "a", "am", "and", "are", "can", "do", "for", "get", "give", "hello",
+    "how", "i", "is", "it", "me", "my", "not", "please", "the", "this",
+    "to", "what", "why", "with", "you",
+}
+
+
+def _language_likelihood(text: str, language: str) -> int:
+    """Score how well a transcript matches the requested language family.
+
+    Google Web Speech does not provide language auto-detection.  Auto mode
+    therefore recognizes the same audio in Bangla and English and uses the
+    script/word evidence in the returned alternatives to choose a result.
+    """
+    bengali_count = len(_BENGALI_CHARS.findall(text))
+    latin_count = len(_LATIN_CHARS.findall(text))
+    if language == "bn":
+        return (bengali_count * 2) - latin_count
+
+    english_words = {
+        word.lower() for word in re.findall(r"[A-Za-z]+", text)
+    }
+    return (latin_count * 2) + (len(english_words & _ENGLISH_HINTS) * 4) - bengali_count
+
+
+def transcribe_auto(audio_bytes: bytes) -> str:
+    """Recognize Bangla/English audio without passing ``None`` to Google.
+
+    SpeechRecognition 3.17 rejects ``language=None`` and Google Web Speech has
+    no automatic language mode through this client.  Try both supported
+    bilingual inputs, then choose the transcript with the stronger language
+    evidence.  If only one recognizer understands the audio, its result wins.
+    """
+    candidates: list[tuple[str, str]] = []
+    errors: list[Exception] = []
+
+    for code in AUTO_LANGUAGE_CODES:
+        try:
+            text = transcribe(audio_bytes, language=code)
+        except sr.UnknownValueError as exc:
+            errors.append(exc)
+            continue
+        except Exception as exc:
+            errors.append(exc)
+            logger.warning("Google ASR auto candidate %s failed: %s", code, exc)
+            continue
+        if text and text.strip():
+            candidates.append((code, text.strip()))
+
+    if not candidates:
+        if errors:
+            raise errors[-1]
+        raise sr.UnknownValueError("Speech was unintelligible in Bangla and English")
+
+    selected_code, selected_text = max(
+        candidates,
+        key=lambda item: _language_likelihood(item[1], item[0]),
+    )
+    logger.info(
+        "Google ASR auto selected lang=%s: %s",
+        GOOGLE_LANGUAGE_TAGS[selected_code],
+        selected_text[:80],
+    )
+    return selected_text
+
 
 def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
     """Transcribe PCM audio via Google Web Speech API.
@@ -40,6 +109,9 @@ def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
         sr.UnknownValueError: Speech was unintelligible.
         sr.RequestError: API unreachable or over rate-limit.
     """
+    if language in (None, "", "auto"):
+        return transcribe_auto(audio_bytes)
+
     recognizer = sr.Recognizer()
 
     # Wrap raw PCM bytes as an AudioData object (16 kHz, 16-bit mono).

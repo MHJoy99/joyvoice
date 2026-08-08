@@ -6,7 +6,7 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.8-22d3ee?style=flat-square" alt="Version 2.3.8"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.3.9-22d3ee?style=flat-square" alt="Version 2.3.9"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="llms.txt"><img src="https://img.shields.io/badge/AGO-llms.txt-22d3ee?style=flat-square" alt="llms.txt compliant"></a>
@@ -57,7 +57,7 @@ That's it. No window switching. No copy-paste. No language selection. Just speak
 |  📋  | Clipboard-safe paste via `Ctrl+V` with exponential retry                       |              ~300 ms |
 |  ✅  | **Done. Text is in your app.**                                                 | **Varies by length** |
 
-> **Reliable pipeline.** Google Web Speech ASR provides zero-config primary transcription, with Gemini text LLM handling translation and formatting. Native Gemini audio remains available via opt-in (`JV_NATIVE_AUDIO=true`). Latency depends on audio length (e.g. a 20.8s recording was processed in 14.08s total during verification).
+> **Reliable pipeline.** Google Web Speech ASR provides the zero-config fallback, while the optional native gateway route `joyvoice-fast-audio` performs transcription and translation in one request. The gateway's verified short-audio benchmark is approximately 1–2 seconds; latency depends on recording length and network conditions.
 
 ---
 
@@ -387,7 +387,7 @@ Stored at `%APPDATA%\JoyVoice\settings.json`:
 | `launch_on_startup`        | `false`                     | Auto-start with Windows                                                      |
 | `api_base`                 | `https://gpt.bdx.market/v1` | OpenAI-compatible endpoint root (ends in `/v1`)                              |
 | `api_key`                  | _(blank)_                   | API key stored locally; blank falls back to `JV_API_KEY` env var             |
-| `audio_model`              | `gemini-3.6-flash`          | Model for speech transcription (native audio)                                |
+| `audio_model`              | `joyvoice-fast-audio`       | Verified gateway alias for native speech transcription and translation        |
 | `text_model`               | `gemini-3.6-flash`          | Model for translation and AI text styles                                     |
 | `engine_mode`              | `cloud`                     | Active engine: `cloud` (uses API key) / `free` (local models, no API key)    |
 | `mute_other_apps`          | `off`                       | Call muting mode: `off` \| `hotkey` \| `virtual_device`                      |
@@ -422,7 +422,7 @@ The **API** tab configures JoyVoice's cloud connection entirely from the UI — 
 | :------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **API base URL**    | Any OpenAI-compatible endpoint root ending in `/v1` (e.g. `https://gpt.bdx.market/v1`, `https://api.openai.com/v1`). Default/placeholder: `https://gpt.bdx.market/v1`. |
 | **API key**         | Masked (password) field with a **Show** toggle. Stored locally in `settings.json`. If left blank, falls back to the `JV_API_KEY` env var.                              |
-| **Audio model**     | Editable dropdown — model used for speech transcription (native audio). Default `gemini-3.6-flash`.                                                                    |
+| **Audio model**     | Editable dropdown — model used for native speech transcription. Default `joyvoice-fast-audio`, verified through `GET /models`.                                      |
 | **Text model**      | Editable dropdown — model used for translation and AI text styles. Default `gemini-3.6-flash`.                                                                         |
 | **Fetch models**    | Queries the endpoint's `GET /models` and populates both dropdowns with the live model list.                                                                            |
 | **Test connection** | Verifies the endpoint + key are reachable and reports how many models are available.                                                                                   |
@@ -443,7 +443,7 @@ Tested with Bengali audio sample, 2026-07-19:
 | gemini-3-flash               | 5.1 s     | Correct          | ⚠️ Slower                       |
 | gemini-3.1-pro-low           | 10.3 s    | Most faithful    | ❌ Too slow for dictation       |
 
-> **Winner:** `gemini-3.1-flash-lite` — native audio understanding eliminates the text-roundtrip. 3.3 seconds wall-clock, mic to paste. Works across all 10 languages.
+> **Current native route:** `joyvoice-fast-audio` is gateway-managed and routes to an audio-capable Flash Lite upstream. The developer's 3-second benchmark reported p95 around 1.58 seconds; longer recordings require their own latency measurement.
 
 ---
 
@@ -506,8 +506,8 @@ joyvoice/
 Base URL:   https://gpt.bdx.market/v1   (default — change in Settings → API)
 Auth:       Settings → API tab, or JV_API_KEY env var
 
-Speech input:  Google Web Speech       (Sub2API does not relay OpenAI input_audio)
-Text model:    gemini-3.6-flash        (default — change in Settings → API)
+Speech input:  `joyvoice-fast-audio` native audio (optional; Google Web Speech remains fallback)
+Text model:    gemini-3.6-flash        (default — normal text route remains separate)
 ```
 
 Both models are served through any OpenAI-compatible API gateway. The base URL, API key, and both models are configurable from **Settings → API** (see the [API Tab](#api-tab-v220) section above); environment variables remain as optional fallbacks. Resolution precedence: `settings.json` → environment variable → built-in default.
@@ -677,6 +677,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.8 · August 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.3.9 · August 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>

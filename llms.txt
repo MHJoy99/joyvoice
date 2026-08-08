@@ -1,6 +1,6 @@
 # JoyVoice: AI Floating Mic Dictation & Speech Translation for Windows
 
-> JoyVoice is an open-source, low-latency floating microphone dictation and real-time speech translation application for Windows 10/11. Powered by Google Web Speech primary ASR and Gemini 3.6 Flash translation/styling (with optional native audio mode), JoyVoice allows users to press a global hotkey (F8), speak in any of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and automatically paste clean, polished translated text into any active Windows application.
+> JoyVoice is an open-source, low-latency floating microphone dictation and real-time speech translation application for Windows 10/11. It supports optional native audio through the `joyvoice-fast-audio` gateway alias, with Google Web Speech as the cloud fallback and Gemini 3.6 Flash for text translation/styling. Press F8, speak in any of 10 languages, and automatically paste clean translated text into any active Windows application.
 
 ## Overview & Purpose
 
@@ -8,7 +8,8 @@ JoyVoice solves the friction of cross-application multilingual typing and voice 
 
 ### Key Highlights
 - **Zero Local GPU Overhead:** Runs effortlessly on integrated graphics in default cloud mode; all ASR and neural translation execute via cloud API.
-- **Cloud ASR + Gemini AI:** Uses Google Web Speech ASR for reliable speech recognition and Gemini 3.6 Flash for translation and intelligent text styling (opt-in native audio via JV_NATIVE_AUDIO).
+- **Native audio gateway:** Optional `joyvoice-fast-audio` sends one mono 16-bit 16 kHz WAV request containing transcript, English translation, and `target_override`.
+- **Cloud ASR + Gemini AI:** Uses Google Web Speech as fallback and Gemini 3.6 Flash for text translation and intelligent text styling.
 - **Automatic Language Detection:** Speak naturally in any supported language without manual toggle; JoyVoice identifies the source language instantly.
 - **Direct Clipboard-Safe Paste:** Automatically pastes output into the focused window (Slack, Notion, VS Code, Word, Chrome) using `Ctrl+V` with exponential backoff retry and clipboard preservation.
 - **Opt-in Free & Offline Mode:** Supports local faster-whisper dictation without requiring cloud APIs when enabled.

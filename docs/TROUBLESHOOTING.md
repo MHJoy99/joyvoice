@@ -461,23 +461,31 @@ type %APPDATA%\JoyVoice\settings.json | findstr language
 
 ### 7c: Wrong Language Output
 
-**Symptom:** Bengali speech transcribed as English gibberish, or wrong translation language.
+**Symptom:** Bengali/English speech is recognized in the wrong script, or the
+translation is pasted in the source language.
 
 **Check settings.json:**
 
 ```json
 {
-  "language": "bn", // Should be "bn" for Bengali, NOT "bn-BD"
+  "language": "auto", // Recommended for mixed Bangla + English speech
   "target_language": "en", // Target translation language
   "output_mode": "translation" // What to paste
 }
 ```
 
-- `"language": "bn"` (not `"bn-BD"` — mapping to BCP-47 happens internally)
+- `"language": "auto"` makes Google ASR try Bangla and English separately.
+- Use `"language": "bn"` or `"en"` only when the recording is single-language.
+- Language settings use short internal codes (not `"bn-BD"`); BCP-47 mapping happens internally.
 - `"target_language": "en"` for English output
 - `"output_mode": "translation"` for English-only paste
 
 > **Note:** The `"language"` key controls the source speech language. The `"target_language"` key controls the translation output. These are independent — you can set source to `"ru"` (Russian) and target to `"en"` (English).
+
+If the translation provider is unavailable after ASR succeeds, JoyVoice now
+fails closed and does not paste an untranslated transcript. This prevents a
+Bangla transcript from appearing when English output was requested; retry after
+the provider recovers.
 
 ### 7d: Timeout / Hang
 
@@ -488,8 +496,8 @@ type %APPDATA%\JoyVoice\settings.json | findstr language
 1. **Network issue** — API gateway unreachable. Check your internet connection.
 2. **Firewall** — `gpt.bdx.market` may be blocked. Test: `ping gpt.bdx.market`
 3. **API gateway down** — Check gateway status with your provider.
-4. **Audio too long** — If recording exceeds 60+ seconds, the API payload may be very large. Gemini audio has a 45-second timeout.
-5. **The 45-second timeout should trigger eventually** — if it doesn't, the request may have hung in `urllib`.
+4. **Audio too long** — Long recordings create large base64 WAV payloads. The native gateway request now allows up to 180 seconds for upload and response.
+5. **Timeouts are not retried automatically** — a timeout is logged and the native request is not repeated because the gateway may already have processed it.
 
 **Debug:**
 
@@ -781,9 +789,9 @@ LANGUAGES = {
    type %APPDATA%\JoyVoice\settings.json
    ```
 
-3. **For auto-detect, use `"auto"`:**
+3. **For mixed Bangla/English auto-detection, use `"auto"`:**
    ```json
-   { "language": "auto" } // Gemini detects the language
+   { "language": "auto" } // Google ASR probes Bangla and English
    ```
 
 ### Language Codes Reference

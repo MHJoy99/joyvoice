@@ -2,9 +2,19 @@
 
 ## Current Session
 
-- **Updated Date**: 2026-08-06
-- **Focus**: JoyVoice v2.3.8 public release closeout and verification ledger.
-- **Phase**: Public Release Complete
+- **Updated Date**: 2026-08-08
+- **Focus**: JoyVoice v2.3.9 native gateway audio release and public distribution.
+- **Phase**: Release Candidate Verified; GitHub Publication In Progress
+
+### Session Log — 2026-08-08
+
+#### v2.3.9 Release Candidate — Native Gateway Audio
+
+- **Gateway route:** `joyvoice-fast-audio` is advertised and was selected by the latest real JoyVoice run; the native request completed without Google fallback.
+- **Client contract:** Sends mono 16-bit 16 kHz WAV as OpenAI `input_audio`, uses `max_tokens=4096`, `temperature=0`, `stream=false`, and validates exactly `transcript`, `translation`, and `target_override`.
+- **Long-recording behavior:** Complete native HTTP timeout is 180 seconds; timeout failures are logged and not retried automatically.
+- **Latest real run:** Native alias selected at 2026-08-08 22:17 local time; total pipeline latency 5.70 seconds for a longer recording.
+- **Verification:** 41 focused tests passed; Python compilation, `git diff --check`, live model catalog verification, and diff secret scan passed. Public release gates remain: guard scripts, exact-tag build, commit/push, and GitHub release asset verification.
 
 ### Session Log — 2026-08-06
 

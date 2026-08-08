@@ -6,13 +6,13 @@
 
 - **Name:** JoyVoice
 - **Repository URL:** `https://github.com/MHJoy99/joyvoice`
-- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8`
+- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.9`
 - **License:** MIT License
 - **Target Platform:** Windows 10 / Windows 11 (64-bit)
 - **Primary Language:** Python 3.11
 - **UI Architecture:** PySide6 (Qt 6.7) floating glass-morphism widget
 - **Audio Capture:** WASAPI via `sounddevice` (16,000 Hz, mono float32)
-- **Cloud Models:** Google Web Speech API (primary ASR), `gemini-3.6-flash` (translation & text styles)
+- **Cloud Models:** `joyvoice-fast-audio` native audio alias (optional), Google Web Speech fallback, `gemini-3.6-flash` (text translation & styles)
 - **Settings Path:** `%APPDATA%\JoyVoice\settings.json`
 - **History Path:** `%APPDATA%\JoyVoice\history.json`
 - **Log File Path:** `%APPDATA%\JoyVoice\joyvoice.log`
@@ -42,7 +42,7 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 
 ### Transcription & AI Subsystem (`app/transcription/`)
 - `app/transcription/cloud_asr.py` - Primary cloud ASR using Google Web Speech API.
-- `app/transcription/gemini_audio.py` - Gemini Flash audio API integration (opt-in native audio via JV_NATIVE_AUDIO).
+- `app/transcription/gemini_audio.py` - Native `input_audio` integration through the verified `joyvoice-fast-audio` gateway alias.
 - `app/transcription/free_asr.py` - Opt-in local faster-whisper Free & Offline ASR worker.
 - `app/transcription/text_cleaner.py` - Deterministic text cleanup rules: filler word removal, stutter collapse, custom word replacement table, whitespace normalization.
 
@@ -71,7 +71,7 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 3. **Audio Capture:** `Recorder.start()` captures 16,000 Hz float32 mono stream from selected microphone. A 40ms Qt timer updates live audio levels on `FloatingWidget`.
 4. **User Deactivation:** Press `F8` again. `Recorder.stop()` returns float32 numpy array.
 5. **PCM Conversion:** `AppController` converts float32 audio to signed 16-bit PCM (`int16`) bytes.
-6. **Cloud ASR & LLM Dispatch:** `CloudASRWorker` sends PCM audio to Google Web Speech API for transcript, followed by Gemini 3.6 Flash text API for translation / styling (or uses native audio if `JV_NATIVE_AUDIO` is explicitly true).
+6. **Cloud ASR & LLM Dispatch:** Native mode sends one WAV request to `joyvoice-fast-audio` for transcript + translation; if native mode is unavailable, the cloud fallback uses Google Web Speech and the separate text model.
 7. **Text Formatting & Cleanup:** `text_cleaner.clean_text()` applies rule-based fixes and user replacement tables.
 8. **History Save:** Result is committed to `%APPDATA%\JoyVoice\history.json` before clipboard interaction (ensuring 0% data loss).
 9. **Auto-Paste:** `app.system.paste.paste_text()` backs up existing clipboard, copies cleaned text, fires `Ctrl+V` with up to 3 retries, and restores original clipboard.

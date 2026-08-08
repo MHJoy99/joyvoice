@@ -115,7 +115,7 @@ To ensure that discovering the repository leads to immediate user adoption, JoyV
 
 ## 6. Omnichannel & Release Automation Strategy
 
-JoyVoice references the latest canonical release [v2.3.8](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.8) and standardizes release verification automation:
+JoyVoice references the latest canonical release [v2.3.9](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.9) and standardizes release verification automation:
 
 - **Release Verification Rule:** Every release MUST automatically verify that `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, `README.md`, and `robots.txt` are current, referencing canonical URLs (`https://github.com/MHJoy99/joyvoice`) and matching software version numbers before release tags are created.
 

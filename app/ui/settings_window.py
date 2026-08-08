@@ -71,6 +71,7 @@ AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
 
 DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
 KNOWN_MODELS = [
+    "joyvoice-fast-audio",
     "gemini-3.6-flash",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -387,16 +388,29 @@ class SettingsWindow(QDialog):
 
         current_audio = self.audio_model_combo.currentText().strip()
         current_text = self.text_model_combo.currentText().strip()
+        audio_ids = list(ids)
+        text_ids = list(ids)
+        if current_audio and current_audio not in audio_ids:
+            audio_ids.insert(0, current_audio)
+        if current_text and current_text not in text_ids:
+            text_ids.insert(0, current_text)
         self.audio_model_combo.clear()
-        self.audio_model_combo.addItems(ids)
+        self.audio_model_combo.addItems(audio_ids)
         self.text_model_combo.clear()
-        self.text_model_combo.addItems(ids)
-        if current_audio in ids:
+        self.text_model_combo.addItems(text_ids)
+        if current_audio:
             self.audio_model_combo.setEditText(current_audio)
-        if current_text in ids:
+        if current_text:
             self.text_model_combo.setEditText(current_text)
-        self.api_test_label.setText(f"\u2713 Fetched {len(ids)} model(s) from {base}.")
-        self.api_test_label.setStyleSheet("color: #2ecc71;")
+        if current_audio == "joyvoice-fast-audio" and current_audio not in ids:
+            self.api_test_label.setText(
+                f"\u26a0 Fetched {len(ids)} model(s), but joyvoice-fast-audio is not advertised yet. "
+                "JoyVoice will use its verified fallback until the alias is live."
+            )
+            self.api_test_label.setStyleSheet("color: #f1c40f;")
+        else:
+            self.api_test_label.setText(f"\u2713 Fetched {len(ids)} model(s) from {base}.")
+            self.api_test_label.setStyleSheet("color: #2ecc71;")
 
     def _test_api_connection(self) -> None:
         import json

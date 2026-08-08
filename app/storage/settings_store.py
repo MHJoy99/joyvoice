@@ -15,7 +15,7 @@ from app.transcription.text_cleaner import DEFAULT_REPLACEMENTS
 logger = logging.getLogger("joyvoice.settings")
 
 DEFAULTS: dict[str, Any] = {
-    "language": "bn",
+    "language": "auto",
     "target_language": "en",
     "output_mode": "translation",  # original | translation
     "text_style": "clean_english",  # raw | clean_english | prompt_for_ai | professional_message | facebook_post
@@ -32,8 +32,8 @@ DEFAULTS: dict[str, Any] = {
     # OpenAI-compatible cloud API config (empty string = fall back to env var, then built-in default)
     "api_base": "",       # str — e.g. "https://gpt.bdx.market/v1" or "https://api.openai.com/v1"
     "api_key": "",        # str — API key; empty falls back to JV_API_KEY env var
-    "audio_model": "",    # str — native audio transcription model; empty = built-in default
-    "text_model": "",     # str — translation / AI-style rewrite model; empty = built-in default
+    "audio_model": "joyvoice-fast-audio",  # verified by gateway /models before use
+    "text_model": "gemini-3.6-flash",      # translation / AI-style rewrite model
     # Free / offline mode (local models, no API key required)
     "engine_mode": "cloud",           # "cloud" | "free"
     "free_asr_model": "small",        # "tiny" | "base" | "small"

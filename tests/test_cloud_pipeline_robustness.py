@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import speech_recognition as sr
+from PySide6.QtCore import QLockFile
 
 from app.transcription import cloud_asr, gemini_audio
 import app.main as main_mod
@@ -20,6 +22,43 @@ import app.main as main_mod
 
 class TestCloudASRChunked(unittest.TestCase):
     """Test Google ASR sequential chunking helper."""
+
+    @patch("app.transcription.cloud_asr.sr.Recognizer.recognize_google")
+    def test_auto_source_language_tries_bangla_and_english(self, mock_recognize):
+        """Auto mode must not pass None to SpeechRecognition as a language tag."""
+
+        def recognize(_audio_data, *, language, **_kwargs):
+            if language is None:
+                return "legacy None output"
+            return {
+                "bn-BD": "হ্যালো জয়ভয়েস",
+                "en-US": "Hello JoyVoice",
+            }[language]
+
+        mock_recognize.side_effect = recognize
+
+        result = cloud_asr.transcribe(b"\x00" * 32000, language=None)
+
+        self.assertEqual(result, "Hello JoyVoice")
+        self.assertEqual(
+            [call.kwargs["language"] for call in mock_recognize.call_args_list],
+            ["bn-BD", "en-US"],
+        )
+
+    @patch("app.transcription.cloud_asr.sr.Recognizer.recognize_google")
+    def test_auto_source_language_keeps_bangla_when_english_is_unintelligible(
+        self, mock_recognize
+    ):
+        def recognize(_audio_data, *, language, **_kwargs):
+            if language == "bn-BD":
+                return "আমি বাংলায় কথা বলছি"
+            raise sr.UnknownValueError()
+
+        mock_recognize.side_effect = recognize
+
+        result = cloud_asr.transcribe(b"\x00" * 32000, language="auto")
+
+        self.assertEqual(result, "আমি বাংলায় কথা বলছি")
 
     @patch("app.transcription.cloud_asr.transcribe")
     def test_short_audio_single_call(self, mock_transcribe):
@@ -607,7 +646,7 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
     @patch("app.main.transcribe_and_translate")
     @patch("app.main.cloud_asr_transcribe_chunked")
     @patch("app.main.cloud_llm_rewrite")
-    def test_salvage_transcript_on_translation_http_400(
+    def test_translation_failure_does_not_paste_untranslated_transcript(
         self, mock_llm_rewrite, mock_asr_chunked, mock_transcribe_translate
     ):
         mock_transcribe_translate.side_effect = Exception("Gemini audio failed")
@@ -615,7 +654,7 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
         import urllib.error
         mock_llm_rewrite.side_effect = urllib.error.HTTPError("url", 400, "Bad Request", {}, None)
 
-        worker = main_mod.CloudASRWorker(b"audio", "en", "en")
+        worker = main_mod.CloudASRWorker(b"audio", "bn", "en")
         done_mock = MagicMock()
         failed_mock = MagicMock()
         worker.done.connect(done_mock)
@@ -623,9 +662,9 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
 
         worker.run()
 
-        # Signal arity check: (str, str, str)
-        done_mock.assert_called_once_with("Hello world transcript", "Hello world transcript", "")
-        failed_mock.assert_not_called()
+        done_mock.assert_not_called()
+        failed_mock.assert_called_once()
+        self.assertIn("not pasted", failed_mock.call_args.args[0].lower())
 
     @patch("app.main.transcribe_and_translate")
     @patch("app.main.cloud_asr_transcribe_chunked")
@@ -710,6 +749,144 @@ class TestNativeAudioRoutingConfig(unittest.TestCase):
         self.assertEqual(cfg["api_key"], "custom-key")
         self.assertEqual(cfg["audio_model"], "custom-audio")
         self.assertEqual(cfg["text_model"], "custom-text")
+
+
+class TestNativeAudioGatewayContract(unittest.TestCase):
+    def setUp(self):
+        gemini_audio._MODEL_VERIFY_CACHE.clear()
+
+    def tearDown(self):
+        gemini_audio._MODEL_VERIFY_CACHE.clear()
+
+    @staticmethod
+    def _models_response(ids):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(
+            {"object": "list", "data": [{"id": model_id} for model_id in ids]}
+        ).encode()
+        return response
+
+    def test_fast_alias_is_used_only_when_advertised(self):
+        response = self._models_response(["joyvoice-fast-audio"])
+        with patch(
+            "app.transcription.gemini_audio.urllib.request.urlopen",
+            return_value=response,
+        ):
+            selected = gemini_audio.resolve_audio_model(
+                "https://gateway.example/v1",
+                "test-key",
+                "joyvoice-fast-audio",
+            )
+        self.assertEqual(selected, "joyvoice-fast-audio")
+
+    def test_unadvertised_fast_alias_falls_back_to_verified_audio_model(self):
+        response = self._models_response(["gemini-3.6-flash"])
+        with patch(
+            "app.transcription.gemini_audio.urllib.request.urlopen",
+            return_value=response,
+        ):
+            selected = gemini_audio.resolve_audio_model(
+                "https://gateway.example/v1",
+                "test-key",
+                "joyvoice-fast-audio",
+            )
+        self.assertEqual(selected, "gemini-3.6-flash")
+
+    def test_audio_response_rejects_summary_and_requires_exact_fields(self):
+        valid = (
+            '{"transcript":"spoken","translation":"translated",'
+            '"target_override":null}'
+        )
+        self.assertEqual(
+            gemini_audio._parse_result(valid),
+            ("spoken", "translated", None),
+        )
+        with self.assertRaisesRegex(ValueError, "extra=summary"):
+            gemini_audio._parse_result(
+                '{"transcript":"spoken","translation":"translated",'
+                '"target_override":null,"summary":"bad"}'
+            )
+
+    def test_audio_request_uses_required_openai_contract(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"transcript":"spoken","translation":"translated",'
+                                '"target_override":null}'
+                            )
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {},
+            }
+        ).encode()
+        with patch(
+            "app.transcription.gemini_audio.urllib.request.urlopen",
+            return_value=response,
+        ) as urlopen:
+            result = gemini_audio.transcribe_and_translate(
+                b"\x00\x00" * 1600,
+                api_base="https://gateway.example/v1",
+                api_key="test-key",
+                model="joyvoice-fast-audio",
+                source_language="en",
+                target_language="en",
+            )
+
+        request = urlopen.call_args.args[0]
+        body = json.loads(request.data)
+        self.assertEqual(result, ("spoken", "translated", None))
+        self.assertEqual(body["model"], "joyvoice-fast-audio")
+        self.assertEqual(body["max_tokens"], 4096)
+        self.assertEqual(body["temperature"], 0)
+        self.assertFalse(body["stream"])
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 180.0)
+        audio_part = body["messages"][0]["content"][1]
+        self.assertEqual(audio_part["type"], "input_audio")
+        self.assertEqual(audio_part["input_audio"]["format"], "wav")
+
+    def test_audio_timeout_is_not_retried(self):
+        with patch(
+            "app.transcription.gemini_audio.urllib.request.urlopen",
+            side_effect=TimeoutError("write operation timed out"),
+        ) as urlopen:
+            with self.assertRaises(TimeoutError):
+                gemini_audio.transcribe_and_translate(
+                    b"\x00\x00" * 1600,
+                    api_base="https://gateway.example/v1",
+                    api_key="test-key",
+                    model="joyvoice-fast-audio",
+                    source_language="en",
+                    target_language="en",
+                )
+
+        urlopen.assert_called_once()
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 180.0)
+
+
+class TestSingleInstanceLock(unittest.TestCase):
+    def test_second_instance_is_rejected(self):
+        self.assertTrue(hasattr(main_mod, "_acquire_instance_lock"))
+
+        with TemporaryDirectory() as temp_dir:
+            lock_path = Path(temp_dir) / "joyvoice.instance.lock"
+            first_lock = QLockFile(str(lock_path))
+            self.assertTrue(first_lock.tryLock(0))
+            previous_lock = getattr(main_mod, "_INSTANCE_LOCK", None)
+            try:
+                with patch.object(main_mod.paths, "data_dir", return_value=Path(temp_dir)):
+                    main_mod._INSTANCE_LOCK = None
+                    self.assertFalse(main_mod._acquire_instance_lock())
+            finally:
+                first_lock.unlock()
+                main_mod._INSTANCE_LOCK = previous_lock
 
 
 class TestTextStyleRoutesAndChunkingRegression(unittest.TestCase):

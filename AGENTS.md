@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-06 (v2.3.8) — Google ASR primary by default (Gemini native audio opt-in via JV_NATIVE_AUDIO=true), Gemini text LLM translation and style processing, transcript salvage on translation failure, lossless style-specific prompt contracts, 4000-char cohesive AI prompt context, glass-morphism widget, full robustness features, call muting selector with toasts, and canonical release workflow._
+> _Last updated 2026-08-08 (v2.3.9) — optional native audio through the verified joyvoice-fast-audio gateway alias, exact three-field response contract, 180-second upload/response timeout with no timeout retry, Gemini text LLM translation and style processing, transcript salvage on fallback failure, glass-morphism widget, full robustness features, call muting selector with toasts, and canonical release workflow._
 
 ---
 
@@ -47,8 +47,8 @@ Cloud mode is the default: zero local models, zero GPU, pure cloud pipeline. Fre
 | **Python version**    | 3.11.9                                                                 |
 | **API base**          | `https://gpt.bdx.market/v1`                                            |
 | **API key env var**   | `JV_API_KEY` (required; NEVER hardcode)                                |
-| **Audio model**       | `gemini-3.6-flash`                                                     |
-| **Text model**        | `gemini-3.6-flash` (same model, text mode)                             |
+| **Audio model**       | `joyvoice-fast-audio` (verified gateway alias)                         |
+| **Text model**        | `gemini-3.6-flash` (separate text mode)                                |
 | **Widget size**       | 200×80 px, glass-morphism pill                                         |
 | **Sample rate**       | 16,000 Hz mono float32                                                 |
 | **Max recording**     | 300 seconds (runaway guard)                                            |
@@ -379,8 +379,8 @@ Every persisted key in `%APPDATA%\JoyVoice\settings.json`:
 | `call_mute_hotkeys`        | `{}`              | `dict[str,str]`   | Custom per-app mute hotkey mappings (e.g. `{"discord.exe": "Ctrl+Alt+Shift+F12"}`)                                            |
 | `api_base`                 | `""`              | `str`             | OpenAI-compatible base URL (ends in `/v1`); blank → `JV_API_BASE` env → built-in default                                      |
 | `api_key`                  | `""`              | `str`             | API key stored locally; blank falls back to `JV_API_KEY` env var                                                              |
-| `audio_model`              | `""`              | `str`             | Audio transcription model; blank = `gemini-3.6-flash`                                                                         |
-| `text_model`               | `""`              | `str`             | Translation / AI-style text model; blank = `gemini-3.6-flash`                                                                 |
+| `audio_model`              | `"joyvoice-fast-audio"` | `str`        | Native audio alias; used only after gateway `/models` verification                                                            |
+| `text_model`               | `"gemini-3.6-flash"` | `str`          | Translation / AI-style text model                                                                                              |
 | `engine_mode`              | `"cloud"`         | `str`             | Active engine: `"cloud"` (uses API key) or `"free"` (local models, no API key)                                                |
 | `free_asr_model`           | `"small"`         | `str`             | Free Mode local Whisper model: `"tiny"`, `"base"`, or `"small"`                                                               |
 | `free_device`              | `"auto"`          | `str`             | Free Mode device: `"auto"` (GPU if available) or `"cpu"`                                                                      |
@@ -549,7 +549,7 @@ transcript = result.get("transcript", "").strip()
 translation = result.get("translation", "").strip()
 ````
 
-**Field names are `"transcript"` and `"translation"`** — NOT `"bengali_transcript"` and `"english_translation"` (those were from an earlier version of the prompt). If you change the prompt's JSON structure, you MUST update the parser.
+**Native audio field names are exactly `"transcript"`, `"translation"`, and `"target_override"`** — NOT `"bengali_transcript"`, `"english_translation"`, or a `summary` field. If you change the prompt's JSON structure, you MUST update the parser.
 
 ---
 
@@ -957,11 +957,11 @@ Text endpoint:   POST /chat/completions  (standard chat completion)
 Models endpoint: GET  /models            (list available models)
 ```
 
-**Configuration:** The endpoint, API key, and models are configurable in Settings → API tab. Resolution precedence: settings.json value → environment variable (`JV_API_BASE` / `JV_API_KEY`) → built-in default (base `https://gpt.bdx.market/v1`, model `gemini-3.6-flash`).
+**Configuration:** The endpoint, API key, and models are configurable in Settings → API tab. Resolution precedence: settings.json value → environment variable (`JV_API_BASE` / `JV_API_KEY`) → built-in defaults (base `https://gpt.bdx.market/v1`, audio `joyvoice-fast-audio`, text `gemini-3.6-flash`). Native audio uses a 180-second complete HTTP request timeout and never retries a timeout.
 
 **Available models:** The live gateway catalog is documented in `docs/API.md`. The catalog is dynamic; query `GET /models` for the authoritative current list.
 
-**Default model:** `gemini-3.6-flash` for both audio and text (gateway `https://gpt.bdx.market/v1`).
+**Default models:** `joyvoice-fast-audio` for verified native audio and `gemini-3.6-flash` for text (gateway `https://gpt.bdx.market/v1`).
 
 ---
 

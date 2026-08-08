@@ -7,6 +7,8 @@ import io
 import json
 import logging
 import re
+import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -81,6 +83,12 @@ LANGUAGES = {
 }
 
 _VALID_CODES = set(LANGUAGES.keys())
+JOYVOICE_AUDIO_MODEL = "joyvoice-fast-audio"
+VERIFIED_AUDIO_FALLBACK_MODEL = "gemini-3.6-flash"
+NATIVE_AUDIO_TIMEOUT_S = 180.0
+_MODEL_VERIFY_TTL_S = 300.0
+_MODEL_VERIFY_CACHE: dict[tuple[str, str], tuple[float, str]] = {}
+_MODEL_VERIFY_LOCK = threading.Lock()
 
 
 def _wav_base64(pcm16: bytes) -> str:
@@ -93,11 +101,76 @@ def _wav_base64(pcm16: bytes) -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def resolve_audio_model(
+    api_base: str,
+    api_key: str,
+    requested_model: str,
+    *,
+    timeout: float = 10.0,
+) -> str:
+    """Use the JoyVoice alias only after the gateway advertises it."""
+    requested = (requested_model or "").strip() or VERIFIED_AUDIO_FALLBACK_MODEL
+    if requested != JOYVOICE_AUDIO_MODEL:
+        return requested
+
+    cache_key = (api_base.rstrip("/"), requested)
+    now = time.monotonic()
+    with _MODEL_VERIFY_LOCK:
+        cached = _MODEL_VERIFY_CACHE.get(cache_key)
+        if cached and now - cached[0] < _MODEL_VERIFY_TTL_S:
+            return cached[1]
+
+    fallback = VERIFIED_AUDIO_FALLBACK_MODEL
+    try:
+        request = urllib.request.Request(
+            f"{api_base.rstrip('/')}/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read())
+        ids = {
+            str(item.get("id"))
+            for item in payload.get("data", [])
+            if isinstance(item, dict) and item.get("id")
+        }
+    except Exception as exc:
+        logger.warning(
+            "Audio model alias %s could not be verified: %s; using %s",
+            requested, exc, fallback,
+        )
+        selected = fallback
+    else:
+        if requested in ids:
+            selected = requested
+            logger.info("Verified gateway audio model alias: %s", requested)
+        else:
+            selected = fallback
+            logger.warning(
+                "Gateway has not advertised audio model alias %s; using %s",
+                requested, fallback,
+            )
+
+    with _MODEL_VERIFY_LOCK:
+        _MODEL_VERIFY_CACHE[cache_key] = (time.monotonic(), selected)
+    return selected
+
+
 def _parse_result(content: str) -> tuple[str, str, str | None]:
     match = re.search(r"\{.*\}", content, re.DOTALL)
     if not match:
         raise ValueError("Gemini returned no JSON result")
     result = json.loads(match.group())
+    if not isinstance(result, dict):
+        raise ValueError("Gemini returned a non-object audio result")
+    expected_keys = {"transcript", "translation", "target_override"}
+    actual_keys = set(result)
+    if actual_keys != expected_keys:
+        missing = ", ".join(sorted(expected_keys - actual_keys)) or "none"
+        extra = ", ".join(sorted(actual_keys - expected_keys)) or "none"
+        raise ValueError(
+            "Gemini audio result must contain exactly transcript, translation, "
+            f"and target_override (missing={missing}; extra={extra})"
+        )
     raw_transcript = result.get("transcript")
     raw_translation = result.get("translation")
     if not isinstance(raw_transcript, str) or not isinstance(raw_translation, str):
@@ -152,6 +225,7 @@ def transcribe_and_translate(
     model: str,
     source_language: str = "bn",
     target_language: str = "en",
+    timeout: float = NATIVE_AUDIO_TIMEOUT_S,
 ) -> tuple[str, str, str | None]:
     """Return a faithful transcript, translation, and optional target override.
 
@@ -167,6 +241,7 @@ def transcribe_and_translate(
         (transcript, translation, target_override_or_None)
         transcript has trailing override commands stripped when possible.
         translation is in the effective target language (override or default).
+        timeout is the complete HTTP request timeout, including upload and response.
     """
     src = LANGUAGES.get(source_language, LANGUAGES["bn"])
     tgt = LANGUAGES.get(target_language, LANGUAGES["en"])
@@ -216,12 +291,14 @@ def transcribe_and_translate(
         f"- Do NOT treat content mentions as overrides (e.g. 'I want to learn Russian' or "
         f"'Russian market is big' must keep target_override=null).\n"
         f"- Allowed language codes: {lang_list}.\n"
-        f'JSON shape example: {{"transcript":"...","translation":"...","target_override":null}}'
+        f'JSON shape example: {{"transcript":"...","translation":"...","target_override":null}}. '
+        "Output only this JSON object; do not use a summary field or Markdown fences."
     )
 
     repair_prompt = (
         prompt
-        + "\nCRITICAL REPAIR: Output ONLY valid JSON containing transcript and translation keys. "
+        + "\nCRITICAL REPAIR: Output ONLY valid JSON containing exactly transcript, "
+        "translation, and target_override keys. "
         "Do not call any tools or output any text outside JSON."
     )
     attempts = [prompt, repair_prompt]
@@ -246,6 +323,7 @@ def transcribe_and_translate(
                 # transcript + translation JSON; long speech was truncating mid-sentence.
                 "max_tokens": 4096,
                 "temperature": 0,
+                "stream": False,
             }
         ).encode("utf-8")
         request = urllib.request.Request(
@@ -258,12 +336,27 @@ def transcribe_and_translate(
         )
 
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 body = response.read()
+        except (TimeoutError, socket.timeout) as timeout_exc:
+            logger.error(
+                "Gemini audio request timed out after %.0fs; not retrying: %s",
+                timeout,
+                timeout_exc,
+            )
+            raise
         except urllib.error.HTTPError as http_err:
             from app.transcription.http_errors import http_error_detail
             err_detail = http_error_detail(http_err)
             logger.warning("Gemini audio HTTP error: %s", err_detail)
+            raise
+        except urllib.error.URLError as url_err:
+            if isinstance(url_err.reason, (TimeoutError, socket.timeout)):
+                logger.error(
+                    "Gemini audio request timed out after %.0fs; not retrying: %s",
+                    timeout,
+                    url_err,
+                )
             raise
 
         try:

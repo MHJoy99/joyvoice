@@ -3,6 +3,14 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.3.9 — Fast Native Audio Gateway Release (2026-08-08)
+
+- **Native gateway route:** JoyVoice uses the verified `joyvoice-fast-audio` alias for optional one-request transcription and translation through `input_audio` WAV content.
+- **Gateway safety:** The alias is used only after `GET /models` advertises it; normal text calls remain on the separate text model.
+- **Long-recording timeout:** Native audio upload and response timeout increased to 180 seconds, with explicit timeout logging and no automatic timeout retry.
+- **Response contract:** Native audio requires exactly `transcript`, `translation`, and `target_override`; unexpected fields such as `summary` are rejected.
+- **Release verification:** Gateway live testing succeeded with the alias; the focused suite passes 41 tests, source compilation passes, and release metadata/docs are synchronized.
+
 ## v2.3.8 — Reliable ASR & Fidelity Prompt Contracts (2026-08-06)
 
 This release stabilizes cloud transcription fidelity, fixes long-prompt context truncation, and formalizes prompt delivery contracts:

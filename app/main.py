@@ -18,7 +18,7 @@ import numpy as np
 # Allow `python app/main.py` (repo root not automatically on sys.path).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QLockFile, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
 )
@@ -42,7 +42,7 @@ from app.transcription.command_override import (
     strip_override_command,
 )
 from app.transcription.gemini_audio import LANGUAGES as GEMINI_LANGUAGES
-from app.transcription.gemini_audio import transcribe_and_translate
+from app.transcription.gemini_audio import resolve_audio_model, transcribe_and_translate
 from app.transcription.text_cleaner import clean_text
 from app.ui.floating_widget import FloatingWidget
 from app.ui.settings_window import SettingsWindow
@@ -58,7 +58,9 @@ def _lazy_benchmark_dialog():
 # ── Cloud LLM (translate / rewrite) ────────────────────────────────────────
 
 DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
-DEFAULT_MODEL = "gemini-3.6-flash"  # verified active model on Sub2API (gpt.bdx.market)
+DEFAULT_TEXT_MODEL = "gemini-3.6-flash"
+DEFAULT_AUDIO_MODEL = "joyvoice-fast-audio"  # use only after gateway model verification
+DEFAULT_MODEL = DEFAULT_TEXT_MODEL  # backwards-compatible name for text callers
 
 
 def is_native_audio_enabled() -> bool:
@@ -73,9 +75,33 @@ def is_native_audio_enabled() -> bool:
 # these from settings.json (API tab) at startup and whenever settings are saved.
 API_KEY = os.environ.get("JV_API_KEY", "")
 API_BASE = os.environ.get("JV_API_BASE", DEFAULT_API_BASE).rstrip("/")
-FAST_MODEL = DEFAULT_MODEL
-AUDIO_MODEL = DEFAULT_MODEL
+FAST_MODEL = DEFAULT_TEXT_MODEL
+AUDIO_MODEL = DEFAULT_AUDIO_MODEL
 NATIVE_AUDIO_ENABLED = is_native_audio_enabled()
+_INSTANCE_LOCK: QLockFile | None = None
+
+
+def _acquire_instance_lock() -> bool:
+    """Allow only one JoyVoice process to own the global hotkey."""
+    global _INSTANCE_LOCK
+    if _INSTANCE_LOCK is not None and _INSTANCE_LOCK.isLocked():
+        return True
+
+    lock = QLockFile(str(paths.data_dir() / "joyvoice.instance.lock"))
+    lock.setStaleLockTime(10_000)
+    if not lock.tryLock(0):
+        logger.error("Another JoyVoice instance is already running; exiting.")
+        return False
+
+    _INSTANCE_LOCK = lock
+    return True
+
+
+def _release_instance_lock() -> None:
+    global _INSTANCE_LOCK
+    if _INSTANCE_LOCK is not None:
+        _INSTANCE_LOCK.unlock()
+        _INSTANCE_LOCK = None
 
 
 def resolve_api_config(settings: dict) -> dict:
@@ -86,8 +112,8 @@ def resolve_api_config(settings: dict) -> dict:
         or DEFAULT_API_BASE
     ).rstrip("/")
     api_key = (settings.get("api_key") or "").strip() or os.environ.get("JV_API_KEY", "")
-    audio_model = (settings.get("audio_model") or "").strip() or DEFAULT_MODEL
-    text_model = (settings.get("text_model") or "").strip() or DEFAULT_MODEL
+    audio_model = (settings.get("audio_model") or "").strip() or DEFAULT_AUDIO_MODEL
+    text_model = (settings.get("text_model") or "").strip() or DEFAULT_TEXT_MODEL
     return {
         "api_base": api_base,
         "api_key": api_key,
@@ -387,23 +413,37 @@ class CloudASRWorker(QThread):
         transcript = None
         if NATIVE_AUDIO_ENABLED:
             try:
+                verified_audio_model = resolve_audio_model(
+                    API_BASE,
+                    API_KEY,
+                    AUDIO_MODEL,
+                )
                 transcript, translation, override = transcribe_and_translate(
                     self._audio,
                     api_base=API_BASE,
                     api_key=API_KEY,
-                    model=AUDIO_MODEL,
+                    model=verified_audio_model,
                     source_language=self._lang,
                     target_language=self._target_lang,
                 )
                 if self._cancelled:
                     return
-                logger.info("Gemini audio (%s): %s", AUDIO_MODEL, transcript[:80])
+                logger.info(
+                    "Gemini audio (requested=%s, selected=%s): %s",
+                    AUDIO_MODEL,
+                    verified_audio_model,
+                    transcript[:80],
+                )
                 self.done.emit(transcript, translation, override or "")
                 return
             except Exception as gemini_exc:
                 if self._cancelled:
                     return
-                logger.warning("Gemini audio failed; falling back to Google: %s", gemini_exc)
+                logger.error(
+                    "Gemini native audio failed; no native retry will be attempted; "
+                    "falling back to Google cloud ASR: %s",
+                    gemini_exc,
+                )
         else:
             logger.info("Native audio disabled for %s; using Google ASR", API_BASE)
 
@@ -426,12 +466,28 @@ class CloudASRWorker(QThread):
         except Exception as fallback_exc:
             if self._cancelled:
                 return
-            if transcript and transcript.strip():
+            if transcript and transcript.strip() and self._lang == self._target_lang:
+                # Pasting the ASR result is safe only when the requested target
+                # is already the known source language.  In translation mode,
+                # raw Bangla after a provider outage is worse than no paste.
                 logger.warning(
-                    "Post-transcription translation error (%s); salvaging non-empty transcript.",
+                    "Translation unavailable (%s); source and target are both %s, "
+                    "so preserving the transcript.",
                     fallback_exc,
+                    self._target_lang,
                 )
                 self.done.emit(transcript.strip(), transcript.strip(), "")
+            elif transcript and transcript.strip():
+                logger.error(
+                    "Translation unavailable (%s); refusing to paste untranslated "
+                    "transcript (source=%s, target=%s).",
+                    fallback_exc,
+                    self._lang or "auto",
+                    self._target_lang,
+                )
+                self.failed.emit(
+                    "Translation unavailable; the untranslated transcript was not pasted."
+                )
             else:
                 logger.error("Cloud ASR pipeline failed: %s", fallback_exc)
                 self.failed.emit(str(fallback_exc))
@@ -852,6 +908,12 @@ class AppController:
         model_ov = model_override.strip().lower() if model_override else None
         if model_ov == "":
             model_ov = None
+        if model_ov == settings_target:
+            logger.info(
+                "Ignoring redundant target override %s because it matches the configured target",
+                model_ov,
+            )
+            model_ov = None
 
         # Detect on source transcript AND on the model translation — Gemini often
         # fully translates the spoken command into English ("… into Russian …"),
@@ -887,29 +949,12 @@ class AppController:
             self.widget.set_language_badge(src_badge, override)
             self.widget.show_toast(f"Override → {override.upper()}")
             logger.info(
-                "One-shot target override: %s (settings remain %s); forcing retranslate",
-                override, settings_target,
+                "One-shot target override: %s (settings remain %s); using native translation",
+                override,
+                settings_target,
             )
 
-            # CRITICAL: do not trust the audio-model translation when override is set.
-            # Gemini often detects the command but still translates into the settings
-            # target (English). Always re-run a dedicated text translation.
-            if cleaned_transcript.strip():
-                try:
-                    translation = cloud_llm_rewrite(
-                        cleaned_transcript,
-                        "translate_to_target",
-                        target_language=effective_target,
-                    )
-                    logger.info(
-                        "Override retranslate → %s: %s",
-                        effective_target, translation[:80],
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Override retranslate failed, using original translation: %s", exc
-                    )
-            else:
+            if not cleaned_transcript.strip():
                 # Pure command with no content — nothing useful to paste.
                 self._phase = "idle"
                 self.widget.set_state("error", "No content to translate")
@@ -1250,10 +1295,15 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
+    if not _acquire_instance_lock():
+        app.quit()
+        return 1
+
     controller = AppController()
     controller.widget.show()
 
     app.aboutToQuit.connect(controller.shutdown)
+    app.aboutToQuit.connect(_release_instance_lock)
     QTimer.singleShot(0, safe_slot(controller.maybe_show_first_run))
     return app.exec()
 
