@@ -21,7 +21,7 @@
 - **Release commit/tag:** Published from exact release commit `55fb0f8de8f7d26a04456e2d0e0b7fae3e9fb1e6` with annotated tag `v2.3.9`; the tag points to the release commit.
 - **Public release:** [GitHub release v2.3.9](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.9) · [JoyVoice.exe asset](https://github.com/MHJoy99/joyvoice/releases/download/v2.3.9/JoyVoice.exe).
 - **GitHub confirmation:** API confirms `draft=false`, `prerelease=false`, asset state `uploaded`, and the release is publicly reachable.
-- **Binary evidence:** `JoyVoice.exe` is `184437235` bytes, has a valid PE/MZ header, and SHA-256 `43CCAF4235E28FCBED90D069E82D37E32459150D7404BACFCB21D35E78DA3EAD`; GitHub reports the same digest.
+- **Binary evidence:** `JoyVoice.exe` is `184437235` bytes, has a valid PE/MZ header, and SHA-256 `43CCAF4235E28FCBED90D069E82D37E32459150D7404BACFCB21D35E78DA3EAD`; GitHub reports the same digest. An isolated launch smoke test stayed running successfully; a separate launch while the developer copy was open exited with the expected single-instance guard.
 - **Verification gates:** 41/41 focused tests passed; Python compilation, `git diff --check`, pre-commit guard, pre-push guard, exact-tag PyInstaller build, live alias verification, and the release asset upload check passed.
 - **SEO/discovery:** Repository description, homepage, topics, README, schema, `index.html`, `llms.txt`, `llms-full.txt`, sitemap, and release notes reference the fast native audio route and v2.3.9.
 
