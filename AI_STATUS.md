@@ -4,7 +4,7 @@
 
 - **Updated Date**: 2026-08-08
 - **Focus**: JoyVoice v2.3.9 native gateway audio release and public distribution.
-- **Phase**: Release Candidate Verified; GitHub Publication In Progress
+- **Phase**: Public Release Complete; GitHub Publication Verified
 
 ### Session Log — 2026-08-08
 
@@ -14,7 +14,16 @@
 - **Client contract:** Sends mono 16-bit 16 kHz WAV as OpenAI `input_audio`, uses `max_tokens=4096`, `temperature=0`, `stream=false`, and validates exactly `transcript`, `translation`, and `target_override`.
 - **Long-recording behavior:** Complete native HTTP timeout is 180 seconds; timeout failures are logged and not retried automatically.
 - **Latest real run:** Native alias selected at 2026-08-08 22:17 local time; total pipeline latency 5.70 seconds for a longer recording.
-- **Verification:** 41 focused tests passed; Python compilation, `git diff --check`, live model catalog verification, and diff secret scan passed. Public release gates remain: guard scripts, exact-tag build, commit/push, and GitHub release asset verification.
+- **Verification:** 41 focused tests passed; Python compilation, `git diff --check`, live model catalog verification, and diff secret scan passed. Pre-commit and pre-push guards passed. The exact-tag executable build succeeded and the public release asset was verified through the GitHub API.
+
+#### Closeout — v2.3.9 Public Release (2026-08-08)
+
+- **Release commit/tag:** Published from exact release commit `55fb0f8de8f7d26a04456e2d0e0b7fae3e9fb1e6` with annotated tag `v2.3.9`; the tag points to the release commit.
+- **Public release:** [GitHub release v2.3.9](https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.9) · [JoyVoice.exe asset](https://github.com/MHJoy99/joyvoice/releases/download/v2.3.9/JoyVoice.exe).
+- **GitHub confirmation:** API confirms `draft=false`, `prerelease=false`, asset state `uploaded`, and the release is publicly reachable.
+- **Binary evidence:** `JoyVoice.exe` is `184437235` bytes, has a valid PE/MZ header, and SHA-256 `43CCAF4235E28FCBED90D069E82D37E32459150D7404BACFCB21D35E78DA3EAD`; GitHub reports the same digest.
+- **Verification gates:** 41/41 focused tests passed; Python compilation, `git diff --check`, pre-commit guard, pre-push guard, exact-tag PyInstaller build, live alias verification, and the release asset upload check passed.
+- **SEO/discovery:** Repository description, homepage, topics, README, schema, `index.html`, `llms.txt`, `llms-full.txt`, sitemap, and release notes reference the fast native audio route and v2.3.9.
 
 ### Session Log — 2026-08-06
 
