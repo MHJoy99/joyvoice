@@ -107,8 +107,12 @@ def resolve_audio_model(
     requested_model: str,
     *,
     timeout: float = 10.0,
+    job_id: int = 0,
 ) -> str:
-    """Use the JoyVoice alias only after the gateway advertises it."""
+    """Use the JoyVoice alias only after the gateway advertises it.
+
+    Never logs api_key — only base URL host and model names.
+    """
     requested = (requested_model or "").strip() or VERIFIED_AUDIO_FALLBACK_MODEL
     if requested != JOYVOICE_AUDIO_MODEL:
         return requested
@@ -137,17 +141,22 @@ def resolve_audio_model(
         logger.warning(
             "Audio model alias %s could not be verified: %s; using %s",
             requested, exc, fallback,
+            extra={"job_id": job_id, "phase": "transcribing"},
         )
         selected = fallback
     else:
         if requested in ids:
             selected = requested
-            logger.info("Verified gateway audio model alias: %s", requested)
+            logger.info(
+                "Verified gateway audio model alias: %s", requested,
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
         else:
             selected = fallback
             logger.warning(
                 "Gateway has not advertised audio model alias %s; using %s",
                 requested, fallback,
+                extra={"job_id": job_id, "phase": "transcribing"},
             )
 
     with _MODEL_VERIFY_LOCK:
@@ -226,16 +235,18 @@ def transcribe_and_translate(
     source_language: str = "bn",
     target_language: str = "en",
     timeout: float = NATIVE_AUDIO_TIMEOUT_S,
+    job_id: int = 0,
 ) -> tuple[str, str, str | None]:
     """Return a faithful transcript, translation, and optional target override.
 
     Args:
-        pcm16: Raw PCM int16 mono audio at 16 kHz.
+        pcm16: Raw PCM int16 mono audio at 16 kHz (never logged, only len).
         api_base: API base URL (e.g. 'https://gpt.bdx.market/v1').
-        api_key: API key.
+        api_key: API key (never logged).
         model: Model name (e.g. 'gemini-3.1-flash-lite').
         source_language: Language code from LANGUAGES dict (default 'bn').
         target_language: Default language code for the translation (default 'en').
+        job_id: Correlation ID for end-to-end tracing.
 
     Returns:
         (transcript, translation, target_override_or_None)
@@ -243,6 +254,14 @@ def transcribe_and_translate(
         translation is in the effective target language (override or default).
         timeout is the complete HTTP request timeout, including upload and response.
     """
+    _extra = {"job_id": job_id, "phase": "transcribing"}
+    logger.info(
+        "Gemini audio start (model=%s, audio_bytes=%d, duration=%.2fs, "
+        "source=%s, target=%s)",
+        model, len(pcm16 or b""), (len(pcm16 or b"") / 32000.0),
+        source_language, target_language,
+        extra=_extra,
+    )
     src = LANGUAGES.get(source_language, LANGUAGES["bn"])
     tgt = LANGUAGES.get(target_language, LANGUAGES["en"])
     target_name = tgt["name"]
@@ -343,12 +362,16 @@ def transcribe_and_translate(
                 "Gemini audio request timed out after %.0fs; not retrying: %s",
                 timeout,
                 timeout_exc,
+                extra=_extra,
             )
             raise
         except urllib.error.HTTPError as http_err:
             from app.transcription.http_errors import http_error_detail
             err_detail = http_error_detail(http_err)
-            logger.warning("Gemini audio HTTP error: %s", err_detail)
+            logger.warning(
+                "Gemini audio HTTP error: %s", err_detail,
+                extra=_extra,
+            )
             raise
         except urllib.error.URLError as url_err:
             if isinstance(url_err.reason, (TimeoutError, socket.timeout)):
@@ -356,6 +379,7 @@ def transcribe_and_translate(
                     "Gemini audio request timed out after %.0fs; not retrying: %s",
                     timeout,
                     url_err,
+                    extra=_extra,
                 )
             raise
 
@@ -364,7 +388,8 @@ def transcribe_and_translate(
         except json.JSONDecodeError as json_err:
             if attempt_idx == 0:
                 logger.warning(
-                    "Gemini audio invalid response JSON on attempt 1 (%s); retrying", json_err
+                    "Gemini audio invalid response JSON on attempt 1 (%s); retrying", json_err,
+                    extra=_extra,
                 )
                 continue
             raise ValueError(f"Gemini returned invalid response JSON: {json_err}") from json_err
@@ -396,18 +421,28 @@ def transcribe_and_translate(
                 usage.get("prompt_tokens"),
                 usage.get("completion_tokens"),
                 usage.get("total_tokens"),
+                extra=_extra,
             )
 
         try:
             content = _extract_content(result)
-            return _parse_result(content)
+            transcript, translation, override = _parse_result(content)
+            logger.info(
+                "Gemini audio done (model=%s, latency=%.2fs, "
+                "transcript_chars=%d, translation_chars=%d, override=%s)",
+                model, latency_s,
+                len(transcript or ""), len(translation or ""), override or "none",
+                extra=_extra,
+            )
+            return transcript, translation, override
         except ValueError as exc:
             retry_reason = str(exc)
             if "finish_reason='length'" in retry_reason:
                 raise
             if attempt_idx == 0:
                 logger.warning(
-                    "Gemini audio contract failure on attempt 1 (%s); retrying", retry_reason
+                    "Gemini audio contract failure on attempt 1 (%s); retrying", retry_reason,
+                    extra=_extra,
                 )
                 continue
             if retry_reason == "invalid response choices structure":

@@ -69,7 +69,7 @@ class TestCloudASRChunked(unittest.TestCase):
 
         self.assertEqual(res, "Hello world")
         self.assertEqual(mock_transcribe.call_count, 1)
-        mock_transcribe.assert_called_with(pcm, language="en")
+        mock_transcribe.assert_called_with(pcm, language="en", job_id=0)
 
     @patch("app.transcription.cloud_asr.transcribe")
     def test_long_audio_sequential_chunks(self, mock_transcribe):
@@ -580,7 +580,7 @@ class TestLongTextTranslation(unittest.TestCase):
 
     @patch("app.main._single_llm_call")
     def test_cloud_llm_rewrite_long_text_split_join(self, mock_single_call):
-        mock_single_call.side_effect = lambda text, style, target_language="en": f"Translated: {text[:10]}"
+        mock_single_call.side_effect = lambda text, style, target_language="en", job_id=0: f"Translated: {text[:10]}"
 
         long_text = ("First long paragraph sentence one. First long paragraph sentence two. " * 25) + ("\nSecond long paragraph sentence one. Second long paragraph sentence two. " * 25)
 
@@ -638,8 +638,8 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
             worker.run()
 
         mock_transcribe_translate.assert_not_called()
-        mock_asr_chunked.assert_called_once_with(b"audio", "en")
-        mock_llm_rewrite.assert_called_once_with("Hello world transcript", "translate_to_target", target_language="en")
+        mock_asr_chunked.assert_called_once_with(b"audio", "en", job_id=0)
+        mock_llm_rewrite.assert_called_once_with("Hello world transcript", "translate_to_target", target_language="en", job_id=0)
         done_mock.assert_called_once_with("Hello world transcript", "Hello world translation", "")
         failed_mock.assert_not_called()
 
@@ -903,7 +903,7 @@ class TestTextStyleRoutesAndChunkingRegression(unittest.TestCase):
         ]
         sample_input = "Hello world text sample"
 
-        mock_single_call.side_effect = lambda text, style, target_language="en": f"Mocked output for {style}"
+        mock_single_call.side_effect = lambda text, style, target_language="en", job_id=0: f"Mocked output for {style}"
 
         for style in styles:
             mock_single_call.reset_mock()
@@ -931,7 +931,7 @@ class TestTextStyleRoutesAndChunkingRegression(unittest.TestCase):
 
         self.assertEqual(res, "Mocked single prompt output")
         self.assertEqual(mock_single_call.call_count, 1)
-        mock_single_call.assert_called_once_with(long_input.strip(), "prompt_for_ai", target_language="en")
+        mock_single_call.assert_called_once_with(long_input.strip(), "prompt_for_ai", target_language="en", job_id=0)
 
     @patch("app.main._single_llm_call")
     def test_long_bengali_prompt_for_ai_chunking_routing(self, mock_single_call):
@@ -940,7 +940,7 @@ class TestTextStyleRoutesAndChunkingRegression(unittest.TestCase):
 
         self.assertGreater(len(long_bengali_input), 4000)
 
-        mock_single_call.side_effect = lambda text, style, target_language="en": f"[AI_STYLE:{style}:{len(text)}]"
+        mock_single_call.side_effect = lambda text, style, target_language="en", job_id=0: f"[AI_STYLE:{style}:{len(text)}]"
 
         output = main_mod.cloud_llm_rewrite(long_bengali_input, "prompt_for_ai", target_language="en")
 
