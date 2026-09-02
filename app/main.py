@@ -648,14 +648,10 @@ class PasteWorker(QThread):
 
 AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s [job=%(job_id)s phase=%(phase)s]: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(paths.log_path(), encoding="utf-8"),
-    ],
-)
+from app.logging_setup import log_startup_banner as _log_startup_banner
+from app.logging_setup import setup_logging as _setup_logging
+
+_setup_logging()
 
 
 class _JobPhaseFilter(logging.Filter):
@@ -691,6 +687,10 @@ class AppController:
     def __init__(self) -> None:
         self.settings = settings_store.load()
         apply_api_config(self.settings)
+        try:
+            _log_startup_banner(self.settings)
+        except Exception:
+            pass
 
         self.widget = FloatingWidget()
         self.recorder = Recorder()
