@@ -54,16 +54,27 @@ def paste_text(
     wait_for_release: bool = True,
     restore_delay_s: float = 1.5,
     retries: int = 3,
+    job_id: int = 0,
 ) -> Optional[str]:
     """Put `text` on the clipboard and (unless copy_only) send Ctrl+V.
 
     Returns an error message on failure, else None. Never raises.
-    
+
     Retries paste up to `retries` times with exponential backoff if
     the target app doesn't accept the first Ctrl+V (common in browsers
     and Electron apps after rapid window switches).
+
+    Tracing: logs outcome (copied/pasted/failed) with latency and
+    output_chars. Never logs text content, only lengths. QThread-safe.
     """
+    _extra = {"job_id": job_id, "phase": "pasting"}
+    t0 = time.monotonic()
     if not text:
+        logger.warning(
+            "Paste failed (outcome=failed, latency=%.2fs): nothing to paste",
+            time.monotonic() - t0,
+            extra=_extra,
+        )
         return "Nothing to paste"
 
     # ── clipboard save (always succeeds or fails fast) ──
@@ -76,12 +87,28 @@ def paste_text(
     try:
         pyperclip.copy(text)
     except Exception as exc:
+        logger.error(
+            "Paste failed (outcome=failed, latency=%.2fs, out_chars=%d): clipboard error: %s",
+            time.monotonic() - t0, len(text or ""), exc,
+            extra=_extra,
+        )
         return f"Clipboard error: {exc}"
 
     if copy_only:
+        logger.info(
+            "Paste outcome=copied (copy_only, latency=%.2fs, out_chars=%d)",
+            time.monotonic() - t0, len(text or ""),
+            extra=_extra,
+        )
         return None
 
     if keyboard is None:
+        logger.warning(
+            "Paste outcome=copied (paste failed, backend unavailable, latency=%.2fs, "
+            "out_chars=%d)",
+            time.monotonic() - t0, len(text or ""),
+            extra=_extra,
+        )
         return "Hotkey backend unavailable; text copied to clipboard only"
 
     if wait_for_release:
@@ -96,6 +123,11 @@ def paste_text(
             keyboard.send("ctrl+v")
         except Exception as exc:
             if attempt == retries - 1:
+                logger.error(
+                    "Paste outcome=failed (latency=%.2fs, attempts=%d, out_chars=%d): %s",
+                    time.monotonic() - t0, attempt + 1, len(text or ""), exc,
+                    extra=_extra,
+                )
                 return f"Paste error: {exc}"
             time.sleep(0.3)
             continue
@@ -112,6 +144,16 @@ def paste_text(
             import threading
             threading.Thread(target=_restore, daemon=True).start()
 
+        logger.info(
+            "Paste outcome=pasted (latency=%.2fs, attempts=%d, out_chars=%d)",
+            time.monotonic() - t0, attempt + 1, len(text or ""),
+            extra=_extra,
+        )
         return None
 
+    logger.error(
+        "Paste outcome=failed (latency=%.2fs, attempts=%d, out_chars=%d): retries exhausted",
+        time.monotonic() - t0, retries, len(text or ""),
+        extra=_extra,
+    )
     return "Paste failed after retries"

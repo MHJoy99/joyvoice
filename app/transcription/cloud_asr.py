@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import io
 import re
+import time
 import speech_recognition as sr
 
 logger = logging.getLogger("joyvoice.cloud_asr")
@@ -54,26 +55,32 @@ def _language_likelihood(text: str, language: str) -> int:
     return (latin_count * 2) + (len(english_words & _ENGLISH_HINTS) * 4) - bengali_count
 
 
-def transcribe_auto(audio_bytes: bytes) -> str:
+def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
     """Recognize Bangla/English audio without passing ``None`` to Google.
 
     SpeechRecognition 3.17 rejects ``language=None`` and Google Web Speech has
     no automatic language mode through this client.  Try both supported
     bilingual inputs, then choose the transcript with the stronger language
     evidence.  If only one recognizer understands the audio, its result wins.
+
+    QThread-safe: logger calls only. Never logs raw audio, only lengths.
     """
+    _extra = {"job_id": job_id, "phase": "transcribing"}
     candidates: list[tuple[str, str]] = []
     errors: list[Exception] = []
 
     for code in AUTO_LANGUAGE_CODES:
         try:
-            text = transcribe(audio_bytes, language=code)
+            text = transcribe(audio_bytes, language=code, job_id=job_id)
         except sr.UnknownValueError as exc:
             errors.append(exc)
             continue
         except Exception as exc:
             errors.append(exc)
-            logger.warning("Google ASR auto candidate %s failed: %s", code, exc)
+            logger.warning(
+                "Google ASR auto candidate %s failed: %s", code, exc,
+                extra=_extra,
+            )
             continue
         if text and text.strip():
             candidates.append((code, text.strip()))
@@ -88,19 +95,24 @@ def transcribe_auto(audio_bytes: bytes) -> str:
         key=lambda item: _language_likelihood(item[1], item[0]),
     )
     logger.info(
-        "Google ASR auto selected lang=%s: %s",
+        "Google ASR auto selected lang=%s, chars=%d: %s",
         GOOGLE_LANGUAGE_TAGS[selected_code],
+        len(selected_text),
         selected_text[:80],
+        extra=_extra,
     )
     return selected_text
 
 
-def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
+def transcribe(
+    audio_bytes: bytes, language: str | None = None, job_id: int = 0
+) -> str:
     """Transcribe PCM audio via Google Web Speech API.
 
     Args:
-        audio_bytes: Raw PCM int16 mono audio at 16 kHz.
+        audio_bytes: Raw PCM int16 mono audio at 16 kHz (never logged, only len).
         language: BCP-47 language tag (e.g. 'bn-BD', 'en-US', or None for auto).
+        job_id: Correlation ID minted in AppController.start_recording.
 
     Returns:
         Transcribed text string.
@@ -109,8 +121,9 @@ def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
         sr.UnknownValueError: Speech was unintelligible.
         sr.RequestError: API unreachable or over rate-limit.
     """
+    _extra = {"job_id": job_id, "phase": "transcribing"}
     if language in (None, "", "auto"):
-        return transcribe_auto(audio_bytes)
+        return transcribe_auto(audio_bytes, job_id=job_id)
 
     recognizer = sr.Recognizer()
 
@@ -118,8 +131,14 @@ def transcribe(audio_bytes: bytes, language: str | None = None) -> str:
     audio_data = sr.AudioData(audio_bytes, sample_rate=16000, sample_width=2)
 
     lang = GOOGLE_LANGUAGE_TAGS.get(language, language) if language else None
+    t0 = time.monotonic()
     text = recognizer.recognize_google(audio_data, language=lang)
-    logger.info("Google ASR (lang=%s): %s", lang, text[:80])
+    logger.info(
+        "Google ASR done (lang=%s, latency=%.2fs, audio_bytes=%d, chars=%d): %s",
+        lang, time.monotonic() - t0, len(audio_bytes or b""),
+        len(text or ""), (text or "")[:80],
+        extra=_extra,
+    )
     return text
 
 
@@ -127,13 +146,15 @@ def transcribe_chunked(
     audio_bytes: bytes,
     language: str | None = None,
     chunk_seconds: float = 30.0,
+    job_id: int = 0,
 ) -> str:
     """Transcribe PCM audio in sequential chunks of ~30s via Google Web Speech API.
 
     Args:
-        audio_bytes: Raw PCM int16 mono audio at 16 kHz.
+        audio_bytes: Raw PCM int16 mono audio at 16 kHz (never logged, only len).
         language: Language code or BCP-47 tag.
         chunk_seconds: Maximum duration per chunk in seconds (default 30.0).
+        job_id: Correlation ID for end-to-end tracing.
 
     Returns:
         Concatenated non-empty transcribed text string.
@@ -142,6 +163,7 @@ def transcribe_chunked(
         sr.UnknownValueError: If all chunks are unintelligible.
         RuntimeError / Exception: If any chunk errors out.
     """
+    _extra = {"job_id": job_id, "phase": "transcribing"}
     chunk_bytes = int(chunk_seconds * 16000 * 2)
     if chunk_bytes <= 0:
         chunk_bytes = 960000
@@ -156,7 +178,12 @@ def transcribe_chunked(
         ]
 
     total_chunks = len(chunks)
-    logger.info("Google ASR chunked start: total_bytes=%d, chunks=%d", total_len, total_chunks)
+    t0 = time.monotonic()
+    logger.info(
+        "Google ASR chunked start: total_bytes=%d, duration=%.2fs, chunks=%d, lang=%s",
+        total_len, total_len / 32000.0, total_chunks, language or "auto",
+        extra=_extra,
+    )
 
     results: list[str] = []
     unknown_val_count = 0
@@ -168,18 +195,26 @@ def transcribe_chunked(
             chunk_num,
             total_chunks,
             len(chunk),
+            extra=_extra,
         )
         try:
-            text = transcribe(chunk, language=language)
+            text = transcribe(chunk, language=language, job_id=job_id)
             if text and text.strip():
                 results.append(text.strip())
         except sr.UnknownValueError:
-            logger.info("Google ASR chunk %d/%d: unintelligible speech", chunk_num, total_chunks)
+            logger.info(
+                "Google ASR chunk %d/%d: unintelligible speech",
+                chunk_num, total_chunks,
+                extra=_extra,
+            )
             unknown_val_count += 1
             if total_chunks == 1:
                 raise
         except Exception as exc:
-            logger.error("Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc)
+            logger.error(
+                "Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc,
+                extra=_extra,
+            )
             raise RuntimeError(
                 f"Google ASR chunk {chunk_num}/{total_chunks} failed: {exc}"
             ) from exc
@@ -189,4 +224,9 @@ def transcribe_chunked(
             raise sr.UnknownValueError("Speech was unintelligible across all chunks")
         return ""
 
+    logger.info(
+        "Google ASR chunked done: chunks=%d, latency=%.2fs, chars=%d",
+        total_chunks, time.monotonic() - t0, len(" ".join(results)),
+        extra=_extra,
+    )
     return " ".join(results)

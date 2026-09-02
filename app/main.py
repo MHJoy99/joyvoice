@@ -204,12 +204,19 @@ STYLE_PROMPTS = {
 }
 
 
-def _single_llm_call(text: str, style: str, target_language: str = "en") -> str:
-    """Send a single text chunk to cloud LLM."""
+def _single_llm_call(
+    text: str, style: str, target_language: str = "en", job_id: int = 0
+) -> str:
+    """Send a single text chunk to cloud LLM.
+
+    QThread-safe: logger calls only, no Qt. Never logs raw prompt text
+    beyond length counts or api_key.
+    """
     import json, urllib.request, logging, time
     from app.storage import usage_store
     logger = logging.getLogger("joyvoice.llm")
     t0 = time.monotonic()
+    _extra = {"job_id": job_id, "phase": "transcribing"}
 
     if style == "translate_to_target" or style == "translate_to_english":
         tgt = GEMINI_LANGUAGES.get(target_language, GEMINI_LANGUAGES["en"])
@@ -288,10 +295,13 @@ def _single_llm_call(text: str, style: str, target_language: str = "en") -> str:
         }
     )
     logger.info(
-        "LLM rewrite (style=%s, model=%s, target=%s, finish_reason=%s, latency=%.2fs, tokens=%s/%s/%s): %s",
+        "LLM rewrite done (style=%s, model=%s, target=%s, finish_reason=%s, "
+        "latency=%.2fs, tokens=%s/%s/%s, in_chars=%d, out_chars=%d): %s",
         style, FAST_MODEL, target_language, finish_reason, latency_s,
         usage.get("prompt_tokens"), usage.get("completion_tokens"), usage.get("total_tokens"),
+        len(text), len(output),
         output[:80],
+        extra=_extra,
     )
     if finish_reason == "length":
         raise ValueError("LLM response exceeded max_tokens (finish_reason='length')")
@@ -361,8 +371,16 @@ def _split_text_into_chunks(text: str, max_chars: int = 1500) -> list[str]:
     return [c for c in chunks if c]
 
 
-def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str:
-    """Send text to the fastest cloud LLM for cleanup/translation."""
+def cloud_llm_rewrite(
+    text: str, style: str, target_language: str = "en", job_id: int = 0
+) -> str:
+    """Send text to the fastest cloud LLM for cleanup/translation.
+
+    QThread-safe: logger calls only, no Qt. job_id correlates chunks.
+    """
+    import logging as _logging
+    _llm_logger = _logging.getLogger("joyvoice.llm")
+    _extra = {"job_id": job_id, "phase": "transcribing"}
     text_clean = text.strip()
     if not text_clean:
         return ""
@@ -370,11 +388,16 @@ def cloud_llm_rewrite(text: str, style: str, target_language: str = "en") -> str
     max_chars = 4000 if style == "prompt_for_ai" else 1500
     chunks = _split_text_into_chunks(text_clean, max_chars=max_chars)
     if len(chunks) <= 1:
-        return _single_llm_call(text_clean, style, target_language=target_language)
+        return _single_llm_call(text_clean, style, target_language=target_language, job_id=job_id)
 
+    _llm_logger.info(
+        "LLM chunked start (style=%s, target=%s, chunks=%d, in_chars=%d)",
+        style, target_language, len(chunks), len(text_clean),
+        extra=_extra,
+    )
     translated_chunks: list[str] = []
     for idx, chunk in enumerate(chunks):
-        res = _single_llm_call(chunk, style, target_language=target_language)
+        res = _single_llm_call(chunk, style, target_language=target_language, job_id=job_id)
         if res.strip():
             translated_chunks.append(res.strip())
 
@@ -408,15 +431,30 @@ class CloudASRWorker(QThread):
         self._cancelled = True
 
     def run(self) -> None:
+        # QThread-safe: logger calls only, never touch Qt widgets here.
+        # Never log raw audio bytes or api_key — only lengths and model names.
+        import time as _time
+        _extra = {"job_id": self.job_id, "phase": "transcribing"}
         if self._cancelled:
             return
+        _t0 = _time.monotonic()
+        _audio_len = len(self._audio) if self._audio is not None else 0
+        _audio_dur = _audio_len / 32000.0 if _audio_len else 0.0
         transcript = None
         if NATIVE_AUDIO_ENABLED:
             try:
+                logger.info(
+                    "ASR start (engine=native-audio, audio_bytes=%d, duration=%.2fs, "
+                    "source=%s, target=%s, requested_model=%s)",
+                    _audio_len, _audio_dur, self._lang or "auto",
+                    self._target_lang, AUDIO_MODEL,
+                    extra=_extra,
+                )
                 verified_audio_model = resolve_audio_model(
                     API_BASE,
                     API_KEY,
                     AUDIO_MODEL,
+                    job_id=self.job_id,
                 )
                 transcript, translation, override = transcribe_and_translate(
                     self._audio,
@@ -425,14 +463,19 @@ class CloudASRWorker(QThread):
                     model=verified_audio_model,
                     source_language=self._lang,
                     target_language=self._target_lang,
+                    job_id=self.job_id,
                 )
                 if self._cancelled:
                     return
                 logger.info(
-                    "Gemini audio (requested=%s, selected=%s): %s",
+                    "ASR done (engine=native-audio, requested=%s, selected=%s, "
+                    "latency=%.2fs, transcript_chars=%d): %s",
                     AUDIO_MODEL,
                     verified_audio_model,
-                    transcript[:80],
+                    _time.monotonic() - _t0,
+                    len(transcript or ""),
+                    (transcript or "")[:80],
+                    extra=_extra,
                 )
                 self.done.emit(transcript, translation, override or "")
                 return
@@ -440,15 +483,25 @@ class CloudASRWorker(QThread):
                 if self._cancelled:
                     return
                 logger.error(
-                    "Gemini native audio failed; no native retry will be attempted; "
-                    "falling back to Google cloud ASR: %s",
+                    "ASR failed (engine=native-audio, latency=%.2fs): %s; "
+                    "falling back to Google cloud ASR",
+                    _time.monotonic() - _t0,
                     gemini_exc,
+                    extra=_extra,
                 )
         else:
-            logger.info("Native audio disabled for %s; using Google ASR", API_BASE)
+            logger.info(
+                "ASR start (engine=google, audio_bytes=%d, duration=%.2fs, "
+                "source=%s, target=%s, api_base=%s)",
+                _audio_len, _audio_dur, self._lang or "auto",
+                self._target_lang, API_BASE,
+                extra=_extra,
+            )
 
         try:
-            transcript = cloud_asr_transcribe_chunked(self._audio, self._lang)
+            transcript = cloud_asr_transcribe_chunked(
+                self._audio, self._lang, job_id=self.job_id
+            )
             if self._cancelled:
                 return
             if not transcript or not transcript.strip():
@@ -457,11 +510,22 @@ class CloudASRWorker(QThread):
             effective, override, cleaned = resolve_effective_target(
                 transcript, self._target_lang, None
             )
+            _llm_t0 = _time.monotonic()
             translation = cloud_llm_rewrite(
-                cleaned, "translate_to_target", target_language=effective
+                cleaned, "translate_to_target", target_language=effective,
+                job_id=self.job_id,
             )
+            _llm_s = _time.monotonic() - _llm_t0
             if self._cancelled:
                 return
+            logger.info(
+                "ASR done (engine=google, latency=%.2fs, llm_translate=%.2fs, "
+                "audio_bytes=%d, transcript_chars=%d): %s",
+                _time.monotonic() - _t0, _llm_s, _audio_len,
+                len(transcript or ""),
+                (transcript or "")[:80],
+                extra=_extra,
+            )
             self.done.emit(cleaned, translation, override or "")
         except Exception as fallback_exc:
             if self._cancelled:
@@ -471,25 +535,33 @@ class CloudASRWorker(QThread):
                 # is already the known source language.  In translation mode,
                 # raw Bangla after a provider outage is worse than no paste.
                 logger.warning(
-                    "Translation unavailable (%s); source and target are both %s, "
-                    "so preserving the transcript.",
-                    fallback_exc,
+                    "ASR translate fallback — preserving transcript "
+                    "(latency=%.2fs, source=target=%s): %s",
+                    _time.monotonic() - _t0,
                     self._target_lang,
+                    fallback_exc,
+                    extra=_extra,
                 )
                 self.done.emit(transcript.strip(), transcript.strip(), "")
             elif transcript and transcript.strip():
                 logger.error(
-                    "Translation unavailable (%s); refusing to paste untranslated "
-                    "transcript (source=%s, target=%s).",
-                    fallback_exc,
+                    "ASR failed — refusing untranslated transcript "
+                    "(latency=%.2fs, source=%s, target=%s): %s",
+                    _time.monotonic() - _t0,
                     self._lang or "auto",
                     self._target_lang,
+                    fallback_exc,
+                    extra=_extra,
                 )
                 self.failed.emit(
                     "Translation unavailable; the untranslated transcript was not pasted."
                 )
             else:
-                logger.error("Cloud ASR pipeline failed: %s", fallback_exc)
+                logger.error(
+                    "ASR failed (engine=google, latency=%.2fs): %s",
+                    _time.monotonic() - _t0, fallback_exc,
+                    extra=_extra,
+                )
                 self.failed.emit(str(fallback_exc))
 
 
@@ -510,30 +582,52 @@ class CloudLLMWorker(QThread):
         self._cancelled = True
 
     def run(self) -> None:
+        # QThread-safe: logger calls only, no Qt.
+        import time as _time
+        _extra = {"job_id": self.job_id, "phase": "transcribing"}
         if self._cancelled:
             return
+        _t0 = _time.monotonic()
+        logger.info(
+            "LLM start (style=%s, target=%s, model=%s, in_chars=%d)",
+            self._style, self._target_language, FAST_MODEL, len(self._text or ""),
+            extra=_extra,
+        )
         try:
-            self.done.emit(
-                cloud_llm_rewrite(
-                    self._text, self._style, target_language=self._target_language
-                )
+            result = cloud_llm_rewrite(
+                self._text, self._style, target_language=self._target_language,
+                job_id=self.job_id,
             )
+            if self._cancelled:
+                return
+            logger.info(
+                "LLM done (style=%s, latency=%.2fs, out_chars=%d)",
+                self._style, _time.monotonic() - _t0, len(result or ""),
+                extra=_extra,
+            )
+            self.done.emit(result)
         except Exception as exc:
             if self._cancelled:
                 return
-            logger.error("LLM rewrite failed: %s", exc)
+            logger.error(
+                "LLM failed (style=%s, latency=%.2fs): %s",
+                self._style, _time.monotonic() - _t0, exc,
+                extra=_extra,
+            )
             self.failed.emit(str(exc))
 
 
 class PasteWorker(QThread):
     done = Signal(object)  # err or None
 
-    def __init__(self, text: str, settings: dict, parent=None):
+    def __init__(self, text: str, settings: dict, job_id: int = 0, parent=None):
         super().__init__(parent)
         self._text = text
         self._settings = settings
+        self.job_id = job_id
 
     def run(self) -> None:
+        # QThread-safe: logger calls only, no Qt.
         try:
             err = paste_module.paste_text(
                 self._text,
@@ -541,10 +635,14 @@ class PasteWorker(QThread):
                 paste_delay_ms=self._settings.get("paste_delay_ms", 300),
                 restore_clipboard=self._settings.get("restore_clipboard", True),
                 wait_for_release=self._settings.get("wait_for_hotkey_release", True),
+                job_id=self.job_id,
             )
             self.done.emit(err)
         except Exception as exc:
-            logger.error("Async paste error: %s", exc)
+            logger.error(
+                "Async paste error: %s", exc,
+                extra={"job_id": self.job_id, "phase": "pasting"},
+            )
             self.done.emit(str(exc))
 
 
@@ -552,12 +650,35 @@ AI_TEXT_STYLES = {"prompt_for_ai", "professional_message", "facebook_post"}
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s [job=%(job_id)s phase=%(phase)s]: %(message)s",
     handlers=[
         logging.StreamHandler(),
         logging.FileHandler(paths.log_path(), encoding="utf-8"),
     ],
 )
+
+
+class _JobPhaseFilter(logging.Filter):
+    """Inject job_id/phase defaults for records logged without extra={...}.
+
+    A Filter (not a LogRecordFactory) is required: makeRecord() raises
+    KeyError if extra overwrites an attribute the factory already set,
+    while a filter runs after extra is applied and only fills in gaps.
+    QThread-safe: touches only the record, no Qt calls.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "job_id"):
+            record.job_id = 0
+        if not hasattr(record, "phase"):
+            record.phase = "-"
+        return True
+
+
+_TRACE_FILTER = _JobPhaseFilter()
+logging.getLogger().addFilter(_TRACE_FILTER)
+for _h in logging.getLogger().handlers:
+    _h.addFilter(_TRACE_FILTER)
 logger = logging.getLogger("joyvoice.main")
 
 PASTED_DISPLAY_MS = 1200
@@ -638,15 +759,36 @@ class AppController:
         """Force the floating widget to stay visible — some Windows configs
         hide tool windows after focus changes or UAC prompts."""
         if not self.widget.isVisible():
-            logger.warning("Widget was hidden; forcing show")
+            # Action taken → WARNING so it surfaces in default INFO logs.
+            logger.warning(
+                "Widget was hidden; forcing show",
+                extra={"job_id": self._active_job_id, "phase": self._phase},
+            )
             self.widget.show()
             self.widget.raise_()
+        else:
+            # Healthy poll → DEBUG only (fires every 2s; hidden at INFO level).
+            logger.debug(
+                "Visibility watchdog: widget visible",
+                extra={"job_id": self._active_job_id, "phase": self._phase},
+            )
 
     def _check_hotkey_health(self) -> None:
         """Re-register the hotkey if it was silently lost (sleep/wake/UAC)."""
         err = self.hotkeys.check_health()
         if err:
-            logger.warning("Hotkey health check failed: %s", err)
+            # Action/error → WARNING.
+            logger.warning(
+                "Hotkey health check failed: %s", err,
+                extra={"job_id": self._active_job_id, "phase": self._phase},
+            )
+        else:
+            # Healthy poll → DEBUG only (fires every 5s; hidden at INFO level).
+            logger.debug(
+                "Hotkey health check: ok (hotkey=%s mode=%s)",
+                self.hotkeys.hotkey, self.hotkeys.mode,
+                extra={"job_id": self._active_job_id, "phase": self._phase},
+            )
 
     def _apply_audio_device(self) -> None:
         device_name = self.settings.get("audio_device_name")
@@ -715,15 +857,27 @@ class AppController:
             self.start_recording()
 
     def start_recording(self) -> None:
-        if self.recorder.is_recording() or self._phase in ("recording", "transcribing"):
+        if self.recorder.is_recording() or self._phase in ("recording", "transcribing", "pasting"):
             return
         err = self.recorder.start()
         if err:
-            logger.error(err)
+            logger.error(err, extra={"job_id": self._active_job_id, "phase": self._phase})
             self._show_error(err)
             return
+        # Single correlation ID per dictation: increment here, reuse through
+        # stop → ASR → (optional) LLM → paste. Never increment elsewhere per job.
+        self._job_id += 1
+        self._active_job_id = self._job_id
         self._phase = "recording"
         self._recording_started_at = time.monotonic()
+        self._timing = {"t0": self._recording_started_at}
+        logger.info(
+            "Job %d started (phase=recording, hotkey=%s, mode=%s, engine=%s)",
+            self._active_job_id,
+            self.settings.get("hotkey"), self.settings.get("hotkey_mode"),
+            self.settings.get("engine_mode", "cloud"),
+            extra={"job_id": self._active_job_id, "phase": "recording"},
+        )
         sounds.play_start()
         self.widget.set_state("recording")
         self._level_poll_timer.start()
@@ -751,19 +905,42 @@ class AppController:
         # Accidental short press → cancel, do not transcribe.
         started = self._recording_started_at
         self._recording_started_at = None
+        _cancel_extra = {"job_id": self._active_job_id, "phase": "recording"}
         if started is not None and (time.monotonic() - started) < MIN_RECORDING_SECONDS:
-            logger.info("Recording shorter than %.2fs — treating as cancel", MIN_RECORDING_SECONDS)
+            logger.info(
+                "Job %d cancelled — recording shorter than %.2fs",
+                self._active_job_id, MIN_RECORDING_SECONDS,
+                extra={**_cancel_extra, "phase": "idle"},
+            )
             self._phase = "idle"
+            self._timing = None
             self.widget.set_state("cancelled", "Cancelled")
             QTimer.singleShot(CANCELLED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
             return
 
         if err or audio is None:
-            logger.error(err or "no audio")
+            logger.error(
+                "Job %d recording failed: %s",
+                self._active_job_id, err or "no audio",
+                extra={"job_id": self._active_job_id, "phase": "idle"},
+            )
             self._phase = "idle"
+            self._timing = None
             self._show_error(err or "No audio captured")
             return
 
+        # Reuse the job_id minted in start_recording so the whole dictation
+        # correlates. Fallback only if start path was bypassed (e.g. tests).
+        if not self._active_job_id or self._active_job_id < 0:
+            self._job_id += 1
+            self._active_job_id = self._job_id
+        job_id = self._active_job_id
+        record_dur = (time.monotonic() - started) if started is not None else 0.0
+        if isinstance(audio, np.ndarray):
+            _samples = int(audio.shape[0]) if audio.size else 0
+            _audio_bytes_est = _samples * 2  # float32 mono → PCM16 bytes
+        else:
+            _audio_bytes_est = len(audio) if audio is not None else 0
         self._phase = "transcribing"
         self.widget.set_state("transcribing")
         language = self.settings["language"]
@@ -772,10 +949,20 @@ class AppController:
         self._last_settings_target = target_language
         output_mode = self.settings.get("output_mode", "translation")
 
-        self._timing = {"t0": time.monotonic(), "asr_s": None, "llm_s": 0.0}
-        self._job_id += 1
-        job_id = self._job_id
-        self._active_job_id = job_id
+        if self._timing is None:
+            self._timing = {"t0": time.monotonic(), "asr_s": None, "llm_s": 0.0}
+        else:
+            self._timing["asr_s"] = None
+            self._timing["llm_s"] = 0.0
+            self._timing["asr_t0"] = time.monotonic()
+        logger.info(
+            "Job %d recording stopped (phase=recording→transcribing, "
+            "record_dur=%.2fs, audio_bytes~%d, source=%s, target=%s, engine=%s)",
+            job_id, record_dur, _audio_bytes_est,
+            language or "auto", target_language,
+            self.settings.get("engine_mode", "cloud"),
+            extra={"job_id": job_id, "phase": "transcribing"},
+        )
 
         # Free mode keeps the float32 array (faster-whisper input); cloud needs PCM16.
         if self.settings.get("engine_mode", "cloud") == "free" and isinstance(audio, np.ndarray):
@@ -834,6 +1021,7 @@ class AppController:
             return
 
         if self._phase == "recording" or self.recorder.is_recording():
+            _cid = self._active_job_id
             get_call_mute_manager().release()
             self._level_poll_timer.stop()
             try:
@@ -843,12 +1031,16 @@ class AppController:
             self._recording_started_at = None
             self._phase = "idle"
             self._timing = None
-            logger.info("Recording cancelled by user")
+            logger.info(
+                "Job %d cancelled by user (phase=recording→idle)", _cid,
+                extra={"job_id": _cid, "phase": "idle"},
+            )
             self.widget.set_state("cancelled", "Cancelled")
             QTimer.singleShot(CANCELLED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
             return
 
         if self._phase == "transcribing":
+            _cid = self._active_job_id
             self._active_job_id = -1  # invalidate any in-flight job
             if self._pending_asr is not None:
                 worker = self._pending_asr
@@ -884,7 +1076,10 @@ class AppController:
                 self._pending_llm = None
             self._phase = "idle"
             self._timing = None
-            logger.info("Transcription cancelled by user")
+            logger.info(
+                "Job %d cancelled by user (phase=transcribing→idle)", _cid,
+                extra={"job_id": _cid, "phase": "idle"},
+            )
             self.widget.set_state("cancelled", "Cancelled")
             QTimer.singleShot(CANCELLED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
 
@@ -897,12 +1092,25 @@ class AppController:
         job_id: int,
     ) -> None:
         if job_id != self._active_job_id or self._phase != "transcribing":
-            logger.info("Ignoring stale ASR result for job %s", job_id)
+            logger.info(
+                "Ignoring stale ASR result for job %s (active=%s, phase=%s)",
+                job_id, self._active_job_id, self._phase,
+                extra={"job_id": job_id, "phase": self._phase},
+            )
             return
 
         sounds.play_done()
         if self._timing is not None:
-            self._timing["asr_s"] = time.monotonic() - self._timing["t0"]
+            _asr_t0 = self._timing.pop("asr_t0", self._timing["t0"])
+            self._timing["asr_s"] = time.monotonic() - _asr_t0
+            logger.info(
+                "Job %d ASR complete (latency=%.2fs, transcript_chars=%d, "
+                "translation_chars=%d): %s",
+                job_id, self._timing["asr_s"],
+                len(raw_text or ""), len(translated_text or ""),
+                (translated_text or "")[:80],
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
 
         settings_target = self.settings.get("target_language", "en")
         model_ov = model_override.strip().lower() if model_override else None
@@ -912,6 +1120,7 @@ class AppController:
             logger.info(
                 "Ignoring redundant target override %s because it matches the configured target",
                 model_ov,
+                extra={"job_id": job_id, "phase": "transcribing"},
             )
             model_ov = None
 
@@ -932,7 +1141,8 @@ class AppController:
                 if not cleaned_transcript.strip() or cleaned_transcript == raw_text:
                     cleaned_transcript = strip_override_command(translated_text, override)
                 logger.info(
-                    "Override detected via translation text → %s", override
+                    "Override detected via translation text → %s", override,
+                    extra={"job_id": job_id, "phase": "transcribing"},
                 )
 
         translation = translated_text
@@ -952,10 +1162,16 @@ class AppController:
                 "One-shot target override: %s (settings remain %s); using native translation",
                 override,
                 settings_target,
+                extra={"job_id": job_id, "phase": "transcribing"},
             )
 
             if not cleaned_transcript.strip():
                 # Pure command with no content — nothing useful to paste.
+                logger.info(
+                    "Job %d ended — pure override command, no content (phase→idle)",
+                    job_id,
+                    extra={"job_id": job_id, "phase": "idle"},
+                )
                 self._phase = "idle"
                 self.widget.set_state("error", "No content to translate")
                 QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
@@ -969,6 +1185,11 @@ class AppController:
         base_text = self._style_text(cleaned_transcript)
 
         if not base_text.strip():
+            logger.info(
+                "Job %d ended — no speech detected (phase→idle)",
+                job_id,
+                extra={"job_id": job_id, "phase": "idle"},
+            )
             self._phase = "idle"
             self.widget.set_state("error", "No speech detected")
             QTimer.singleShot(ERROR_DISPLAY_MS, lambda: self.widget.set_state("idle"))
@@ -984,7 +1205,10 @@ class AppController:
 
         style = self.settings.get("text_style", "clean_english")
         if style in AI_TEXT_STYLES and self.settings.get("engine_mode", "cloud") != "free":
-            logger.info("Triggering AI text style rewrite (%s)", style)
+            logger.info(
+                "Triggering AI text style rewrite (%s, in_chars=%d)", style, len(final_text),
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
             self._run_llm(final_text, style)
             return
 
@@ -995,10 +1219,19 @@ class AppController:
 
     def _on_asr_failed(self, message: str, job_id: int) -> None:
         if job_id != self._active_job_id:
+            logger.info(
+                "Ignoring stale ASR failure for job %s (active=%s)",
+                job_id, self._active_job_id,
+                extra={"job_id": job_id, "phase": self._phase},
+            )
             return
         self._timing = None
         self._phase = "idle"
-        logger.error("Cloud ASR failed: %s", message)
+        logger.error(
+            "Job %d ASR failed (phase=transcribing→idle): %s",
+            job_id, message,
+            extra={"job_id": job_id, "phase": "idle"},
+        )
         sounds.play_error()
         self._show_error(f"Transcription failed: {message}")
 
@@ -1008,12 +1241,18 @@ class AppController:
         return clean_text(raw_text, self.settings.get("replacements"))
 
     def _run_llm(self, text: str, style: str) -> None:
-        """Run LLM rewriting in a QThread and return via queued Qt signals."""
-        self._job_id += 1
-        job_id = self._job_id
-        self._active_job_id = job_id
+        """Run LLM rewriting in a QThread and return via queued Qt signals.
+
+        Reuses the active dictation job_id so ASR → LLM → paste correlate.
+        """
+        job_id = self._active_job_id
         if self._timing is not None:
             self._timing["llm_t0"] = time.monotonic()
+        logger.info(
+            "Job %d LLM start (style=%s, target=%s, in_chars=%d)",
+            job_id, style, self.settings.get("target_language", "en"), len(text or ""),
+            extra={"job_id": job_id, "phase": "transcribing"},
+        )
         target = self.settings.get("target_language", "en")
         self._pending_llm = CloudLLMWorker(text, style, target_language=target, job_id=job_id)
         self._pending_llm.done.connect(
@@ -1030,23 +1269,46 @@ class AppController:
 
     def _on_llm_done(self, rewritten_text: str, job_id: int) -> None:
         if job_id != self._active_job_id:
+            logger.info(
+                "Ignoring stale LLM result for job %s (active=%s)",
+                job_id, self._active_job_id,
+                extra={"job_id": job_id, "phase": self._phase},
+            )
             return
         if self._timing is not None and "llm_t0" in self._timing:
             self._timing["llm_s"] = time.monotonic() - self._timing.pop("llm_t0")
+            logger.info(
+                "Job %d LLM done (latency=%.2fs, out_chars=%d)",
+                job_id, self._timing["llm_s"], len(rewritten_text or ""),
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
         self.widget.set_preview(rewritten_text)
         self._finish_paste(rewritten_text)
 
     def _on_llm_failed(self, message: str, job_id: int) -> None:
         if job_id != self._active_job_id:
+            logger.info(
+                "Ignoring stale LLM failure for job %s (active=%s)",
+                job_id, self._active_job_id,
+                extra={"job_id": job_id, "phase": self._phase},
+            )
             return
         self._timing = None
         self._phase = "idle"
-        logger.error("LLM rewrite failed: %s", message)
+        logger.error(
+            "Job %d LLM failed (phase=transcribing→idle): %s",
+            job_id, message,
+            extra={"job_id": job_id, "phase": "idle"},
+        )
         self._show_error(f"AI rewrite failed: {message}")
 
     def _finish_paste(self, final_text: str) -> None:
+        job_id = self._active_job_id
         if self._phase not in ("transcribing", "pasting"):
-            logger.info("Paste skipped — phase is %s", self._phase)
+            logger.info(
+                "Job %d paste skipped — phase is %s", job_id, self._phase,
+                extra={"job_id": job_id, "phase": self._phase},
+            )
             return
         self._phase = "pasting"
         if self._timing is not None:
@@ -1054,9 +1316,14 @@ class AppController:
             self._timing = None
             total = time.monotonic() - t["t0"]
             logger.info(
-                "Pipeline latency: asr=%.2fs, llm=%.2fs, total=%.2fs (model=%s, mode=%s)",
+                "Job %d pipeline latency (phase=transcribing→pasting): "
+                "asr=%.2fs, llm=%.2fs, total=%.2fs "
+                "(model=%s, mode=%s, out_chars=%d)",
+                job_id,
                 t["asr_s"] or 0.0, t.get("llm_s", 0.0), total,
                 AUDIO_MODEL, self.settings.get("output_mode"),
+                len(final_text or ""),
+                extra={"job_id": job_id, "phase": "pasting"},
             )
             # Durable end-to-end timing (complements per-request usage.jsonl).
             try:
@@ -1083,13 +1350,14 @@ class AppController:
         )
 
         # Defer clipboard paste to background worker to prevent GUI thread freezes.
-        self._paste_worker = PasteWorker(final_text, self.settings)
+        # paste.py logs the outcome (pasted/copied/failed + latency) with job_id.
+        self._paste_worker = PasteWorker(final_text, self.settings, job_id=job_id)
         self._paste_worker.done.connect(
-            safe_slot(lambda err: self._on_paste_complete(err, final_text))
+            safe_slot(lambda err: self._on_paste_complete(err, final_text, job_id))
         )
         self._paste_worker.start()
 
-    def _on_paste_complete(self, err: str | None, final_text: str) -> None:
+    def _on_paste_complete(self, err: str | None, final_text: str, job_id: int = 0) -> None:
         # Restore language badge to settings (clear one-shot override flash).
         source = self.settings.get("language", "bn")
         target = self.settings.get("target_language", "en")
@@ -1098,10 +1366,16 @@ class AppController:
         else:
             self.widget.set_language_badge(source, target)
 
+        _jid = job_id or self._active_job_id
         self._phase = "idle"
 
         if err:
-            logger.warning("Paste failed: %s (text saved to history)", err)
+            logger.warning(
+                "Job %d complete with paste fallback (phase=pasting→idle, "
+                "out_chars=%d): %s (text saved to history)",
+                _jid, len(final_text or ""), err,
+                extra={"job_id": _jid, "phase": "idle"},
+            )
             copy_only = self.settings["paste_mode"] == "copy_only"
             label = "Copied to clipboard" if copy_only else "Copied (paste failed)"
             self.widget.set_state("pasted", label)
@@ -1109,7 +1383,14 @@ class AppController:
             self.widget.show_toast(final_text)
             return
 
-        label = "Copied" if self.settings["paste_mode"] == "copy_only" else "Pasted"
+        _mode = self.settings.get("paste_mode", "paste")
+        _outcome = "copied" if _mode == "copy_only" else "pasted"
+        logger.info(
+            "Job %d complete (phase=pasting→idle, outcome=%s, out_chars=%d)",
+            _jid, _outcome, len(final_text or ""),
+            extra={"job_id": _jid, "phase": "idle"},
+        )
+        label = "Copied" if _mode == "copy_only" else "Pasted"
         self.widget.set_state("pasted", label)
         QTimer.singleShot(PASTED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
         self.widget.show_toast(final_text)

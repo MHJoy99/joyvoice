@@ -9,6 +9,7 @@ paths.models_dir() the first time it is loaded.
 from __future__ import annotations
 
 import logging
+import time
 
 import numpy as np
 from PySide6.QtCore import QThread, Signal
@@ -82,14 +83,25 @@ class FreeASRWorker(QThread):
         return engine
 
     def run(self) -> None:
+        # QThread-safe: logger calls only, never touch Qt widgets here.
+        # Never log raw audio samples — only counts and durations.
+        _extra = {"job_id": self.job_id, "phase": "transcribing"}
         if self._cancelled:
             return
+        _t0 = time.monotonic()
+        _samples = int(self._audio.shape[0]) if isinstance(self._audio, np.ndarray) and self._audio.size else 0
+        _dur = _samples / 16000.0 if _samples else 0.0
         try:
             # Lazy import so the module loads even before the offline deps exist.
             # Importing whisper_engine registers the NVIDIA DLL search directories.
             import app.transcription.whisper_engine  # noqa: F401
             from faster_whisper import WhisperModel
         except Exception as exc:
+            logger.error(
+                "Free ASR start failed (model=%s, latency=%.2fs): %s",
+                self._asr_model, time.monotonic() - _t0, exc,
+                extra=_extra,
+            )
             self.failed.emit(
                 "Free mode is not set up yet (missing offline model library). "
                 f"Open Settings \u2192 Free Mode and click Set up. ({exc})"
@@ -97,6 +109,13 @@ class FreeASRWorker(QThread):
             return
 
         try:
+            logger.info(
+                "Free ASR start (model=%s, device=%s, translate_engine=%s, "
+                "samples=%d, duration=%.2fs, source=%s, target=%s)",
+                self._asr_model, self._device, self._translate_engine,
+                _samples, _dur, self._lang or "auto", self._target_lang,
+                extra=_extra,
+            )
             model = self._load_model(WhisperModel)
             if self._cancelled:
                 return
@@ -115,11 +134,19 @@ class FreeASRWorker(QThread):
             if self._cancelled:
                 return
             logger.info(
-                "Free ASR (%s, engine=%s): %s", self._asr_model, engine, transcript[:80]
+                "Free ASR done (model=%s, engine=%s, latency=%.2fs, "
+                "transcript_chars=%d): %s",
+                self._asr_model, engine, time.monotonic() - _t0,
+                len(transcript or ""), (transcript or "")[:80],
+                extra=_extra,
             )
             self.done.emit(transcript, translation, "")
         except Exception as exc:
             if self._cancelled:
                 return
-            logger.error("Free ASR failed: %s", exc)
+            logger.error(
+                "Free ASR failed (model=%s, latency=%.2fs): %s",
+                self._asr_model, time.monotonic() - _t0, exc,
+                extra=_extra,
+            )
             self.failed.emit(str(exc))
