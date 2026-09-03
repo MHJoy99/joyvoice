@@ -1,0 +1,143 @@
+name: Bug report
+description: Report a dictation, paste, audio, or hotkey problem in JoyVoice.
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! JoyVoice is a Windows floating-mic dictation app (press `F8` → speak → clean text pasted).
+        Fill this out so we can reproduce quickly. **Never paste your raw `JV_API_KEY` / `api_key` — diagnostics bundles are pre-sanitized.**
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear, concise description of what went wrong.
+      placeholder: Pressed F8, spoke Bangla for ~10s, got empty paste / API timeout / no widget...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To reproduce
+      description: Steps we can follow exactly.
+      value: |
+        1. Launch JoyVoice via `run.bat` (visible console)
+        2. Press hotkey `F8` (or custom hotkey: ...)
+        3. Speak in language: [e.g. bn / en / auto]
+        4. Observe issue: [e.g. paste failed / transcribing stuck / audio error]
+      render: bash
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+      placeholder: Expected clean English translation pasted into Notepad...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine-mode
+    attributes:
+      label: Engine mode
+      description: From `%APPDATA%\\JoyVoice\\settings.json` key `engine_mode`, or Settings → Free Mode tab.
+      options:
+        - cloud (default, Google ASR + Gemini)
+        - free / offline (local Whisper)
+        - not sure
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10
+        - Other (note below)
+      default: 0
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Must be 3.11.x for JoyVoice. Run `python --version`.
+      placeholder: 3.11.9
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: JoyVoice version
+      description: From `pyproject.toml`, README badge, or `version.txt` in diagnostics bundle. Current is 2.3.9.
+      placeholder: 2.3.9
+    validations:
+      required: true
+
+  - type: input
+    id: languages
+    attributes:
+      label: Source → target languages
+      description: Settings keys `language` + `target_language` (e.g. bn → en). Use `auto` if auto-detect.
+      placeholder: bn → en
+    validations:
+      required: false
+
+  - type: input
+    id: hotkey-config
+    attributes:
+      label: Hotkey config
+      description: Settings keys `hotkey` + `hotkey_mode` (toggle / hold).
+      placeholder: F8 / toggle
+    validations:
+      required: false
+
+  - type: textarea
+    id: log-excerpt
+    attributes:
+      label: Log excerpt
+      description: Last ~30 lines from `%APPDATA%\\JoyVoice\\joyvoice.log`. Secrets are auto-redacted in the log; double-check before pasting.
+      placeholder: |
+        Paste log lines here, e.g.:
+        Select-String "job=" "$env:APPDATA\JoyVoice\joyvoice.log" | Select-Object -Last 30
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: diagnostics-bundle
+    attributes:
+      label: Diagnostics bundle (upload step — required for ASR / audio / paste bugs)
+      description: Generate a sanitized bundle, then drag-drop the .zip here.
+      value: |
+        How to generate (pick one):
+
+        1. In-app (easiest): Tray icon or widget right-click → Diagnostics… → Logs tab → **Export bundle (.zip)**
+        2. Headless: `python tools\collect_logs.py --output joyvoice-diagnostics.zip --tail 200`
+
+        Bundle contains (safe to attach): `joyvoice.log*`, `usage.jsonl` (if present), `settings-sanitized.json` (api_key redacted — never raw), `system_info.json`, `usage_summary.json`, `version.txt`, `log_tail_200.txt`.
+
+        👉 Now **drag-drop your `joyvoice-diagnostics-*.zip` onto this field** (GitHub attaches it). If you cannot attach, paste the `log_tail_200.txt` content into the Log excerpt field above and note why.
+        Privacy: review the preview before uploading; never paste a raw API key.
+      render: bash
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submit checks
+      options:
+        - label: I launched via `run.bat` (visible console) and checked for tracebacks
+        - label: I verified `%APPDATA%\\JoyVoice\\joyvoice.log` has no raw API key in my paste
+        - label: I tried once more after deleting stale `__pycache__` (if issue appeared after an update)

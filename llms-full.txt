@@ -96,3 +96,18 @@ run.bat
 ```
 
 For full environment troubleshooting, refer to `docs/TROUBLESHOOTING.md`.
+
+---
+
+## 5. Key Documentation Index
+
+Full source text for each guide lives in its file; start here for answer-engine context:
+
+- `README.md` — Product overview, 10-language table, pipeline, comparison vs Win+H dictation.
+- `docs/SETUP.md` — Clone, Python 3.11 venv, isolated pip install, `JV_API_KEY`, `run.bat` launch.
+- `docs/API.md` — Gateway reference, `joyvoice-fast-audio` / `gemini-3.6-flash` models, 3-field JSON contract, fallback chain.
+- `docs/ARCHITECTURE.md` — Module map, state machine, signal flow, design decisions.
+- `docs/TROUBLESHOOTING.md` — PYTHONPATH, PCM float32→int16, typing_extensions, QThread, pythonw.exe.
+- `docs/FAQ.md` — 13 Q&A pairs: what JoyVoice is, Win+H differences, languages, logs at `%APPDATA%\JoyVoice\joyvoice.log`.
+- `docs/SEO_AND_DISCOVERY.md` — SEO/AEO/AGO discoverability strategy.
+- `schema.json` — Machine-readable SoftwareApplication + HowTo + FAQPage JSON-LD.

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+  <defs>
+    <pattern id="grid-lang" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#23262f" stroke-width="0.5"/>
+    </pattern>
+    <linearGradient id="titleGrad-lang" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="520" fill="#14161e"/>
+  <rect width="900" height="520" fill="url(#grid-lang)"/>
+  <rect x="0" y="0" width="900" height="3" fill="url(#titleGrad-lang)" opacity="0.7"/>
+  <rect x="0" y="517" width="900" height="3" fill="url(#titleGrad-lang)" opacity="0.35"/>
+
+  <!-- Title -->
+  <text x="40" y="52" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700">10 Languages Supported</text>
+  <text x="40" y="76" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="13">Auto-detect source • Translate into any target • BN → EN by default</text>
+
+  <!-- ROW 1 -->
+  <!-- bn -->
+  <g transform="translate(40, 110)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#2a6fe0" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(42, 111, 224, 0.20)"/>
+    <text x="29" y="25" fill="#6ea8ff" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">BN</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Nirmala UI', 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">বাংলা</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Bangla</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">bn-BD</text>
+  </g>
+  <!-- en -->
+  <g transform="translate(208, 110)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#2ecc71" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(46, 204, 113, 0.18)"/>
+    <text x="29" y="25" fill="#2ecc71" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">EN</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">English</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">English</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">en-US</text>
+  </g>
+  <!-- ru -->
+  <g transform="translate(376, 110)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">RU</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">Русский</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Russian</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">ru-RU</text>
+  </g>
+  <!-- hi -->
+  <g transform="translate(544, 110)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">HI</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Nirmala UI', 'Mangal', 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">हिन्दी</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Hindi</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">hi-IN</text>
+  </g>
+  <!-- es -->
+  <g transform="translate(712, 110)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">ES</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">Español</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Spanish</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">es-ES</text>
+  </g>
+
+  <!-- ROW 2 -->
+  <!-- ar -->
+  <g transform="translate(40, 266)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">AR</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Segoe UI', 'Traditional Arabic', Arial, sans-serif" font-size="28" font-weight="700" text-anchor="middle">العربية</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Arabic</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">ar-SA</text>
+  </g>
+  <!-- zh -->
+  <g transform="translate(208, 266)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">ZH</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Microsoft YaHei', 'Segoe UI', Arial, sans-serif" font-size="30" font-weight="700" text-anchor="middle">中文</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Chinese</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">zh-CN</text>
+  </g>
+  <!-- ja -->
+  <g transform="translate(376, 266)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">JA</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Meiryo', 'MS Gothic', 'Segoe UI', Arial, sans-serif" font-size="26" font-weight="700" text-anchor="middle">日本語</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Japanese</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">ja-JP</text>
+  </g>
+  <!-- fr -->
+  <g transform="translate(544, 266)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">FR</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">Français</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">French</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">fr-FR</text>
+  </g>
+  <!-- pt -->
+  <g transform="translate(712, 266)">
+    <rect x="0" y="0" width="156" height="140" rx="10" fill="rgba(255,255,255,0.03)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <rect x="12" y="12" width="34" height="18" rx="9" fill="rgba(255,255,255,0.08)"/>
+    <text x="29" y="25" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">PT</text>
+    <text x="78" y="72" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="22" font-weight="700" text-anchor="middle">Português</text>
+    <text x="78" y="98" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="12" text-anchor="middle">Portuguese</text>
+    <text x="78" y="116" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">pt-BR</text>
+  </g>
+
+  <!-- Footer -->
+  <g transform="translate(40, 430)">
+    <rect x="0" y="0" width="828" height="44" rx="8" fill="rgba(255,255,255,0.03)" stroke="#2a2e3a" stroke-width="1"/>
+    <text x="20" y="28" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="12">Output modes: original • translation • both  •  Switch with Ctrl+Shift+L  •  JoyVoice v2.4.0</text>
+  </g>
+</svg>

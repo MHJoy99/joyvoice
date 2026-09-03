@@ -15,17 +15,28 @@
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="JoyVoice">
+    <meta property="og:locale" content="en_US">
     <meta property="og:url" content="https://github.com/MHJoy99/joyvoice">
     <meta property="og:title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation">
     <meta property="og:description" content="Speak in any of 10 languages. Get clean translated text pasted directly into your application automatically. Zero GPU required in cloud mode.">
-    <meta property="og:image" content="assets/desktop-mockup.png">
+    <meta property="og:image" content="https://raw.githubusercontent.com/MHJoy99/joyvoice/master/assets/desktop-mockup.png">
+    <meta property="og:image:alt" content="JoyVoice floating glass-morphism mic widget over a Windows desktop">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
 
     <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://github.com/MHJoy99/joyvoice">
-    <meta property="twitter:title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation">
-    <meta property="twitter:description" content="Ultra-low latency floating mic dictation software for Windows. Speak Bangla, Russian, Hindi, Spanish, or Arabic — get instant clean translations.">
-    <meta property="twitter:image" content="assets/desktop-mockup.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://github.com/MHJoy99/joyvoice">
+    <meta name="twitter:title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation">
+    <meta name="twitter:description" content="Ultra-low latency floating mic dictation software for Windows. Speak Bangla, Russian, Hindi, Spanish, or Arabic — get instant clean translations.">
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/MHJoy99/joyvoice/master/assets/desktop-mockup.png">
+    <meta name="twitter:image:alt" content="JoyVoice floating mic widget preview">
+
+    <!-- Theme + favicon -->
+    <meta name="theme-color" content="#0b0f19">
+    <link rel="icon" type="image/x-icon" href="assets/icon.ico">
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,15 +49,71 @@
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "JoyVoice",
+      "url": "https://github.com/MHJoy99/joyvoice",
+      "sameAs": ["https://github.com/MHJoy99/joyvoice"],
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Windows 10, Windows 11",
       "softwareVersion": "2.3.9",
       "description": "Open-source Windows floating microphone dictation and real-time speech translation with optional native audio through the joyvoice-fast-audio gateway route.",
       "license": "https://opensource.org/licenses/MIT",
+      "offers": {
+        "@type": "Offer",
+        "price": "0.00",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      },
       "author": {
         "@type": "Person",
         "name": "MH Joy"
       }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is JoyVoice?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice is a free, open-source Windows floating microphone app. Press F8, speak in any of 10 languages, and clean translated text is automatically pasted into whatever application currently has focus."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is JoyVoice free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. JoyVoice is free and open-source under the MIT license. Cloud dictation uses your own API gateway key at roughly $0.001 per dictation, and the opt-in Free and Offline Mode needs no API key at all."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What languages does JoyVoice support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice supports 10 languages for dictation and translation: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese (Mandarin), Japanese, French, and Portuguese, with automatic source-language detection."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How is JoyVoice different from Windows voice typing (Win+H)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Windows voice typing (Win+H) covers fewer languages, needs manual language switching, and has no translation targets. JoyVoice auto-detects 10 languages, translates into any of the 10 target languages, pastes clipboard-safely with retry, and adds text styles, history, and global hotkeys."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Where do JoyVoice logs go?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice writes logs to %APPDATA%/JoyVoice/joyvoice.log, settings to settings.json, and dictation history to history.json in the same folder."
+          }
+        }
+      ]
     }
     </script>
 
@@ -385,7 +452,7 @@
 <body>
 
     <header>
-        <a href="#" class="logo-container">
+        <a href="https://github.com/MHJoy99/joyvoice" class="logo-container">
             🎙️ Joy<span class="logo-badge">Voice</span>
         </a>
         <nav>
@@ -441,7 +508,8 @@
         </section>
 
         <!-- Features Grid -->
-        <section class="features-grid" id="features">
+        <section class="features-grid" id="features" aria-label="JoyVoice features">
+            <h2 style="font-family: var(--font-heading); grid-column: 1/-1; text-align: center; margin-bottom: 8px;">Why JoyVoice for Windows voice typing</h2>
             <div class="feature-card">
                 <div class="feature-icon">🌐</div>
                 <h3>10-Language Dictation</h3>
@@ -486,6 +554,31 @@ set JV_API_KEY=your_api_key
 run.bat</pre>
 
             <p style="margin-top: 16px; color: var(--text-secondary);">Or download the prebuilt <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.9" style="color: var(--accent-cyan);">JoyVoice.exe (v2.3.9)</a> for zero-config Windows launch.</p>
+        </section>
+
+        <!-- FAQ Section (mirrors FAQPage JSON-LD above for answer engines) -->
+        <section class="demo-section" id="faq" style="text-align: left;">
+            <h2 style="font-family: var(--font-heading); margin-bottom: 16px;">❓ Frequently Asked Questions</h2>
+            <details open style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600;">What is JoyVoice?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;">JoyVoice is a free, open-source Windows floating microphone app. Press <code>F8</code>, speak in any of 10 languages, and clean translated text is automatically pasted into whatever application currently has focus.</p>
+            </details>
+            <details style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600;">Is JoyVoice free?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;">Yes. JoyVoice is free and open-source under the MIT license. Cloud dictation uses your own API gateway key at roughly $0.001 per dictation, and the opt-in Free &amp; Offline Mode needs no API key at all.</p>
+            </details>
+            <details style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600;">What languages does JoyVoice support?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;">10 languages for dictation and translation: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese (Mandarin), Japanese, French, and Portuguese — with automatic source-language detection.</p>
+            </details>
+            <details style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600;">How is JoyVoice different from Windows voice typing (Win+H)?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;"><code>Win+H</code> covers fewer languages, needs manual language switching, and has no translation targets. JoyVoice auto-detects 10 languages, translates into any of the 10 target languages, pastes clipboard-safely with retry, and adds text styles, history, and global hotkeys.</p>
+            </details>
+            <details>
+                <summary style="cursor: pointer; font-weight: 600;">Where do JoyVoice logs go?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;">Logs live at <code>%APPDATA%\JoyVoice\joyvoice.log</code>, alongside <code>settings.json</code> (settings) and <code>history.json</code> (dictation history). History is saved before every paste, so text is never lost.</p>
+            </details>
         </section>
     </main>
 

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid-social" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#23262f" stroke-width="0.5"/>
+    </pattern>
+    <linearGradient id="titleGrad-social" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+    <radialGradient id="glow-social" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background 1200x630 -->
+  <rect width="1200" height="630" fill="#14161e"/>
+  <rect width="1200" height="630" fill="url(#grid-social)"/>
+  <rect x="0" y="0" width="1200" height="4" fill="url(#titleGrad-social)" opacity="0.8"/>
+  <rect x="0" y="626" width="1200" height="4" fill="url(#titleGrad-social)" opacity="0.4"/>
+  <circle cx="230" cy="315" r="220" fill="url(#glow-social)"/>
+
+  <!-- Mic icon -->
+  <g transform="translate(150, 195)">
+    <circle cx="80" cy="120" r="105" fill="none" stroke="#22d3ee" stroke-width="1" opacity="0.25"/>
+    <circle cx="80" cy="120" r="88" fill="none" stroke="#22d3ee" stroke-width="1" opacity="0.18"/>
+    <rect x="56" y="60" width="48" height="80" rx="24" fill="none" stroke="url(#titleGrad-social)" stroke-width="4"/>
+    <line x1="66" y1="82" x2="66" y2="100" stroke="#22d3ee" stroke-width="2" opacity="0.7"/>
+    <line x1="74" y1="82" x2="74" y2="100" stroke="#22d3ee" stroke-width="2" opacity="0.7"/>
+    <line x1="82" y1="82" x2="82" y2="100" stroke="#22d3ee" stroke-width="2" opacity="0.7"/>
+    <line x1="90" y1="82" x2="90" y2="100" stroke="#22d3ee" stroke-width="2" opacity="0.7"/>
+    <path d="M 80 140 Q 80 162 80 162 L 80 178" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+    <path d="M 62 178 Q 80 194 98 178" fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round"/>
+    <line x1="80" y1="190" x2="80" y2="206" stroke="#22d3ee" stroke-width="3" stroke-linecap="round"/>
+    <line x1="52" y1="206" x2="108" y2="206" stroke="#22d3ee" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 136 104 Q 154 120 136 136" fill="none" stroke="#2dd4bf" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 150 92 Q 174 120 150 148" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  </g>
+
+  <!-- App name -->
+  <text x="400" y="240" fill="url(#titleGrad-social)" font-family="'Segoe UI', Arial, sans-serif" font-size="96" font-weight="700" letter-spacing="-2">JoyVoice</text>
+  <line x1="402" y1="268" x2="1050" y2="268" stroke="#2a2e3a" stroke-width="1.5"/>
+
+  <!-- Tagline -->
+  <text x="402" y="322" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="30" font-weight="500">Floating Mic Dictation</text>
+  <text x="402" y="362" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="19">Speak any of 10 languages, paste clean English anywhere.</text>
+
+  <!-- Badges row: F8 hint + version -->
+  <g transform="translate(402, 396)">
+    <rect x="0" y="0" width="300" height="52" rx="10" fill="rgba(34, 211, 238, 0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+    <rect x="14" y="12" width="56" height="28" rx="6" fill="#22d3ee"/>
+    <text x="42" y="32" fill="#14161e" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" text-anchor="middle">F8</text>
+    <text x="84" y="33" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600">Press to dictate</text>
+    <rect x="320" y="0" width="130" height="52" rx="10" fill="rgba(46, 204, 113, 0.10)" stroke="#2ecc71" stroke-width="1.5"/>
+    <text x="385" y="33" fill="#2ecc71" font-family="'Segoe UI', Arial, sans-serif" font-size="17" font-weight="700" text-anchor="middle">v2.4.0</text>
+    <rect x="470" y="0" width="180" height="52" rx="10" fill="rgba(255,255,255,0.04)" stroke="#3a3f4b" stroke-width="1.5"/>
+    <text x="560" y="33" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600" text-anchor="middle">2-8s • No GPU</text>
+  </g>
+
+  <!-- Bottom strip -->
+  <text x="600" y="560" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="17" text-anchor="middle">10 languages • Free and Offline mode • Open source • github.com/mhjoy/joyvoice</text>
+</svg>

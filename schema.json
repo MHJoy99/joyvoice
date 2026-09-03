@@ -79,18 +79,10 @@
         },
         {
           "@type": "Question",
-          "name": "Does JoyVoice require a graphics card (GPU)?",
+          "name": "Is JoyVoice free?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "No. In standard cloud mode, JoyVoice relies on cloud Speech Recognition and Gemini 3.6 Flash text translation. It runs smoothly on any basic Windows 10/11 laptop or PC with integrated graphics."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How fast is JoyVoice speech translation?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "JoyVoice provides fast end-to-end speech recognition and text translation direct to paste, varying with speech length and network connectivity."
+            "text": "Yes. JoyVoice is free and open-source under the MIT license. Cloud dictation uses your own API gateway key at roughly $0.001 per dictation, the Google Web Speech fallback needs no key, and the opt-in Free and Offline Mode runs fully on-device with no API key after a one-time speech-model download."
           }
         },
         {
@@ -103,10 +95,18 @@
         },
         {
           "@type": "Question",
-          "name": "How do I run JoyVoice from this directory?",
+          "name": "How is JoyVoice different from Windows voice typing (Win+H)?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Open Command Prompt in this folder, activate the venv with '.venv\\Scripts\\activate', set your API key with 'set JV_API_KEY=your_key', and execute 'run.bat'."
+            "text": "Windows voice typing (Win+H) covers a limited language set, needs manual language switching, and offers a single output mode with no translation targets. JoyVoice auto-detects speech across 10 languages, translates into any of the 10 target languages, pastes clipboard-safely with retry into any focused app, and adds 5 text styles, searchable history, a floating glass-morphism widget, and F8 plus Ctrl+Shift+L hotkeys."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Where do JoyVoice logs and settings go?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice stores settings in %APPDATA%\\JoyVoice\\settings.json, dictation history in %APPDATA%\\JoyVoice\\history.json, and per-stage latency plus errors in %APPDATA%\\JoyVoice\\joyvoice.log. History is saved before every paste attempt, so text is never lost even if pasting fails."
           }
         }
       ]

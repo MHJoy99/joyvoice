@@ -1,0 +1,74 @@
+name: Feature request
+description: Suggest an idea, new language, style, or workflow for JoyVoice.
+title: "[FEATURE] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting! JoyVoice pastes clean translations from 10 languages (`bn, en, ru, hi, es, ar, zh, ja, fr, pt`) via cloud (default) or Free & Offline Whisper.
+        Check [Discussions ideas](../DISCUSSION_IDEAS.md) first — your idea may already have a seed thread (languages, latency, offline, hotkeys, styles, showcase).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which growth-kit topic does this fit?
+      options:
+        - languages (new language / accuracy)
+        - latency (ASR / LLM / paste speed)
+        - offline / Free Mode (local Whisper)
+        - hotkeys (toggle / hold / custom)
+        - styles (raw / clean_english / AI styles / replacements)
+        - showcase (workflow / demo / integration)
+        - other
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem? Please describe.
+      description: What frustrates you today? Ex. I always struggle when...
+      placeholder: When I dictate in Hindi + English mixed speech, code-switched words get dropped...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the solution you'd like
+      description: What you want to happen, including UI (widget / tray / Settings tab) if relevant.
+      placeholder: Add a per-language hint toggle in Settings → Output, so Hinglish keeps English terms...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered
+      description: Any workaround, other app, or simpler variant.
+      placeholder: I tried output_mode=both as a workaround, but...
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, sample phrases (source → desired paste), engine mode (cloud / free), source → target languages.
+      placeholder: |
+        Engine: cloud
+        bn → en
+        Sample: "আমি কাল..." → "I won't be able to..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Willingness to help
+      options:
+        - label: I can test a preview build on Windows 10 / 11 and attach a diagnostics bundle
+        - label: I can contribute docs or a PR per CONTRIBUTING.md

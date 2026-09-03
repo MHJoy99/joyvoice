@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="420" viewBox="0 0 960 420">
+  <defs>
+    <pattern id="grid-v2" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#23262f" stroke-width="0.5"/>
+    </pattern>
+    <marker id="arrow-v2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#5b6070"/>
+    </marker>
+    <linearGradient id="titleGrad-v2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2dd4bf"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="420" fill="#14161e"/>
+  <rect width="960" height="420" fill="url(#grid-v2)"/>
+  <rect x="0" y="0" width="960" height="3" fill="url(#titleGrad-v2)" opacity="0.7"/>
+  <rect x="0" y="417" width="960" height="3" fill="url(#titleGrad-v2)" opacity="0.35"/>
+
+  <!-- Title -->
+  <text x="40" y="48" fill="#e8eaf0" font-family="'Segoe UI', Arial, sans-serif" font-size="24" font-weight="700">How JoyVoice Works</text>
+  <text x="40" y="72" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="13">Press F8, speak, get clean translated text pasted anywhere</text>
+
+  <!-- STEP 1: Mic -->
+  <g transform="translate(40, 110)">
+    <rect x="0" y="0" width="190" height="150" rx="10" fill="rgba(224, 98, 42, 0.10)" stroke="#e0622a" stroke-width="1.5"/>
+    <rect x="0" y="0" width="190" height="4" rx="2" fill="#e0622a" opacity="0.8"/>
+    <circle cx="95" cy="38" r="20" fill="none" stroke="#e0622a" stroke-width="2"/>
+    <rect x="88" y="24" width="14" height="22" rx="7" fill="none" stroke="#e0622a" stroke-width="2"/>
+    <path d="M 85 50 Q 95 58 105 50" fill="none" stroke="#e0622a" stroke-width="2" stroke-linecap="round"/>
+    <text x="95" y="88" fill="#e0622a" font-family="'Segoe UI', Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">1. Mic</text>
+    <text x="95" y="107" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="11" text-anchor="middle">Press F8 + speak</text>
+    <text x="95" y="123" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">16 kHz mono float32</text>
+    <rect x="52" y="131" width="86" height="16" rx="8" fill="rgba(224, 98, 42, 0.16)"/>
+    <text x="95" y="143" fill="#e0622a" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" text-anchor="middle">capture: live</text>
+  </g>
+
+  <line x1="230" y1="185" x2="266" y2="185" stroke="#5b6070" stroke-width="1.5" marker-end="url(#arrow-v2)"/>
+
+  <!-- STEP 2: ASR -->
+  <g transform="translate(270, 110)">
+    <rect x="0" y="0" width="190" height="150" rx="10" fill="rgba(42, 111, 224, 0.10)" stroke="#2a6fe0" stroke-width="1.5"/>
+    <rect x="0" y="0" width="190" height="4" rx="2" fill="#2a6fe0" opacity="0.8"/>
+    <path d="M 78 30 h 34 M 84 38 h 22 M 78 46 h 34" stroke="#2a6fe0" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="95" cy="38" r="20" fill="none" stroke="#2a6fe0" stroke-width="1" opacity="0.35"/>
+    <text x="95" y="88" fill="#6ea8ff" font-family="'Segoe UI', Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">2. ASR</text>
+    <text x="95" y="107" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="11" text-anchor="middle">Google Web Speech</text>
+    <text x="95" y="123" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">speech to transcript</text>
+    <rect x="58" y="131" width="74" height="16" rx="8" fill="rgba(42, 111, 224, 0.18)"/>
+    <text x="95" y="143" fill="#6ea8ff" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" text-anchor="middle">~2-3s</text>
+  </g>
+
+  <line x1="460" y1="185" x2="496" y2="185" stroke="#5b6070" stroke-width="1.5" marker-end="url(#arrow-v2)"/>
+
+  <!-- STEP 3: Translate -->
+  <g transform="translate(500, 110)">
+    <rect x="0" y="0" width="190" height="150" rx="10" fill="rgba(167, 139, 250, 0.10)" stroke="#a78bfa" stroke-width="1.5"/>
+    <rect x="0" y="0" width="190" height="4" rx="2" fill="#a78bfa" opacity="0.8"/>
+    <text x="95" y="50" fill="#a78bfa" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="700" text-anchor="middle">A ↔ B</text>
+    <text x="95" y="88" fill="#a78bfa" font-family="'Segoe UI', Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">3. Translate</text>
+    <text x="95" y="107" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="11" text-anchor="middle">Gemini text LLM</text>
+    <text x="95" y="123" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">10 languages + style</text>
+    <rect x="58" y="131" width="74" height="16" rx="8" fill="rgba(167, 139, 250, 0.18)"/>
+    <text x="95" y="143" fill="#a78bfa" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" text-anchor="middle">~1-3s</text>
+  </g>
+
+  <line x1="690" y1="185" x2="726" y2="185" stroke="#5b6070" stroke-width="1.5" marker-end="url(#arrow-v2)"/>
+
+  <!-- STEP 4: Paste -->
+  <g transform="translate(730, 110)">
+    <rect x="0" y="0" width="190" height="150" rx="10" fill="rgba(46, 204, 113, 0.10)" stroke="#2ecc71" stroke-width="1.5"/>
+    <rect x="0" y="0" width="190" height="4" rx="2" fill="#2ecc71" opacity="0.8"/>
+    <rect x="80" y="24" width="30" height="26" rx="4" fill="none" stroke="#2ecc71" stroke-width="2"/>
+    <rect x="86" y="18" width="30" height="26" rx="4" fill="#14161e" stroke="#2ecc71" stroke-width="2"/>
+    <text x="825" y="88" fill="#2ecc71" font-family="'Segoe UI', Arial, sans-serif" font-size="15" font-weight="700" text-anchor="middle">4. Paste</text>
+    <text x="825" y="107" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="11" text-anchor="middle">Ctrl+V auto-paste</text>
+    <text x="825" y="123" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="10" text-anchor="middle">history saved first</text>
+    <rect x="783" y="131" width="74" height="16" rx="8" fill="rgba(46, 204, 113, 0.18)"/>
+    <text x="820" y="143" fill="#2ecc71" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" text-anchor="middle">~0.3s</text>
+  </g>
+
+  <!-- Total latency badge -->
+  <g transform="translate(40, 290)">
+    <rect x="0" y="0" width="880" height="52" rx="8" fill="rgba(255,255,255,0.03)" stroke="#2a2e3a" stroke-width="1"/>
+    <circle cx="28" cy="26" r="6" fill="#2ecc71"/>
+    <text x="44" y="31" fill="#b9bdd0" font-family="'Segoe UI', Arial, sans-serif" font-size="13">End-to-end latency scales with recording length:</text>
+    <text x="470" y="31" fill="url(#titleGrad-v2)" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="700">Mic → Paste: 2-8s</text>
+    <text x="660" y="31" fill="#8b8fa3" font-family="'Segoe UI', Arial, sans-serif" font-size="12">(short clip ~2s • long dictation ~8s)</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="40" y="380" fill="#5b6070" font-family="'Segoe UI', Arial, sans-serif" font-size="11">JoyVoice v2.4.0 • Toggle F8 to start, F8 to stop • Fallback: Google ASR transcript preserved on LLM failure</text>
+</svg>

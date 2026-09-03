@@ -1,6 +1,12 @@
 # JoyVoice Robots.txt - Search Engine & AI Crawler Indexing Policy
 User-agent: *
 Allow: /
+Disallow: /.git/
+Disallow: /.venv/
+Disallow: /dist/
+Disallow: /build/
+Disallow: /__pycache__/
+Disallow: /.env
 Allow: /README.md
 Allow: /llms.txt
 Allow: /llms-full.txt
@@ -25,4 +31,16 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
-Sitemap: https://github.com/MHJoy99/joyvoice/blob/master/sitemap.xml
+User-agent: CCBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://raw.githubusercontent.com/MHJoy99/joyvoice/master/sitemap.xml

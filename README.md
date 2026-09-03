@@ -20,6 +20,10 @@
   <sub>High-accuracy speech dictation with Google ASR &amp; Gemini text processing — or switch on Free &amp; Offline Mode (local Whisper, no API key).</sub>
 </p>
 
+# JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows
+
+> Open-source Bangla voice typing and multilingual speech-to-text for Windows 11/10. Press `F8`, dictate in Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French or Portuguese, and auto-paste clean translated text into any app — zero GPU required in cloud mode.
+
 <hr>
 
 ## ⚡ Quick Demo
