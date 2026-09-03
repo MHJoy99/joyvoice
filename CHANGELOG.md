@@ -3,6 +3,20 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## Unreleased — Logging & diagnostics overhaul (draft)
+
+Observability-only update. No dictation behavior changes. Shipped on `master`
+as 8 commits since the v2.3.9 closeout (`4f087f8..9dc98ae`): rotating redacted
+logging (`app/logging_setup.py`), `job_id` pipeline tracing, structured crash
+reports + diagnostics export bundle (`tools/collect_logs.py`), usage-telemetry
+join keys. Full user guide: `docs/RELEASE_NOTES_NEXT.md`.
+
+- **Rotating, redacted logging:** `%APPDATA%\JoyVoice\joyvoice.log` now rotates (5 MB × 5 backups, UTF-8) instead of growing unbounded. Every line carries `[job=<id> phase=<phase> sess=<session>]` correlation. Secrets (`api_key` / `Bearer` / `sk-...` / passwords / query-string secrets) are scrubbed to `[REDACTED]`; transcripts appear as 80-char previews only; raw audio bytes are never logged. Optional JSON-lines mode via `JV_LOG_JSON=1`; per-module levels via `JV_LOG_LEVEL` (e.g. `INFO,joyvoice.gemini_audio=DEBUG`, default `INFO`); session override via `JV_SESSION_ID`. Startup banner logs versions, resolved paths, sanitized settings, engine mode, and models.
+- **`job_id` pipeline tracing:** one ID minted per hotkey press in `start_recording()`, reused through ASR (`CloudASRWorker` / `FreeASRWorker`) → optional `CloudLLMWorker` → paste → completion. Phases `recording` → `transcribing` → `pasting` → `idle`; stale results after Cancel are logged and ignored. Filter one dictation with `Select-String "job=N" "$env:APPDATA\JoyVoice\joyvoice.log"`.
+- **Structured crash reports + diagnostics export:** `app/crash_guard.py` writes capped (8 KB) human + JSON crash blocks (`ts`, `kind`, `session_id`, `version`, `exc_type`, `message`) safe alongside rotation. Diagnostics dialog (tray / widget → Diagnostics…) gains Logs (last 200 lines, copyable) + Usage & System tabs and one-click **Export bundle (.zip)**; headless equivalent `python tools\collect_logs.py --output <path.zip> --tail 200`. Bundle holds `joyvoice.log*`, `usage.jsonl`, `settings-sanitized.json` (never raw), `system_info.json`, `usage_summary.json`, `version.txt`, `log_tail_200.txt` — safe to attach to https://github.com/MHJoy99/joyvoice/issues.
+- **Usage-telemetry join keys:** every `usage.jsonl` row carries `ts` + `session_id` (+ `job_id` for pipeline rows) joining directly to log lines. Canonical kinds `asr` | `llm` | `paste` | `pipeline` (legacy `audio` → `asr`, `text_rewrite` → `llm` grouped on read). Bounded retention (default 30 days / 5000 newest events, atomic, corrupt lines dropped) + verify helper; telemetry never raises into dictation.
+- **Where logs live:** normal `%APPDATA%\JoyVoice\joyvoice.log` (+ `.1`… siblings) and `usage.jsonl`; portable (`portable.txt`) under `<app folder>\data\`. Privacy: keys redacted in logs and bundle; review previews before uploading.
+
 ## v2.3.9 — Fast Native Audio Gateway Release (2026-08-08)
 
 - **Native gateway route:** JoyVoice uses the verified `joyvoice-fast-audio` alias for optional one-request transcription and translation through `input_audio` WAV content.
