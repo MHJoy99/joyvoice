@@ -1,5 +1,11 @@
 # AI Status & Session Ledger — JoyVoice
 
+## Session Log — 2026-09-03 — v2.4.0 announcement + status docs (job 9/10, docs-only)
+
+- **Scope:** docs-only. Wrote NEW `docs/ANNOUNCE_v2_4_0.md` (public announcement: what shipped, who benefits, download placeholder https://github.com/MHJoy99/joyvoice/releases/tag/v2.4.0, 3-line diagnostics how-to). Added this dated entry at top of `AI_STATUS.md`. No other files touched. No commit/push/publish, no build, per job instructions.
+- **Source:** `CHANGELOG.md` Unreleased draft + `docs/RELEASE_NOTES_NEXT.md` (8 commits since v2.3.9 closeout `4f087f8..9dc98ae`): rotating redacted logging (`app/logging_setup.py`), `job_id` pipeline tracing, structured crash reports + diagnostics export bundle (`tools/collect_logs.py`), usage-telemetry join keys. Observability-only, no dictation behavior changes.
+- **Verification:** docs-only change; no code/tests/build run in this job.
+
 ## Current Session
 
 - **Updated Date**: 2026-08-08
