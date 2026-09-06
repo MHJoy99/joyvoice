@@ -817,29 +817,75 @@ class SettingsWindow(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
 
+        try:
+            from app.storage import paths as _paths
+            _history_path = str(_paths.history_path())
+        except Exception:
+            _history_path = "history.json"
+        path_label = QLabel(f"Saved transcripts: {_history_path}")
+        path_label.setWordWrap(True)
+        path_label.setStyleSheet("color: #6b7280; font-size: 10px;")
+        path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        layout.addWidget(path_label)
+
+        search_row = QHBoxLayout()
+        self.history_search_edit = QLineEdit()
+        self.history_search_edit.setPlaceholderText("Search saved transcripts…")
+        self.history_search_edit.textChanged.connect(self._filter_history_list)
+        search_row.addWidget(self.history_search_edit, 1)
+        refresh_button = QPushButton("Refresh")
+        refresh_button.clicked.connect(self._refresh_history_list)
+        search_row.addWidget(refresh_button)
+        layout.addLayout(search_row)
+
         self.history_list = QListWidget()
+        self.history_list.itemDoubleClicked.connect(lambda _item: self._copy_selected_history_item())
         layout.addWidget(self.history_list)
 
+        self._history_entries: list = []
+        self._refresh_history_list()
+
+        copy_button = QPushButton("Copy")
+        copy_button.setToolTip("Copy the selected transcript to clipboard (double-click also copies)")
+        copy_button.clicked.connect(self._copy_selected_history_item)
+        layout.addWidget(copy_button)
+
+        hint = QLabel("Every dictation is saved here before pasting — including salvaged transcripts when translation fails.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #6b7280; font-size: 10px;")
+        layout.addWidget(hint)
+
+        return widget
+
+    def _refresh_history_list(self) -> None:
         try:
             entries = history_store.load()
         except Exception as exc:
             logger.warning("Could not load history: %s", exc)
             entries = []
+        self._history_entries = entries if isinstance(entries, list) else []
+        self._filter_history_list(self.history_search_edit.text() if hasattr(self, "history_search_edit") else "")
 
+    def _filter_history_list(self, filter_text: str = "") -> None:
+        if not hasattr(self, "history_list"):
+            return
+        needle = (filter_text or "").strip().lower()
+        self.history_list.clear()
+        entries = getattr(self, "_history_entries", []) or []
         for entry in reversed(entries[-HISTORY_DISPLAY_LIMIT:]):
             text = entry.get("text", "") if isinstance(entry, dict) else ""
+            if not text:
+                continue
+            if needle and needle not in text.lower():
+                continue
             timestamp = entry.get("timestamp", "") if isinstance(entry, dict) else ""
             short_ts = timestamp[:16].replace("T", " ") if timestamp else ""
-            label = f"[{short_ts}] {text}" if short_ts else text
+            snippet = text if len(text) <= 120 else text[:120].rstrip() + "…"
+            label = f"[{short_ts}] {snippet}" if short_ts else snippet
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, text)
+            item.setToolTip(text[:500])
             self.history_list.addItem(item)
-
-        copy_button = QPushButton("Copy")
-        copy_button.clicked.connect(self._copy_selected_history_item)
-        layout.addWidget(copy_button)
-
-        return widget
 
     def _copy_selected_history_item(self) -> None:
         item = self.history_list.currentItem()

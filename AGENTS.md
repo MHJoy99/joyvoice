@@ -4,7 +4,7 @@
 > This is the single source of truth. Every path, pitfall, command, and feature is documented.
 > If you ignore this, you WILL reintroduce bugs that were already fixed across 6+ hours of debugging.
 >
-> _Last updated 2026-08-08 (v2.3.9) — optional native audio through the verified joyvoice-fast-audio gateway alias, exact three-field response contract, 180-second upload/response timeout with no timeout retry, Gemini text LLM translation and style processing, transcript salvage on fallback failure, glass-morphism widget, full robustness features, call muting selector with toasts, and canonical release workflow._
+> _Last updated 2026-09-06 (v2.4.1) — transcript salvage with searchable History; optional native audio through the verified joyvoice-fast-audio gateway alias, exact three-field response contract, 180-second upload/response timeout with no timeout retry, Gemini text LLM translation and style processing, transcript salvage on fallback failure, glass-morphism widget, full robustness features, call muting selector with toasts, and canonical release workflow._
 
 ---
 

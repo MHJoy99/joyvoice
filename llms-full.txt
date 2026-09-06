@@ -6,7 +6,7 @@
 
 - **Name:** JoyVoice
 - **Repository URL:** `https://github.com/MHJoy99/joyvoice`
-- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.3.9`
+- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.4.1`
 - **License:** MIT License
 - **Target Platform:** Windows 10 / Windows 11 (64-bit)
 - **Primary Language:** Python 3.11

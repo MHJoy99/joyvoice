@@ -1,5 +1,7 @@
 # JoyVoice: AI Floating Mic Dictation & Speech Translation for Windows
 
+> Current version: 2.4.1 (https://github.com/MHJoy99/joyvoice/releases/tag/v2.4.1)
+>
 > JoyVoice is an open-source, low-latency floating microphone dictation and real-time speech translation application for Windows 10/11. It supports optional native audio through the `joyvoice-fast-audio` gateway alias, with Google Web Speech as the cloud fallback and Gemini 3.6 Flash for text translation/styling. Press F8, speak in any of 10 languages, and automatically paste clean translated text into any active Windows application.
 
 ## Overview & Purpose

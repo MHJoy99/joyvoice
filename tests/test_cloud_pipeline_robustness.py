@@ -92,12 +92,23 @@ class TestCloudASRChunked(unittest.TestCase):
         chunk_len = 960000
         pcm = b"\x01" * (chunk_len * 2)
 
-        mock_transcribe.side_effect = ["First part.", Exception("API Rate limit")]
+        mock_transcribe.side_effect = [Exception("API Rate limit"), Exception("API Rate limit")]
 
         with self.assertRaises(RuntimeError) as ctx:
             cloud_asr.transcribe_chunked(pcm, language="en", chunk_seconds=30.0)
 
-        self.assertIn("chunk 2/2 failed", str(ctx.exception))
+        self.assertIn("chunk 1/2 failed", str(ctx.exception))
+
+    @patch("app.transcription.cloud_asr.transcribe")
+    def test_chunk_error_salvages_prior_chunks(self, mock_transcribe):
+        chunk_len = 960000
+        pcm = b"\x01" * (chunk_len * 2)
+
+        mock_transcribe.side_effect = ["First part.", Exception("API Rate limit")]
+
+        res = cloud_asr.transcribe_chunked(pcm, language="en", chunk_seconds=30.0)
+
+        self.assertEqual(res, "First part.")
 
 
 class TestGeminiAudio(unittest.TestCase):
@@ -646,7 +657,7 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
     @patch("app.main.transcribe_and_translate")
     @patch("app.main.cloud_asr_transcribe_chunked")
     @patch("app.main.cloud_llm_rewrite")
-    def test_translation_failure_does_not_paste_untranslated_transcript(
+    def test_translation_failure_salvages_transcript_to_history(
         self, mock_llm_rewrite, mock_asr_chunked, mock_transcribe_translate
     ):
         mock_transcribe_translate.side_effect = Exception("Gemini audio failed")
@@ -662,9 +673,20 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
 
         worker.run()
 
-        done_mock.assert_not_called()
-        failed_mock.assert_called_once()
-        self.assertIn("not pasted", failed_mock.call_args.args[0].lower())
+        done_mock.assert_called_once_with(
+            "Hello world transcript", "Hello world transcript", ""
+        )
+        failed_mock.assert_not_called()
+
+    @patch("app.main._single_llm_call")
+    def test_llm_chunk_failure_salvages_prior_chunks(self, mock_single_call):
+        long_text = "Sentence one here. " + "Sentence two here. " * 100
+        mock_single_call.side_effect = ["First translated.", Exception("gateway down")]
+
+        res = main_mod.cloud_llm_rewrite(long_text, "translate_to_target", "en")
+
+        self.assertEqual(res, "First translated.")
+        self.assertEqual(mock_single_call.call_count, 2)
 
     @patch("app.main.transcribe_and_translate")
     @patch("app.main.cloud_asr_transcribe_chunked")

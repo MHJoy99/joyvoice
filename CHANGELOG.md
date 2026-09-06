@@ -3,6 +3,15 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.4.1 — Transcript Salvage & History Search (2026-09-06)
+
+- **ASR transcript salvage:** `CloudASRWorker` preserves the ASR transcript when LLM translation fails (HTTP 400 / gateway / network) and pastes it via history-before-paste, so dictation is never lost.
+- **AI-style failure fallback:** AI text-style LLM failure saves the pre-rewrite text with a toast instead of dropping the result.
+- **Partial chunk salvage:** long-audio ASR and long-text translation keep recovered partial chunks on failure.
+- **Free Mode fallback:** Whisper `translate` failure keeps the transcription instead of failing the dictation.
+- **Searchable History tab:** Settings → History gains search, Refresh, file-path label, and double-click-to-copy.
+- **Verification:** focused suite passes 66 tests.
+
 ## Unreleased — Logging & diagnostics overhaul (draft)
 
 Observability-only update. No dictation behavior changes. Shipped on `master`

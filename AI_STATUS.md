@@ -1,5 +1,10 @@
 # AI Status & Session Ledger — JoyVoice
 
+## Session Log — 2026-09-06 — v2.4.1 transcript salvage + searchable history
+
+- **Scope:** transcript salvage across the full pipeline (CloudASRWorker translation-failure salvage, AI-style pre-rewrite fallback with toast, partial ASR/LLM chunk salvage, Free Mode translate fallback) + searchable Settings → History tab (search, Refresh, path label, double-click copy). New docs: `docs/DEPLOY.md` (verify→commit→push→tag→build→release), `docs/RELEASE_v2_4_1.md`, `docs/wiki/` pack (Home, History-and-Salvage, Recover-a-Failed-Dictation). Version surfaces synced to v2.4.1.
+- **Verification:** 66 unittest tests OK, `git diff --check` clean, `py_compile` clean on touched modules.
+
 ## Session Log — 2026-09-03 — v2.4.0 announcement + status docs (job 9/10, docs-only)
 
 - **Scope:** docs-only. Wrote NEW `docs/ANNOUNCE_v2_4_0.md` (public announcement: what shipped, who benefits, download placeholder https://github.com/MHJoy99/joyvoice/releases/tag/v2.4.0, 3-line diagnostics how-to). Added this dated entry at top of `AI_STATUS.md`. No other files touched. No commit/push/publish, no build, per job instructions.

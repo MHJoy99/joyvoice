@@ -211,6 +211,15 @@ def transcribe_chunked(
             if total_chunks == 1:
                 raise
         except Exception as exc:
+            if results:
+                # Partial salvage for long recordings: keep what succeeded
+                # so the dictation is reusable from History instead of lost.
+                logger.warning(
+                    "Google ASR chunk %d/%d error — salvaging %d prior chunk(s): %s",
+                    chunk_num, total_chunks, len(results), exc,
+                    extra=_extra,
+                )
+                break
             logger.error(
                 "Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc,
                 extra=_extra,

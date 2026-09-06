@@ -483,9 +483,9 @@ translation is pasted in the source language.
 > **Note:** The `"language"` key controls the source speech language. The `"target_language"` key controls the translation output. These are independent — you can set source to `"ru"` (Russian) and target to `"en"` (English).
 
 If the translation provider is unavailable after ASR succeeds, JoyVoice now
-fails closed and does not paste an untranslated transcript. This prevents a
-Bangla transcript from appearing when English output was requested; retry after
-the provider recovers.
+salvages the transcript and saves it via the normal history-before-paste path
+so nothing is lost to internet/gateway issues. Find it in Settings → History
+(search, then Copy/double-click) and retry after the provider recovers.
 
 ### 7d: Timeout / Hang
 

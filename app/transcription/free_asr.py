@@ -126,7 +126,18 @@ class FreeASRWorker(QThread):
             engine = self._resolve_engine()
             if engine == "whisper" and self._target_lang in (None, "", "en"):
                 # Whisper's built-in translate task outputs English.
-                translation = self._transcribe(model, "translate") or transcript
+                try:
+                    translation = self._transcribe(model, "translate") or transcript
+                except Exception as translate_exc:
+                    # Translation pass failed after a good transcription:
+                    # salvage the transcript rather than losing the dictation.
+                    logger.warning(
+                        "Free translate fallback — salvaging transcript "
+                        "(chars=%d): %s",
+                        len(transcript or ""), translate_exc,
+                        extra=_extra,
+                    )
+                    translation = transcript
             else:
                 # Non-English targets are not yet supported offline: transcription only.
                 translation = transcript

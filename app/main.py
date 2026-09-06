@@ -397,7 +397,19 @@ def cloud_llm_rewrite(
     )
     translated_chunks: list[str] = []
     for idx, chunk in enumerate(chunks):
-        res = _single_llm_call(chunk, style, target_language=target_language, job_id=job_id)
+        try:
+            res = _single_llm_call(chunk, style, target_language=target_language, job_id=job_id)
+        except Exception as chunk_exc:
+            if translated_chunks:
+                # Partial salvage for long text: keep translated chunks so
+                # far instead of losing the whole dictation to one bad chunk.
+                _llm_logger.warning(
+                    "LLM chunk %d/%d failed — salvaging %d prior chunk(s): %s",
+                    idx + 1, len(chunks), len(translated_chunks), chunk_exc,
+                    extra=_extra,
+                )
+                break
+            raise
         if res.strip():
             translated_chunks.append(res.strip())
 
@@ -530,32 +542,36 @@ class CloudASRWorker(QThread):
         except Exception as fallback_exc:
             if self._cancelled:
                 return
-            if transcript and transcript.strip() and self._lang == self._target_lang:
-                # Pasting the ASR result is safe only when the requested target
-                # is already the known source language.  In translation mode,
-                # raw Bangla after a provider outage is worse than no paste.
+            salvaged = None
+            try:
+                if "cleaned" in locals() and cleaned and cleaned.strip():
+                    salvaged = cleaned.strip()
+                elif transcript and transcript.strip():
+                    salvaged = transcript.strip()
+            except Exception:
+                salvaged = transcript.strip() if transcript and transcript.strip() else None
+            override_out = ""
+            try:
+                if "override" in locals() and override:
+                    override_out = override
+            except Exception:
+                override_out = ""
+            if salvaged:
+                # Transcript salvage: ASR heard speech but translation failed
+                # (often internet/gateway issues). Emit the transcript as its
+                # own translation so history-before-paste saves it and the
+                # user can reuse it from Settings → History.
                 logger.warning(
-                    "ASR translate fallback — preserving transcript "
-                    "(latency=%.2fs, source=target=%s): %s",
-                    _time.monotonic() - _t0,
-                    self._target_lang,
-                    fallback_exc,
-                    extra=_extra,
-                )
-                self.done.emit(transcript.strip(), transcript.strip(), "")
-            elif transcript and transcript.strip():
-                logger.error(
-                    "ASR failed — refusing untranslated transcript "
-                    "(latency=%.2fs, source=%s, target=%s): %s",
+                    "ASR translate fallback — salvaging transcript "
+                    "(latency=%.2fs, source=%s, target=%s, chars=%d): %s",
                     _time.monotonic() - _t0,
                     self._lang or "auto",
                     self._target_lang,
+                    len(salvaged),
                     fallback_exc,
                     extra=_extra,
                 )
-                self.failed.emit(
-                    "Translation unavailable; the untranslated transcript was not pasted."
-                )
+                self.done.emit(salvaged, salvaged, override_out or "")
             else:
                 logger.error(
                     "ASR failed (engine=google, latency=%.2fs): %s",
@@ -702,6 +718,7 @@ class AppController:
         self._benchmark_dialog: BenchmarkDialog | None = None
         self._pending_asr: CloudASRWorker | None = None
         self._pending_llm: CloudLLMWorker | None = None
+        self._pending_llm_text: str | None = None
         # Keep cancelled/replaced QThreads alive until Qt reports they finished.
         # Destroying a QThread from its queued result callback can crash Qt6Core.
         self._retired_workers: list[QThread] = []
@@ -1074,6 +1091,7 @@ class AppController:
                     pass
                 self._retire_worker(worker)
                 self._pending_llm = None
+                self._pending_llm_text = None
             self._phase = "idle"
             self._timing = None
             logger.info(
@@ -1254,6 +1272,7 @@ class AppController:
             extra={"job_id": job_id, "phase": "transcribing"},
         )
         target = self.settings.get("target_language", "en")
+        self._pending_llm_text = text
         self._pending_llm = CloudLLMWorker(text, style, target_language=target, job_id=job_id)
         self._pending_llm.done.connect(
             lambda rewritten, jid=job_id: self._on_llm_done(rewritten, jid)
@@ -1282,6 +1301,7 @@ class AppController:
                 job_id, self._timing["llm_s"], len(rewritten_text or ""),
                 extra={"job_id": job_id, "phase": "transcribing"},
             )
+        self._pending_llm_text = None
         self.widget.set_preview(rewritten_text)
         self._finish_paste(rewritten_text)
 
@@ -1293,13 +1313,29 @@ class AppController:
                 extra={"job_id": job_id, "phase": self._phase},
             )
             return
+        salvaged = self._pending_llm_text
+        self._pending_llm_text = None
+        logger.error(
+            "Job %d LLM failed (phase=transcribing): %s",
+            job_id, message,
+            extra={"job_id": job_id, "phase": self._phase},
+        )
+        if salvaged and salvaged.strip():
+            # AI-style salvage: translation already succeeded, only the style
+            # rewrite failed (often internet/gateway). Save the pre-rewrite
+            # text via the normal history-before-paste path so it stays
+            # reusable from Settings → History.
+            logger.warning(
+                "Job %d LLM salvage — saving pre-rewrite text (chars=%d)",
+                job_id, len(salvaged.strip()),
+                extra={"job_id": job_id, "phase": self._phase},
+            )
+            self.widget.set_preview(salvaged.strip())
+            self.widget.show_toast("AI rewrite failed — saved original")
+            self._finish_paste(salvaged.strip())
+            return
         self._timing = None
         self._phase = "idle"
-        logger.error(
-            "Job %d LLM failed (phase=transcribing→idle): %s",
-            job_id, message,
-            extra={"job_id": job_id, "phase": "idle"},
-        )
         self._show_error(f"AI rewrite failed: {message}")
 
     def _finish_paste(self, final_text: str) -> None:
