@@ -4,6 +4,7 @@
 
 - **Scope:** transcript salvage across the full pipeline (CloudASRWorker translation-failure salvage, AI-style pre-rewrite fallback with toast, partial ASR/LLM chunk salvage, Free Mode translate fallback) + searchable Settings → History tab (search, Refresh, path label, double-click copy). New docs: `docs/DEPLOY.md` (verify→commit→push→tag→build→release), `docs/RELEASE_v2_4_1.md`, `docs/wiki/` pack (Home, History-and-Salvage, Recover-a-Failed-Dictation). Version surfaces synced to v2.4.1.
 - **Verification:** 66 unittest tests OK, `git diff --check` clean, `py_compile` clean on touched modules.
+- **Closeout:** commit `081af61` pushed to `master`, annotated tag `v2.4.1` pushed; exact-tag build via `build_exe.bat` + `JoyVoice.spec` → `dist\JoyVoice.exe` 192,109,452 bytes, valid PE/MZ; public release https://github.com/MHJoy99/joyvoice/releases/tag/v2.4.1 (draft=false, prerelease=false, published 2026-09-06T22:43:56Z, asset `JoyVoice.exe` state `uploaded`).
 
 ## Session Log — 2026-09-03 — v2.4.0 announcement + status docs (job 9/10, docs-only)
 
