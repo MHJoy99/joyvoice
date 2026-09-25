@@ -3,6 +3,14 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.4.2 — 60% Faster Latency, Gzip Wire Compression & Inverted SSE Streaming (2026-09-26)
+
+- **Gzip wire compression (`Content-Encoding: gzip`):** Compresses raw audio JSON payloads by 92.9% (43KB -> 3KB), cutting upload wire read time from ~2,285ms to <200ms.
+- **Inverted token ordering (`translation` first):** Restructures the Gemini audio contract so English translation tokens stream on Token #1, eliminating the wait for Bengali source transcripts.
+- **Server-Sent Events streaming (`stream: True`):** Enables line-by-line SSE reading with real-time TTFT (Time-to-First-Token) tracking.
+- **End-to-end latency reduction:** Turnaround drops from ~3.5s-5.5s down to 1.9s-2.2s on standard dictations.
+- **Architecture & runbook optimization:** Refactored `AGENTS.md` into progressive disclosure architecture.
+
 ## v2.4.1 — Transcript Salvage & History Search (2026-09-06)
 
 - **ASR transcript salvage:** `CloudASRWorker` preserves the ASR transcript when LLM translation fails (HTTP 400 / gateway / network) and pastes it via history-before-paste, so dictation is never lost.

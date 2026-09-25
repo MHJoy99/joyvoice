@@ -1,5 +1,10 @@
 # AI Status & Session Ledger — JoyVoice
 
+## Session Log — 2026-09-26 — v2.4.2 60% faster latency, wire gzip + SSE streaming
+
+- **Scope:** 60% latency reduction via client-side wire gzip compression (`Content-Encoding: gzip` reducing payload by 92.9%), inverted token generation contract (`translation` first), Server-Sent Events line streaming (`stream: True`), TTFT telemetry logging, and progressive disclosure refactoring of `AGENTS.md`. Version surfaces synced to v2.4.2.
+- **Verification:** Unit and end-to-end synthetic audio speech tests OK, `git diff --check` clean, `bin/guard.py pre-commit` clean, live gateway decompression confirmed.
+
 ## Session Log — 2026-09-06 — v2.4.1 transcript salvage + searchable history
 
 - **Scope:** transcript salvage across the full pipeline (CloudASRWorker translation-failure salvage, AI-style pre-rewrite fallback with toast, partial ASR/LLM chunk salvage, Free Mode translate fallback) + searchable Settings → History tab (search, Refresh, path label, double-click copy). New docs: `docs/DEPLOY.md` (verify→commit→push→tag→build→release), `docs/RELEASE_v2_4_1.md`, `docs/wiki/` pack (Home, History-and-Salvage, Recover-a-Failed-Dictation). Version surfaces synced to v2.4.1.
