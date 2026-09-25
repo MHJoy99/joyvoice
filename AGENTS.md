@@ -100,10 +100,69 @@ git diff --check
 
 ---
 
-## 6. Git & Deployment Policy
+## 6. 🛑 Mandatory Wrap-Up & Production Release Protocol (10-Agent Deployment)
 
-Sequence for bug fixes and feature updates: **fix → verify → commit → push**.
-1. **Fix & Verify:** Scoped changes only, passing verification checks.
-2. **Commit:** Concise, conventional commit messages matching repo style.
-3. **Push:** `git push origin master` (or active branch) and sync tags.
-4. **Public Release:** Follow [`docs/RELEASE.md`](docs/RELEASE.md) with `build_exe.bat` and `JoyVoice.spec`.
+### Trigger Conditions
+Whenever the user indicates that the main implementation/debugging task is finished with phrases like:
+- "shob shesh hoye gese" / "bondho kore dibo"
+- "all done" / "wrap up" / "finish up" / "ready to release"
+- "make a release" / "ship it"
+
+**You MUST NOT stop at a simple conversational sign-off.**
+You are strictly required to activate the **10-Sub-Agent Release Workflow** immediately to finalize, compile, optimize, and deploy the project to production.
+
+---
+
+### The 10-Sub-Agent Workload Allocation
+
+1. **Agent 1 — Release Architect & Version Controller**
+   - Bump version number across version surfaces (`pyproject.toml`, `schema.json`, `index.html`, `llms.txt`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `AI_STATUS.md`).
+   - Lock down dependencies and verify environment reproducibility.
+
+2. **Agent 2 — Code Hygiene & Secret Sentinel**
+   - Audit all changed files (`git diff`).
+   - Remove debug print statements, temporary profiling code, and test endpoints.
+   - Verify that NO API keys, session tokens, or personal paths are hardcoded.
+
+3. **Agent 3 — PyInstaller / Windows Executable Builder**
+   - Run the Windows binary build pipeline via `build_exe.bat` and authoritative `JoyVoice.spec`.
+   - Verify output `dist\JoyVoice.exe` and bundle into `JoyVoice-v<VERSION>-Windows-x64.zip`.
+
+4. **Agent 4 — Binary & Runtime QA Tester**
+   - Verify that the executable launches cleanly with 0 console warnings.
+   - Verify F8 hotkey binding, audio capture fallback, and crash guards.
+
+5. **Agent 5 — Git Curator & Commit Specialist**
+   - Stage files cleanly by domain.
+   - Author atomic conventional commits (`feat:`, `perf:`, `fix:`, `docs:`).
+   - Push branch and verify remote sync with GitHub.
+
+6. **Agent 6 — Documentation & Markdown Refresh**
+   - Update `README.md`, `CHANGELOG.md`, and all linked `/docs` files.
+   - Add/update latency benchmark comparison tables.
+   - Document any new hotkeys, settings, or CLI flags.
+
+7. **Agent 7 — SEO & AEO (Answer Engine Optimization) Specialist**
+   - Update repository metadata, tagline, and GitHub Topics tags:
+     (`voice-dictation`, `bangla-to-english`, `banglish-translation`, `speech-to-text`, `gemini-audio`, `realtime-dictation`, `windows-dictation`).
+   - Structure the top section of `README.md` with explicit, high-intent Q&A blocks so AI search engines cite JoyVoice directly.
+
+8. **Agent 8 — Release Notes & Changelog Author**
+   - Author comprehensive release notes detailing:
+     - Features added/fixed
+     - Benchmark performance metrics
+     - Upgrade instructions & known limitations
+
+9. **Agent 9 — GitHub Release & Asset Publisher**
+   - Generate SHA-256 checksums for all release binaries.
+   - Cut a new git tag: `git tag -a v<VERSION> -m "..." && git push origin --tags`.
+   - Create the official GitHub Release with binary attachments (`dist\JoyVoice.exe`) via `gh release create`.
+
+10. **Agent 10 — Final Quality Control & Sign-Off Judge**
+    - Audit the live GitHub repository view, release download links, and commit history.
+    - Confirm zero outstanding regressions and deliver the final executive summary to the user.
+
+---
+
+### Enforcement Rule
+This protocol is **non-optional and permanent**. It ensures that no code is left half-finished, documentation and SEO never lag behind code changes, and release binaries are always tested and shipped cleanly.

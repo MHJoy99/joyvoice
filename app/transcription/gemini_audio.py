@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import codecs
 import gzip
 import io
 import json
@@ -169,7 +170,19 @@ def _parse_result(content: str) -> tuple[str, str, str | None]:
     match = re.search(r"\{.*\}", content, re.DOTALL)
     if not match:
         raise ValueError("Gemini returned no JSON result")
-    result = json.loads(match.group())
+    raw_json_str = match.group()
+    try:
+        result = json.loads(raw_json_str)
+    except json.JSONDecodeError as err:
+        if "Invalid \\uXXXX escape" in str(err) or "\\u" in raw_json_str:
+            # Repair malformed or truncated \uXXXX escapes (e.g. \u098 or lone \u)
+            repaired_str = re.sub(r"\\u(?![0-9a-fA-F]{4})[0-9a-fA-F]{0,3}", "", raw_json_str)
+            try:
+                result = json.loads(repaired_str)
+            except Exception:
+                raise ValueError(f"Gemini returned invalid response JSON: {err}") from err
+        else:
+            raise ValueError(f"Gemini returned invalid response JSON: {err}") from err
     if not isinstance(result, dict):
         raise ValueError("Gemini returned a non-object audio result")
     expected_keys = {"transcript", "translation", "target_override"}
@@ -310,15 +323,23 @@ def transcribe_and_translate(
         f"translate into {target_name} ({target_native}).\n"
         f"- Do NOT treat content mentions as overrides (e.g. 'I want to learn Russian' or "
         f"'Russian market is big' must keep target_override=null).\n"
-        f"- Allowed language codes: {lang_list}.\n"
+        f"- Allowed language codes: {lang_list}.\n\n"
+        f"CRITICAL TRANSLATION REQUIREMENT:\n"
+        f'- The "translation" field MUST be written in genuine, fluent {target_name} ({target_native}) words.\n'
+        f'- NEVER output Romanized transliteration (Banglish, Hinglish, Pinyin, etc.) in the "translation" field.\n'
+        f"- Even if the speaker mixes languages or uses colloquial spoken slang, translate the underlying meaning "
+        f"faithfully into natural, grammatically correct {target_name}.\n\n"
         f'JSON shape example: {{"translation":"...","transcript":"...","target_override":null}}. '
-        "Output only this JSON object; do not use a summary field or Markdown fences."
+        "Output only this JSON object; do not use a summary field or Markdown fences. "
+        "Output raw UTF-8 Unicode characters directly — never output escaped sequences like \\uXXXX."
     )
 
     repair_prompt = (
         prompt
         + "\nCRITICAL REPAIR: Output ONLY valid JSON containing exactly translation, "
         "transcript, and target_override keys. "
+        "The translation MUST be fluent English/target language words, never transliteration. "
+        "Output raw UTF-8 Unicode characters directly — never output escaped sequences like \\uXXXX. "
         "Do not call any tools or output any text outside JSON."
     )
     attempts = [prompt, repair_prompt]
@@ -364,30 +385,38 @@ def transcribe_and_translate(
 
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                for line_bytes in response:
-                    line_str = line_bytes.decode("utf-8", errors="replace").strip()
-                    if not line_str.startswith("data: "):
-                        continue
-                    data_str = line_str[6:].strip()
-                    if data_str == "[DONE]":
+                decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+                line_buffer = ""
+                while True:
+                    raw_chunk = response.read(1024)
+                    if not raw_chunk:
                         break
-                    try:
-                        chunk = json.loads(data_str)
-                    except json.JSONDecodeError:
-                        continue
-                    if "usage" in chunk and isinstance(chunk["usage"], dict):
-                        usage_data.update(chunk["usage"])
-                    chunk_choices = chunk.get("choices")
-                    if isinstance(chunk_choices, list) and chunk_choices:
-                        choice = chunk_choices[0]
-                        if choice.get("finish_reason"):
-                            finish_reason = choice.get("finish_reason")
-                        delta = choice.get("delta", {})
-                        delta_text = delta.get("content", "")
-                        if delta_text:
-                            if first_token_latency is None:
-                                first_token_latency = time.monotonic() - t0
-                            content_accum.append(delta_text)
+                    line_buffer += decoder.decode(raw_chunk, final=False)
+                    while "\n" in line_buffer:
+                        line_str, line_buffer = line_buffer.split("\n", 1)
+                        line_str = line_str.strip()
+                        if not line_str.startswith("data: "):
+                            continue
+                        data_str = line_str[6:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        if "usage" in chunk and isinstance(chunk["usage"], dict):
+                            usage_data.update(chunk["usage"])
+                        chunk_choices = chunk.get("choices")
+                        if isinstance(chunk_choices, list) and chunk_choices:
+                            choice = chunk_choices[0]
+                            if choice.get("finish_reason"):
+                                finish_reason = choice.get("finish_reason")
+                            delta = choice.get("delta", {})
+                            delta_text = delta.get("content", "")
+                            if delta_text:
+                                if first_token_latency is None:
+                                    first_token_latency = time.monotonic() - t0
+                                content_accum.append(delta_text)
         except (TimeoutError, socket.timeout) as timeout_exc:
             logger.error(
                 "Gemini audio request timed out after %.0fs; not retrying: %s",
