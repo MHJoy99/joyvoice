@@ -13,7 +13,7 @@ import time
 
 import pyperclip
 from PySide6.QtCore import (
-    Qt, Signal, QPoint, QPointF, QTimer, QRectF,
+    Qt, Signal, Slot, QPoint, QPointF, QTimer, QRectF,
     Property, QEasingCurve, QPropertyAnimation,
 )
 from PySide6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QCursor, QLinearGradient
@@ -84,6 +84,8 @@ class FloatingWidget(QWidget):
         self._wave_frame = 0  # frame counter for bar phase animation
         self._recording_start: float | None = None  # monotonic timestamp
         self._waiting_start: float | None = None  # monotonic timestamp for transcribing wait
+        self._dev_mode: bool = False
+        self._dev_info: dict = {}
 
         # ── animation state ──────────────────────────────────────────
         self._accent_color = QColor(STATE_COLORS["idle"])
@@ -146,6 +148,26 @@ class FloatingWidget(QWidget):
         self.preview_label.setWordWrap(True)
         self.preview_label.hide()
         text_stack.addWidget(self.preview_label)
+
+        # Developer readout overlay (hidden by default, toggled via set_dev_mode).
+        # Never steals focus: NoFocus + transparent for mouse events, and the
+        # show/hide paths never call activateWindow()/raise_()/setFocus().
+        self.dev_label = QLabel("", self)
+        self.dev_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.dev_label.setStyleSheet(
+            "color: #9aa0ae; font-size: 8px; "
+            "font-family: Consolas, Menlo, 'DejaVu Sans Mono', monospace; "
+            "background: transparent; border: none;"
+        )
+        mono_font = QFont("Consolas")
+        mono_font.setPointSize(7)
+        mono_font.setStyleHint(QFont.Monospace)
+        self.dev_label.setFont(mono_font)
+        self.dev_label.setWordWrap(True)
+        self.dev_label.setFocusPolicy(Qt.NoFocus)
+        self.dev_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.dev_label.setVisible(False)
+        text_stack.addWidget(self.dev_label)
 
         # Language badge pill
         self.lang_badge = QLabel("", self)
@@ -303,6 +325,141 @@ class FloatingWidget(QWidget):
         self._preview_timer.stop()
         self.preview_label.hide()
         self.preview_label.clear()
+
+    # ── developer readout overlay ────────────────────────────────────
+
+    def set_dev_mode(self, enabled: bool) -> None:
+        """Show/hide the collapsible developer readout overlay.
+
+        Hidden by default. When *enabled* is True the last info passed to
+        :meth:`update_dev` (if any) is shown in tiny mono text; when False
+        the label is hidden again. Never steals focus: this only calls
+        ``setVisible()``/``update()`` and never ``activateWindow()``,
+        ``raise_()`` or ``setFocus()``, preserving the widget-level
+        ``WA_ShowWithoutActivating`` / ``WindowDoesNotAcceptFocus`` /
+        ``NoFocus`` behaviour.
+        """
+        self._dev_mode = bool(enabled)
+        if self._dev_mode and self._dev_info:
+            text = self._format_dev_text(self._dev_info)
+            if text:
+                self.dev_label.setText(text)
+        self.dev_label.setVisible(self._dev_mode and bool(self._dev_info))
+        # Refresh layout so the pill grows/shrinks without focus steal.
+        self.updateGeometry()
+        self.update()
+
+    def is_dev_mode(self) -> bool:
+        """Return whether the developer readout overlay is enabled."""
+        return self._dev_mode
+
+    @Slot(dict)
+    def update_dev(self, info: dict) -> None:
+        """Slot showing last job stats in tiny mono text (dev mode only).
+
+        Accepted keys (all optional, 12 distinct data points supported):
+
+        - ``state``: widget/job state string
+        - ``phase``: pipeline phase string
+        - ``job_id``: last job identifier
+        - ``model``: ASR/audio model name
+        - ``audio_s`` (aliases: ``audio_duration``, ``audio_sec``): audio seconds
+        - ``record_s`` (aliases: ``record_duration``, ``rec_s``): record seconds
+        - ``asr_s`` (aliases: ``asr_latency``, ``asr_sec``): ASR latency seconds
+        - ``ttft_s`` (aliases: ``ttft``, ``ttft_sec``): time-to-first-token sec
+        - ``paste`` outcome (aliases: ``paste_outcome``, ``paste_ok``,
+          ``paste_status``) + ``paste_s``/``paste_ms`` latency +
+          ``paste_attempts`` (aliases: ``paste_tries``, ``attempts``)
+        - ``out_chars`` (aliases: ``out_len``, ``chars``): output char count
+        - ``error`` (aliases: ``error_text``, ``err``): error text (truncated)
+        - ``timestamp`` (aliases: ``ts``, ``time``, ``updated_at``): event time
+
+        The overlay stays hidden unless :meth:`set_dev_mode` enabled it.
+        Never steals focus: only ``setText()``/``setVisible()``/``update()``.
+        """
+        if not isinstance(info, dict):
+            return
+        self._dev_info = dict(info)
+        if not self._dev_mode:
+            return  # keep existing behaviour identical when dev mode is off
+        text = self._format_dev_text(self._dev_info)
+        if text:
+            self.dev_label.setText(text)
+            if not self.dev_label.isVisible():
+                self.dev_label.setVisible(True)
+            self.updateGeometry()
+            self.update()
+        else:
+            self.dev_label.clear()
+            self.dev_label.setVisible(False)
+
+    def clear_dev(self) -> None:
+        """Clear stored dev info and hide the overlay text (keeps mode flag)."""
+        self._dev_info = {}
+        self.dev_label.clear()
+        self.dev_label.setVisible(False)
+        self.update()
+
+    @staticmethod
+    def _format_dev_text(info: dict) -> str:
+        """Format dev *info* dict into compact multi-line mono text."""
+        def _first(*keys: str, default=None):
+            for k in keys:
+                if k in info and info[k] not in (None, ""):
+                    return info[k]
+            return default
+
+        def _fmt_secs(value) -> str:
+            if value is None or value == "":
+                return "-"
+            try:
+                return f"{float(value):.2f}s"
+            except (TypeError, ValueError):
+                return str(value)
+
+        state = _first("state", default="-")
+        phase = _first("phase", default="-")
+        job_id = _first("job_id", "jobId", "id", default="-")
+        model = _first("model", default="-")
+        audio_s = _fmt_secs(_first("audio_s", "audio_duration", "audio_sec"))
+        record_s = _fmt_secs(_first("record_s", "record_duration", "rec_s"))
+        asr_s = _fmt_secs(_first("asr_s", "asr_latency", "asr_sec"))
+        ttft_s = _fmt_secs(_first("ttft_s", "ttft", "ttft_sec"))
+        paste_outcome = _first(
+            "paste", "paste_outcome", "paste_ok", "paste_status", default="-"
+        )
+        paste_lat_raw = _first("paste_s", "paste_latency", "paste_ms", "paste_sec")
+        if paste_lat_raw is None or paste_lat_raw == "":
+            paste_lat = "-"
+        elif "paste_ms" in info and paste_lat_raw == info.get("paste_ms"):
+            try:
+                paste_lat = f"{float(paste_lat_raw):.0f}ms"
+            except (TypeError, ValueError):
+                paste_lat = str(paste_lat_raw)
+        else:
+            paste_lat = _fmt_secs(paste_lat_raw)
+        paste_attempts = _first(
+            "paste_attempts", "paste_tries", "attempts", default="-"
+        )
+        out_chars = _first("out_chars", "out_len", "chars", default="-")
+        error = _first("error", "error_text", "err", default="")
+        timestamp = _first("timestamp", "ts", "time", "updated_at", default="-")
+        if isinstance(error, str) and len(error) > 80:
+            error = error[:77] + "..."
+        elif error is None:
+            error = ""
+
+        lines = [
+            f"st:{state} ph:{phase}",
+            f"job:{job_id} mdl:{model}",
+            f"aud:{audio_s} rec:{record_s}",
+            f"asr:{asr_s} ttft:{ttft_s}",
+            f"paste:{paste_outcome} {paste_lat} x{paste_attempts}",
+            f"out:{out_chars}ch ts:{timestamp}",
+        ]
+        if error:
+            lines.append(f"err:{error}")
+        return "\n".join(lines)
 
     def set_level(self, level: float) -> None:
         """Latest mic peak amplitude (0.0-1.0)."""

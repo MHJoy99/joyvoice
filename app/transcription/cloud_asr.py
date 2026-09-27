@@ -79,14 +79,31 @@ def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
     QThread-safe: logger calls only. Never logs raw audio, only lengths.
     """
     _extra = {"job_id": job_id, "phase": "transcribing"}
+    _auto_t0 = time.monotonic()
+    _auto_bytes = len(audio_bytes or b"")
+    _auto_dur = _auto_bytes / 32000.0
+    # Trace: auto start — lengths only, never content.
+    logger.info(
+        "Google ASR trace auto start (audio_bytes=%d, duration=%.2fs, codes=%s)",
+        _auto_bytes, _auto_dur, list(AUTO_LANGUAGE_CODES),
+        extra=_extra,
+    )
     candidates: list[tuple[str, str]] = []
     errors: list[Exception] = []
 
     for code in AUTO_LANGUAGE_CODES:
+        _cand_t0 = time.monotonic()
         try:
             text = transcribe(audio_bytes, language=code, job_id=job_id)
         except sr.UnknownValueError as exc:
             errors.append(exc)
+            # Trace: per-candidate done (unintelligible) with duration.
+            logger.info(
+                "Google ASR trace auto candidate done (code=%s, ok=False, "
+                "reason=unintelligible, latency=%.2fs)",
+                code, time.monotonic() - _cand_t0,
+                extra=_extra,
+            )
             continue
         except Exception as exc:
             errors.append(exc)
@@ -94,18 +111,65 @@ def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
                 "Google ASR auto candidate %s failed: %s", code, exc,
                 extra=_extra,
             )
+            # Trace: per-candidate done (error) with duration — lengths only.
+            logger.info(
+                "Google ASR trace auto candidate done (code=%s, ok=False, "
+                "reason_chars=%d, latency=%.2fs)",
+                code, len(str(exc)), time.monotonic() - _cand_t0,
+                extra=_extra,
+            )
             continue
         if text and text.strip():
             candidates.append((code, text.strip()))
+            # Trace: per-candidate done (ok) — chars/score only, never content.
+            try:
+                _score = _language_likelihood(text.strip(), code)
+            except Exception:
+                _score = 0
+            logger.info(
+                "Google ASR trace auto candidate done (code=%s, ok=True, "
+                "chars=%d, score=%d, latency=%.2fs)",
+                code, len(text.strip()), _score, time.monotonic() - _cand_t0,
+                extra=_extra,
+            )
+        else:
+            logger.info(
+                "Google ASR trace auto candidate done (code=%s, ok=False, "
+                "reason=empty, latency=%.2fs)",
+                code, time.monotonic() - _cand_t0,
+                extra=_extra,
+            )
 
     if not candidates:
         if errors:
             raise errors[-1]
         raise sr.UnknownValueError("Speech was unintelligible in Bangla and English")
 
+    # Trace: candidate scores — ints/lengths only, never content.
+    try:
+        _scores = {c: _language_likelihood(t, c) for c, t in candidates}
+        _score_chars = {c: len(t) for c, t in candidates}
+    except Exception:
+        _scores, _score_chars = {}, {}
+    logger.info(
+        "Google ASR trace auto scores (n_candidates=%d, n_errors=%d, scores=%s, "
+        "chars=%s, latency=%.2fs)",
+        len(candidates), len(errors), _scores, _score_chars,
+        time.monotonic() - _auto_t0,
+        extra=_extra,
+    )
     selected_code, selected_text = max(
         candidates,
         key=lambda item: _language_likelihood(item[1], item[0]),
+    )
+    # Trace: auto selection done — lengths/durations only.
+    logger.info(
+        "Google ASR trace auto done (selected=%s, chars=%d, score=%d, "
+        "n_candidates=%d, latency=%.2fs, audio_duration=%.2fs)",
+        selected_code, len(selected_text),
+        _scores.get(selected_code, 0),
+        len(candidates), time.monotonic() - _auto_t0, _auto_dur,
+        extra=_extra,
     )
     # Script-drift telemetry: bn selection with Devanagari and no Bengali script
     # is a Hindi-drift misrecognition — log distinctly, keep the text (fallback
@@ -152,6 +216,14 @@ def transcribe(
     if language in (None, "", "auto"):
         return transcribe_auto(audio_bytes, job_id=job_id)
 
+    _in_bytes = len(audio_bytes or b"")
+    _in_dur = _in_bytes / 32000.0
+    # Trace: single-call start — lengths only.
+    logger.info(
+        "Google ASR trace start (lang=%s, audio_bytes=%d, duration=%.2fs)",
+        language, _in_bytes, _in_dur,
+        extra=_extra,
+    )
     recognizer = sr.Recognizer()
 
     # Wrap raw PCM bytes as an AudioData object (16 kHz, 16-bit mono).
@@ -164,6 +236,18 @@ def transcribe(
         "Google ASR done (lang=%s, latency=%.2fs, audio_bytes=%d, chars=%d): %s",
         lang, time.monotonic() - t0, len(audio_bytes or b""),
         len(text or ""), (text or "")[:80],
+        extra=_extra,
+    )
+    # Trace: single-call done with durations — lengths only, never content.
+    _lat = time.monotonic() - t0
+    try:
+        _rtf = (_lat / _in_dur) if _in_dur > 0 else 0.0
+    except Exception:
+        _rtf = 0.0
+    logger.info(
+        "Google ASR trace done (lang=%s, audio_bytes=%d, duration=%.2fs, "
+        "latency=%.2fs, rtf=%.3f, chars=%d)",
+        lang, _in_bytes, _in_dur, _lat, _rtf, len(text or ""),
         extra=_extra,
     )
     return text
@@ -221,6 +305,19 @@ def transcribe_chunked(
         total_len, total_len / 32000.0, total_chunks, language or "auto",
         extra=_extra,
     )
+    # Trace: split details — sizes/durations only, never content.
+    try:
+        _chunk_sizes = [len(c or b"") for c in chunks]
+        _chunk_durs = [round(s / 32000.0, 2) for s in _chunk_sizes]
+    except Exception:
+        _chunk_sizes, _chunk_durs = [], []
+    logger.info(
+        "Google ASR trace chunked split (total_bytes=%d, duration=%.2fs, "
+        "n_chunks=%d, sizes_bytes=%s, durations_s=%s, chunk_seconds=%.1f)",
+        total_len, total_len / 32000.0, total_chunks,
+        _chunk_sizes, _chunk_durs, chunk_seconds,
+        extra=_extra,
+    )
 
     results: list[str] = []
     unknown_val_count = 0
@@ -247,9 +344,19 @@ def transcribe_chunked(
             _CHUNK_MAX_WORKERS, _PER_CHUNK_TIMEOUT_S, total_budget_s,
             extra=_extra,
         )
+        # Trace: parallel worker config — counts/durations only.
+        logger.info(
+            "Google ASR trace parallel (workers=%d, n_chunks=%d, per_chunk_timeout=%.1fs, "
+            "total_budget=%.1fs, total_bytes=%d, duration=%.2fs)",
+            _CHUNK_MAX_WORKERS, total_chunks, _PER_CHUNK_TIMEOUT_S, total_budget_s,
+            total_len, total_len / 32000.0,
+            extra=_extra,
+        )
 
         for idx, fut in enumerate(futures):
             chunk_num = idx + 1
+            _chunk_bytes = len(chunks[idx] or b"")
+            _chunk_dur = _chunk_bytes / 32000.0
             logger.info(
                 "Transcribing Google ASR chunk %d/%d (%d bytes)",
                 chunk_num,
@@ -257,7 +364,24 @@ def transcribe_chunked(
                 len(chunks[idx]),
                 extra=_extra,
             )
+            # Trace: per-chunk start with durations + worker count.
+            _chunk_t0 = time.monotonic()
+            logger.info(
+                "Google ASR trace chunk start (chunk=%d/%d, chunk_bytes=%d, "
+                "chunk_duration=%.2fs, workers=%d)",
+                chunk_num, total_chunks, _chunk_bytes, _chunk_dur,
+                _CHUNK_MAX_WORKERS,
+                extra=_extra,
+            )
             remaining = deadline - time.monotonic()
+            # Trace: timeout/salvage budget decision — durations only.
+            logger.info(
+                "Google ASR trace chunk budget (chunk=%d/%d, remaining=%.2fs, "
+                "per_chunk_timeout=%.1fs, total_budget=%.1fs, n_done=%d)",
+                chunk_num, total_chunks, max(0.0, remaining),
+                _PER_CHUNK_TIMEOUT_S, total_budget_s, len(results),
+                extra=_extra,
+            )
             if remaining <= 0:
                 exc: BaseException = TimeoutError(
                     f"total budget {total_budget_s:.1f}s exhausted"
@@ -269,10 +393,25 @@ def transcribe_chunked(
                         chunk_num, total_chunks, len(results), exc,
                         extra=_extra,
                     )
+                    # Trace: salvage decision — counts only.
+                    logger.warning(
+                        "Google ASR trace salvage (chunk=%d/%d, decision=salvage, "
+                        "reason=total_budget_exhausted, n_salvaged=%d, "
+                        "budget=%.1fs, elapsed=%.2fs)",
+                        chunk_num, total_chunks, len(results), total_budget_s,
+                        time.monotonic() - t0,
+                        extra=_extra,
+                    )
                     break
                 logger.error(
                     "Google ASR chunk %d/%d error: %s",
                     chunk_num, total_chunks, exc,
+                    extra=_extra,
+                )
+                logger.error(
+                    "Google ASR trace salvage (chunk=%d/%d, decision=fail, "
+                    "reason=total_budget_exhausted, n_salvaged=0)",
+                    chunk_num, total_chunks,
                     extra=_extra,
                 )
                 raise RuntimeError(
@@ -281,12 +420,34 @@ def transcribe_chunked(
             timeout = min(_PER_CHUNK_TIMEOUT_S, remaining)
             try:
                 text = fut.result(timeout=timeout)
+                _chunk_lat = time.monotonic() - _chunk_t0
                 if text and text.strip():
                     results.append(text.strip())
+                # Trace: per-chunk done with durations — lengths only.
+                try:
+                    _chunk_rtf = (_chunk_lat / _chunk_dur) if _chunk_dur > 0 else 0.0
+                except Exception:
+                    _chunk_rtf = 0.0
+                logger.info(
+                    "Google ASR trace chunk done (chunk=%d/%d, chunk_bytes=%d, "
+                    "chunk_duration=%.2fs, wait=%.2fs, rtf=%.3f, chars=%d, "
+                    "timeout=%.1fs)",
+                    chunk_num, total_chunks, _chunk_bytes, _chunk_dur,
+                    _chunk_lat, _chunk_rtf, len((text or "").strip()), timeout,
+                    extra=_extra,
+                )
             except sr.UnknownValueError:
                 logger.info(
                     "Google ASR chunk %d/%d: unintelligible speech",
                     chunk_num, total_chunks,
+                    extra=_extra,
+                )
+                # Trace: per-chunk done (unintelligible) with durations.
+                logger.info(
+                    "Google ASR trace chunk done (chunk=%d/%d, ok=False, "
+                    "reason=unintelligible, chunk_duration=%.2fs, wait=%.2fs)",
+                    chunk_num, total_chunks, _chunk_dur,
+                    time.monotonic() - _chunk_t0,
                     extra=_extra,
                 )
                 unknown_val_count += 1
@@ -295,11 +456,21 @@ def transcribe_chunked(
             except (concurrent.futures.TimeoutError, TimeoutError) as exc:
                 # Timeout salvage: same policy as a mid-loop chunk error —
                 # keep completed chunks and proceed to return them.
+                _chunk_lat = time.monotonic() - _chunk_t0
                 if results:
                     logger.warning(
                         "Google ASR chunk %d/%d timeout after %.1fs — salvaging "
                         "%d prior chunk(s): %s",
                         chunk_num, total_chunks, timeout, len(results), exc,
+                        extra=_extra,
+                    )
+                    # Trace: timeout/salvage decision — counts/durations only.
+                    logger.warning(
+                        "Google ASR trace salvage (chunk=%d/%d, decision=salvage, "
+                        "reason=per_chunk_timeout, timeout=%.1fs, wait=%.2fs, "
+                        "n_salvaged=%d, chunk_duration=%.2fs)",
+                        chunk_num, total_chunks, timeout, _chunk_lat,
+                        len(results), _chunk_dur,
                         extra=_extra,
                     )
                     break
@@ -308,11 +479,18 @@ def transcribe_chunked(
                     chunk_num, total_chunks, timeout, exc,
                     extra=_extra,
                 )
+                logger.error(
+                    "Google ASR trace salvage (chunk=%d/%d, decision=fail, "
+                    "reason=per_chunk_timeout, timeout=%.1fs, wait=%.2fs)",
+                    chunk_num, total_chunks, timeout, _chunk_lat,
+                    extra=_extra,
+                )
                 raise RuntimeError(
                     f"Google ASR chunk {chunk_num}/{total_chunks} timed out "
                     f"after {timeout:.1f}s: {exc}"
                 ) from exc
             except Exception as exc:
+                _chunk_lat = time.monotonic() - _chunk_t0
                 if results:
                     # Partial salvage for long recordings: keep what succeeded
                     # so the dictation is reusable from History instead of lost.
@@ -321,9 +499,24 @@ def transcribe_chunked(
                         chunk_num, total_chunks, len(results), exc,
                         extra=_extra,
                     )
+                    # Trace: error/salvage decision — counts/durations only.
+                    logger.warning(
+                        "Google ASR trace salvage (chunk=%d/%d, decision=salvage, "
+                        "reason=chunk_error, reason_chars=%d, wait=%.2fs, "
+                        "n_salvaged=%d, chunk_duration=%.2fs)",
+                        chunk_num, total_chunks, len(str(exc)), _chunk_lat,
+                        len(results), _chunk_dur,
+                        extra=_extra,
+                    )
                     break
                 logger.error(
                     "Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc,
+                    extra=_extra,
+                )
+                logger.error(
+                    "Google ASR trace salvage (chunk=%d/%d, decision=fail, "
+                    "reason=chunk_error, reason_chars=%d, wait=%.2fs)",
+                    chunk_num, total_chunks, len(str(exc)), _chunk_lat,
                     extra=_extra,
                 )
                 raise RuntimeError(

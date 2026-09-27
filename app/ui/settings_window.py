@@ -174,6 +174,7 @@ class SettingsWindow(QDialog):
         tabs.addTab(self._build_paste_tab(), "Paste")
         tabs.addTab(self._build_replacements_tab(), "Replacements")
         tabs.addTab(self._build_history_tab(), "History")
+        tabs.addTab(self._build_developer_tab(), "Developer")
 
         button_box = QDialogButtonBox(
             QDialogButtonBox.Save | QDialogButtonBox.Cancel
@@ -900,6 +901,146 @@ class SettingsWindow(QDialog):
             logger.warning("Could not copy history item to clipboard: %s", exc)
 
     # ------------------------------------------------------------------
+    # Developer (instant-pipeline + observability toggles, read-only paths)
+    # ------------------------------------------------------------------
+    def _build_developer_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        pipe_label = QLabel("Instant pipeline toggles:")
+        layout.addWidget(pipe_label)
+
+        self.dev_cloud_chunking_checkbox = QCheckBox("Chunked cloud requests (cloud_chunking)")
+        self.dev_cloud_chunking_checkbox.setChecked(bool(self._settings.get("cloud_chunking", False)))
+        self.dev_cloud_chunking_checkbox.setToolTip("Splits long audio into chunks: lower TTFT but extra requests.")
+        layout.addWidget(self.dev_cloud_chunking_checkbox)
+
+        self.dev_translation_only_fast_checkbox = QCheckBox("Translation-only fast path (translation_only_fast)")
+        self.dev_translation_only_fast_checkbox.setChecked(bool(self._settings.get("translation_only_fast", False)))
+        self.dev_translation_only_fast_checkbox.setToolTip("Skips transcript output: faster translation, no source text.")
+        layout.addWidget(self.dev_translation_only_fast_checkbox)
+
+        self.dev_streaming_preview_checkbox = QCheckBox("Streaming preview (streaming_preview)")
+        self.dev_streaming_preview_checkbox.setChecked(bool(self._settings.get("streaming_preview", True)))
+        self.dev_streaming_preview_checkbox.setToolTip("Shows partial results live: feels faster, same final quality.")
+        layout.addWidget(self.dev_streaming_preview_checkbox)
+
+        self.dev_waiting_timer_checkbox = QCheckBox("Waiting elapsed timer (waiting_timer)")
+        self.dev_waiting_timer_checkbox.setChecked(bool(self._settings.get("waiting_timer", True)))
+        self.dev_waiting_timer_checkbox.setToolTip("Shows elapsed-time indicator: zero latency impact, visual only.")
+        layout.addWidget(self.dev_waiting_timer_checkbox)
+
+        self.dev_sound_enabled_checkbox = QCheckBox("Completion sounds (sound_enabled)")
+        self.dev_sound_enabled_checkbox.setChecked(bool(self._settings.get("sound_enabled", False)))
+        self.dev_sound_enabled_checkbox.setToolTip("Beeps on first token/done: no latency change, audio cue only.")
+        layout.addWidget(self.dev_sound_enabled_checkbox)
+
+        # NOTE: "dev_overlay" is NOT in settings_store.DEFAULTS (store owner
+        # will not add it), so read defensively with .get(..., False).
+        self.dev_overlay_checkbox = QCheckBox("Developer overlay (dev_overlay)")
+        self.dev_overlay_checkbox.setChecked(bool(self._settings.get("dev_overlay", False)))
+        self.dev_overlay_checkbox.setToolTip("Shows debug overlay with timings: dev only, no audio impact.")
+        layout.addWidget(self.dev_overlay_checkbox)
+
+        # NOTE: no log-level combo added — settings_store.DEFAULTS has no
+        # logging key (logging is via JV_LOG_LEVEL env in app/logging_setup.py),
+        # so a combo would emit a key the store filters out. Skipped per spec.
+
+        obs_label = QLabel("Observability (read-only):")
+        layout.addWidget(obs_label)
+
+        form = QFormLayout()
+        self.dev_config_path_label = QLabel(self._dev_config_path())
+        self.dev_config_path_label.setWordWrap(True)
+        self.dev_config_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dev_config_path_label.setToolTip("Resolved settings.json path currently in use.")
+        form.addRow("Config path:", self.dev_config_path_label)
+
+        self.dev_log_path_label = QLabel(self._dev_log_path())
+        self.dev_log_path_label.setWordWrap(True)
+        self.dev_log_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dev_log_path_label.setToolTip("Active log file; check here first when output looks wrong.")
+        form.addRow("Log path:", self.dev_log_path_label)
+
+        self.dev_history_path_label = QLabel(self._dev_history_path())
+        self.dev_history_path_label.setWordWrap(True)
+        self.dev_history_path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dev_history_path_label.setToolTip("Saved transcripts file; never deleted by pipeline changes.")
+        form.addRow("History path:", self.dev_history_path_label)
+
+        self.dev_version_label = QLabel(self._dev_app_version())
+        self.dev_version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dev_version_label.setToolTip("App version from installed metadata or pyproject fallback.")
+        form.addRow("App version:", self.dev_version_label)
+
+        self.dev_api_host_label = QLabel(self._dev_api_host())
+        self.dev_api_host_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.dev_api_host_label.setToolTip("Gateway host only; the API key is never displayed here.")
+        form.addRow("Gateway host:", self.dev_api_host_label)
+        layout.addLayout(form)
+
+        layout.addStretch(1)
+        return widget
+
+    @staticmethod
+    def _dev_config_path() -> str:
+        try:
+            from app.storage import paths as _paths
+            return str(_paths.settings_path())
+        except Exception:
+            return "settings.json"
+
+    @staticmethod
+    def _dev_log_path() -> str:
+        try:
+            from app.storage import paths as _paths
+            return str(_paths.log_path())
+        except Exception:
+            return "joyvoice.log"
+
+    @staticmethod
+    def _dev_history_path() -> str:
+        try:
+            from app.storage import paths as _paths
+            return str(_paths.history_path())
+        except Exception:
+            return "history.json"
+
+    @staticmethod
+    def _dev_app_version() -> str:
+        try:
+            from importlib.metadata import version as _pkg_version
+            for dist in ("joyvoice", "JoyVoice"):
+                try:
+                    return _pkg_version(dist)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        try:
+            from pathlib import Path as _Path
+            import re as _re
+            here = _Path(__file__).resolve()
+            for cand in (here.parents[1] / "pyproject.toml", here.parents[2] / "pyproject.toml"):
+                if cand.exists():
+                    text = cand.read_text(encoding="utf-8", errors="replace")
+                    m = _re.search(r'^version\s*=\s*["\']([^"\']+)["\']', text, _re.MULTILINE)
+                    if m:
+                        return m.group(1)
+        except Exception:
+            pass
+        return "unknown"
+
+    def _dev_api_host(self) -> str:
+        from urllib.parse import urlparse
+        raw = (self._settings.get("api_base", "") or "").strip() or DEFAULT_API_BASE
+        try:
+            host = urlparse(raw).netloc or raw
+            return host
+        except Exception:
+            return raw
+
+    # ------------------------------------------------------------------
     # Save
     # ------------------------------------------------------------------
     def _on_save(self) -> None:
@@ -936,6 +1077,15 @@ class SettingsWindow(QDialog):
         updated["paste_delay_ms"] = self.paste_delay_combo.currentData()
         updated["restore_clipboard"] = self.restore_clipboard_checkbox.isChecked()
         updated["wait_for_hotkey_release"] = self.wait_for_release_checkbox.isChecked()
+
+        updated["cloud_chunking"] = self.dev_cloud_chunking_checkbox.isChecked()
+        updated["translation_only_fast"] = self.dev_translation_only_fast_checkbox.isChecked()
+        updated["streaming_preview"] = self.dev_streaming_preview_checkbox.isChecked()
+        updated["waiting_timer"] = self.dev_waiting_timer_checkbox.isChecked()
+        updated["sound_enabled"] = self.dev_sound_enabled_checkbox.isChecked()
+        # dev_overlay is intentionally NOT in settings_store.DEFAULTS; still
+        # emit it so the live session can use it (store filters unknown keys).
+        updated["dev_overlay"] = self.dev_overlay_checkbox.isChecked()
 
         replacements: dict[str, str] = {}
         for row in range(self.replacements_table.rowCount()):

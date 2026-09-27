@@ -14,6 +14,16 @@ Crash/diagnostics upgrade (joylog-crash-diag):
 - Module-level helpers (tail_log_lines, sanitize_settings, get_system_info,
   build_diagnostic_summary, collect_bundle) are also reused by
   tools/collect_logs.py. All helpers never raise.
+
+Gateway tab (gateway-probe):
+- api base *host* only (never the key), /models reachability + one timed
+  latency measurement, whether the joyvoice-fast-audio alias is advertised,
+  the selected audio/text models, Python/Qt/app versions and input device
+  names. Exactly ONE network call (GET {api_base}/models, 8 s timeout) serves
+  both the reachability and the alias-advertised signals, so the worst case
+  blocks the GUI for 8 s -- inside the ~10 s budget. The probe is lazy: it
+  runs when the Gateway tab is first shown or when Refresh is clicked, never
+  at import time and never during dialog construction.
 """
 
 from __future__ import annotations
@@ -24,13 +34,17 @@ import logging
 import os
 import platform
 import sys
+import time
+import urllib.error
+import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 import numpy as np
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -61,6 +75,15 @@ ERROR_COLOR = "#e74c3c"
 
 LOG_TAIL_LINES = 200
 TRACEBACK_MAX_CHARS = 8 * 1024
+
+# ── Gateway probe tuning ────────────────────────────────────────────────────
+# One GET covers reachability, latency and alias-advertisement, so the worst
+# case blocks for exactly this long. Keep it under the ~10 s UI budget.
+GATEWAY_PROBE_TIMEOUT_S = 8.0
+GATEWAY_ALIAS_PROBE = "joyvoice-fast-audio"
+DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
+DEFAULT_AUDIO_MODEL = "joyvoice-fast-audio"
+DEFAULT_TEXT_MODEL = "gemini-3.6-flash"
 
 # Settings keys whose values must never leave the machine in clear text.
 SENSITIVE_KEYS = {"api_key"}
@@ -178,6 +201,12 @@ def get_system_info() -> dict[str, Any]:
         info["settings_sanitized"] = load_sanitized_settings()
     except Exception as exc:
         info["settings_sanitized"] = {"error": str(exc)}
+    # Gateway facts (host + models + versions, never the key, never a network
+    # call — the live /models probe lives in the Gateway tab only).
+    try:
+        info["gateway"] = get_gateway_static_info()
+    except Exception as exc:
+        info["gateway"] = {"error": str(exc)}
     return info
 
 
@@ -192,11 +221,226 @@ def get_usage_summary() -> dict[str, Any]:
         return {"events": 0, "error": str(exc)}
 
 
+# ----------------------------------------------------------------------
+# Gateway probe helpers (no key ever leaves this module)
+# ----------------------------------------------------------------------
+
+def _raw_settings() -> dict[str, Any]:
+    """Unredacted settings for local reads only. Never leaves the process."""
+    try:
+        from app.storage import settings_store
+
+        loaded = settings_store.load()
+        if isinstance(loaded, dict):
+            return loaded
+    except Exception:
+        pass
+    try:
+        raw = json.loads(paths.settings_path().read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else {}
+    except Exception:
+        return {}
+
+
+def gateway_api_base() -> str:
+    """Effective api base URL: settings -> JV_API_BASE -> built-in default."""
+    try:
+        base = str(_raw_settings().get("api_base") or "").strip()
+    except Exception:
+        base = ""
+    if not base:
+        base = os.environ.get("JV_API_BASE", "").strip()
+    return (base or DEFAULT_API_BASE).rstrip("/")
+
+
+def gateway_api_host(api_base: str | None = None) -> str:
+    """Return ONLY the host[:port] of the gateway. Never returns path or key."""
+    try:
+        raw = (api_base if api_base is not None else gateway_api_base()) or ""
+        parsed = urlparse(raw if "//" in raw else f"//{raw}", scheme="https")
+        host = parsed.netloc or ""
+        return host or "(unparseable api_base)"
+    except Exception:
+        return "(unparseable api_base)"
+
+
+def gateway_selected_models() -> dict[str, str]:
+    """Selected audio/text model aliases. Never contains secrets."""
+    try:
+        cfg = _raw_settings()
+    except Exception:
+        cfg = {}
+    audio = str(cfg.get("audio_model") or "").strip() or DEFAULT_AUDIO_MODEL
+    text = str(cfg.get("text_model") or "").strip() or DEFAULT_TEXT_MODEL
+    return {"audio_model": audio, "text_model": text}
+
+
+def gateway_key_present() -> bool:
+    """Boolean only: is a key configured anywhere? The value is never read out."""
+    try:
+        if str(_raw_settings().get("api_key") or "").strip():
+            return True
+    except Exception:
+        pass
+    return bool(os.environ.get("JV_API_KEY", "").strip())
+
+
+def probe_gateway_models(
+    api_base: str | None = None,
+    api_key: str | None = None,
+    *,
+    timeout: float = GATEWAY_PROBE_TIMEOUT_S,
+) -> dict[str, Any]:
+    """One timed GET {api_base}/models. Never raises, never returns the key.
+
+    Returns a dict with ``reachable`` (bool), ``latency_ms`` (float or None),
+    ``http_status`` (int or None), ``model_ids`` (list of advertised ids),
+    ``alias_advertised`` (bool), ``model_count`` (int), ``error`` (friendly
+    text) and ``checked_at`` (UTC ISO-8601).
+    """
+    base = (api_base or gateway_api_base() or "").rstrip("/")
+    key = api_key if api_key is not None else str(_raw_settings().get("api_key") or "")
+    if not key:
+        key = os.environ.get("JV_API_KEY", "")
+    result: dict[str, Any] = {
+        "checked_at": "",
+        "api_base": base,
+        "host": gateway_api_host(base),
+        "reachable": False,
+        "latency_ms": None,
+        "http_status": None,
+        "model_ids": [],
+        "model_count": 0,
+        "alias_advertised": False,
+        "error": "",
+    }
+    try:
+        result["checked_at"] = datetime.now(timezone.utc).isoformat()
+    except Exception:
+        result["checked_at"] = ""
+
+    if not base or base == "/v1":
+        result["error"] = "No API base configured — set it in Settings → API."
+        return result
+
+    request = urllib.request.Request(
+        f"{base}/models",
+        headers={"Authorization": f"Bearer {key}"} if key else {},
+    )
+    t0 = time.monotonic()
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            status = getattr(response, "status", None) or getattr(response, "code", None)
+            raw = response.read()
+        result["latency_ms"] = round((time.monotonic() - t0) * 1000.0, 1)
+        result["reachable"] = True
+        try:
+            result["http_status"] = int(status) if status is not None else None
+        except Exception:
+            result["http_status"] = None
+    except urllib.error.HTTPError as exc:
+        result["latency_ms"] = round((time.monotonic() - t0) * 1000.0, 1)
+        result["http_status"] = int(getattr(exc, "code", 0) or 0)
+        result["error"] = (
+            f"HTTP {result['http_status']} from /models — "
+            "check the API base URL and the key (401 = bad key, 404 = wrong base)."
+        )
+        return result
+    except Exception as exc:
+        result["latency_ms"] = round((time.monotonic() - t0) * 1000.0, 1)
+        result["error"] = (
+            f"Could not reach {result['host']} within {timeout:.0f}s "
+            f"({type(exc).__name__}) - offline, proxy, or blocked outbound."
+        )
+        return result
+
+    try:
+        payload = json.loads(raw.decode("utf-8", errors="replace"))
+    except Exception as exc:
+        result["error"] = f"/models replied but the body was not JSON ({exc})."
+        return result
+
+    ids: list[str] = []
+    try:
+        data = payload.get("data") if isinstance(payload, dict) else None
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and item.get("id"):
+                    ids.append(str(item["id"]))
+    except Exception:
+        ids = []
+    result["model_ids"] = sorted(set(ids))
+    result["model_count"] = len(result["model_ids"])
+    result["alias_advertised"] = GATEWAY_ALIAS_PROBE in set(result["model_ids"])
+    if not result["alias_advertised"]:
+        result["error"] = (
+            f"Gateway is up but does not advertise '{GATEWAY_ALIAS_PROBE}' — "
+            "JoyVoice will use its verified fallback model instead."
+        )
+    return result
+
+
+def get_gateway_static_info() -> dict[str, Any]:
+    """Non-network gateway facts: host, models, versions, device names. Never raises.
+
+    Audio devices are reduced to NAME STRINGS ONLY (no indices, no host ids).
+    """
+    info: dict[str, Any] = {
+        "host": gateway_api_host(),
+        "key_configured": gateway_key_present(),
+        "alias_probe": GATEWAY_ALIAS_PROBE,
+        "timeout_s": GATEWAY_PROBE_TIMEOUT_S,
+    }
+    try:
+        info.update(gateway_selected_models())
+    except Exception as exc:
+        info["audio_model"] = f"(unavailable: {exc})"
+        info["text_model"] = f"(unavailable: {exc})"
+    try:
+        info["python"] = sys.version.split()[0]
+    except Exception:
+        info["python"] = "unknown"
+    try:
+        import PySide6
+
+        info["pyside6"] = getattr(PySide6, "__version__", "unknown")
+    except Exception as exc:
+        info["pyside6"] = f"unavailable ({exc})"
+    try:
+        info["app_version"] = crash_guard_version()
+    except Exception:
+        info["app_version"] = "unknown"
+    try:
+        names = [
+            str(dev.get("name") or "")
+            for dev in Recorder.list_input_devices()
+            if dev.get("name")
+        ]
+        info["audio_input_devices"] = names
+        info["audio_input_device_count"] = len(names)
+    except Exception as exc:
+        info["audio_input_devices"] = []
+        info["audio_input_device_count"] = 0
+        info["audio_input_devices_error"] = str(exc)
+    return info
+
+
+def crash_guard_version() -> str:
+    """Best-effort app version via crash_guard (never raises)."""
+    try:
+        import app.crash_guard as crash_guard
+
+        return str(crash_guard.get_version())
+    except Exception:
+        return "unknown"
+
+
 def build_diagnostic_summary() -> str:
     """One-page text summary for the Copy button. Never raises."""
     try:
         info = get_system_info()
         usage = get_usage_summary()
+        gateway = get_gateway_static_info()
         lines = [
             "JoyVoice diagnostics summary",
             f"timestamp: {info.get('timestamp_utc', '')}",
@@ -206,6 +450,10 @@ def build_diagnostic_summary() -> str:
             f"platform: {info.get('platform', 'unknown')}",
             f"pyside6: {info.get('pyside6', 'unknown')}",
             f"audio_devices: {info.get('audio_devices_count', 'unknown')}",
+            f"gateway host: {gateway.get('host', 'unknown')}",
+            f"gateway key configured: {bool(gateway.get('key_configured'))}",
+            f"audio model: {gateway.get('audio_model', 'unknown')}",
+            f"text model: {gateway.get('text_model', 'unknown')}",
             f"usage: {json.dumps(usage, ensure_ascii=False)}",
             f"settings: {json.dumps(info.get('settings_sanitized', {}), ensure_ascii=False)}",
             f"log: {info.get('log_path', '')} (exists={info.get('log_exists', False)})",
@@ -312,6 +560,19 @@ def collect_bundle(zip_path: str | os.PathLike) -> Path:
             except Exception as exc:
                 logger.warning("bundle: could not add %s: %s", name, exc)
 
+        # Gateway snapshot: host/models/versions, no key. The live /models
+        # probe is NOT run here — exporting a bundle must never block on
+        # the network.
+        try:
+            zf.writestr(
+                "gateway.json",
+                json.dumps(
+                    get_gateway_static_info(), indent=2, ensure_ascii=False, default=str
+                ),
+            )
+        except Exception as exc:
+            logger.warning("bundle: could not add gateway.json: %s", exc)
+
         try:
             zf.writestr("version.txt", str(system_info.get("version", "unknown")) + "\n")
         except Exception:
@@ -354,6 +615,17 @@ class DiagnosticsDialog(QDialog):
 
         self.system_tab = self._build_system_tab()
         self.tabs.addTab(self.system_tab, "Usage & System")
+
+        self.gateway_tab = self._build_gateway_tab()
+        self.gateway_index = self.tabs.addTab(self.gateway_tab, "Gateway")
+
+        # Lazy network probe: only when the Gateway tab is first shown, or on
+        # an explicit Refresh. Never during __init__, never at import time.
+        self._gateway_probed = False
+        try:
+            self.tabs.currentChanged.connect(self._on_tab_changed)
+        except Exception as exc:
+            logger.debug("Gateway tab lazy hook failed: %s", exc)
 
         # Bottom row: Copy + Export bundle + Close.
         bottom = QHBoxLayout()
@@ -399,6 +671,7 @@ class DiagnosticsDialog(QDialog):
         try:
             self._refresh_log_view()
             self._refresh_system_view()
+            self._refresh_gateway_static()
         except Exception as exc:
             logger.debug("Diagnostics initial refresh failed: %s", exc)
 
@@ -577,6 +850,195 @@ class DiagnosticsDialog(QDialog):
                 self.system_view.setPlainText(f"(system info unavailable: {exc})")
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    # Gateway tab — host, /models reachability + latency, alias check
+    # ------------------------------------------------------------------
+    def _build_gateway_tab(self) -> QWidget:
+        tab = QWidget(self)
+        layout = QVBoxLayout(tab)
+
+        header = QHBoxLayout()
+        header.addWidget(
+            QLabel("Gateway reachability and environment (API key is never shown):"), 1
+        )
+        self.gateway_refresh_button = QPushButton("Refresh")
+        self.gateway_refresh_button.setToolTip(
+            "Re-read settings and re-run the single timed GET /models probe"
+        )
+        self.gateway_refresh_button.clicked.connect(self._on_gateway_refresh)
+        header.addWidget(self.gateway_refresh_button)
+        layout.addLayout(header)
+
+        form = QFormLayout()
+
+        self.gw_host_label = QLabel("(not read yet)")
+        self.gw_host_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        form.addRow("API base host:", self.gw_host_label)
+
+        self.gw_reachable_label = QLabel("not probed yet")
+        form.addRow("/models reachable:", self.gw_reachable_label)
+
+        self.gw_latency_label = QLabel("-")
+        form.addRow("Probe latency:", self.gw_latency_label)
+
+        self.gw_alias_label = QLabel("-")
+        self.gw_alias_label.setToolTip(
+            f"Whether the gateway advertises the '{GATEWAY_ALIAS_PROBE}' alias in /models. "
+            "When absent, JoyVoice falls back to a verified model."
+        )
+        form.addRow(f"'{GATEWAY_ALIAS_PROBE}' advertised:", self.gw_alias_label)
+
+        self.gw_audio_model_label = QLabel("-")
+        form.addRow("Audio model:", self.gw_audio_model_label)
+
+        self.gw_text_model_label = QLabel("-")
+        form.addRow("Text model:", self.gw_text_model_label)
+
+        self.gw_python_label = QLabel("-")
+        form.addRow("Python:", self.gw_python_label)
+
+        self.gw_qt_label = QLabel("-")
+        form.addRow("Qt (PySide6):", self.gw_qt_label)
+
+        self.gw_version_label = QLabel("-")
+        form.addRow("App version:", self.gw_version_label)
+
+        self.gw_devices_label = QLabel("-")
+        self.gw_devices_label.setWordWrap(True)
+        form.addRow("Audio input devices:", self.gw_devices_label)
+
+        layout.addLayout(form)
+
+        self.gw_status_label = QLabel("")
+        self.gw_status_label.setWordWrap(True)
+        self.gw_status_label.setStyleSheet("color: #8b8fa3; font-size: 10px;")
+        layout.addWidget(self.gw_status_label)
+
+        hint = QLabel(
+            "One GET {api_base}/models with a "
+            f"{GATEWAY_PROBE_TIMEOUT_S:.0f}s timeout, run only when you open this tab "
+            "or press Refresh. The API key is sent in the Authorization header and is "
+            "never displayed or written to disk."
+        )
+        hint.setStyleSheet("color: #8b8fa3; font-size: 10px;")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        layout.addStretch(1)
+        return tab
+
+    def _on_tab_changed(self, index: int) -> None:
+        """Run the gateway probe the first time the Gateway tab is shown."""
+        try:
+            if index == getattr(self, "gateway_index", -1) and not self._gateway_probed:
+                self._gateway_probed = True
+                self._refresh_gateway_probe()
+        except Exception as exc:
+            logger.debug("Gateway lazy probe failed: %s", exc)
+
+    def _on_gateway_refresh(self) -> None:
+        try:
+            self._refresh_gateway_static()
+            self._refresh_gateway_probe()
+        except Exception as exc:
+            self._set_gateway_error(f"Refresh failed: {exc}")
+
+    def _set_gateway_error(self, message: str) -> None:
+        try:
+            self.gw_reachable_label.setText("error")
+            self.gw_reachable_label.setStyleSheet(f"color: {ERROR_COLOR};")
+            self.gw_latency_label.setText("-")
+            self.gw_alias_label.setText("-")
+            self.gw_status_label.setText(message)
+        except Exception:
+            pass
+
+    def _refresh_gateway_static(self) -> None:
+        """Fill every non-network row. Cheap, safe, never touches the network."""
+        try:
+            info = get_gateway_static_info()
+        except Exception as exc:
+            self._set_gateway_error(f"Could not read local gateway config: {exc}")
+            return
+        try:
+            self.gw_host_label.setText(str(info.get("host", "unknown")))
+            key_cfg = bool(info.get("key_configured"))
+            self.gw_host_label.setToolTip(
+                "Host only. A key is configured."
+                if key_cfg
+                else "Host only. No API key configured — set one in Settings → API."
+            )
+            self.gw_audio_model_label.setText(str(info.get("audio_model", "unknown")))
+            self.gw_text_model_label.setText(str(info.get("text_model", "unknown")))
+            self.gw_python_label.setText(str(info.get("python", "unknown")))
+            self.gw_qt_label.setText(str(info.get("pyside6", "unknown")))
+            self.gw_version_label.setText(str(info.get("app_version", "unknown")))
+            devices = info.get("audio_input_devices") or []
+            if devices:
+                self.gw_devices_label.setText(
+                    f"{info.get('audio_input_device_count', len(devices))} device(s): "
+                    + ", ".join(str(d) for d in devices)
+                )
+            else:
+                self.gw_devices_label.setText("(none detected)")
+        except Exception as exc:
+            logger.debug("Gateway static refresh failed: %s", exc)
+
+    def _refresh_gateway_probe(self) -> None:
+        """The ONE network call. Bounded by GATEWAY_PROBE_TIMEOUT_S."""
+        try:
+            self.gw_status_label.setText(
+                f"Probing {gateway_api_host()}/models (timeout "
+                f"{GATEWAY_PROBE_TIMEOUT_S:.0f}s)…"
+            )
+            QApplication.processEvents()
+        except Exception:
+            pass
+        try:
+            result = probe_gateway_models()
+        except Exception as exc:
+            self._set_gateway_error(f"Gateway probe failed unexpectedly: {exc}")
+            return
+
+        if result.get("reachable"):
+            self.gw_reachable_label.setText(
+                f"yes (HTTP {result.get('http_status')}, {result.get('model_count', 0)} model(s))"
+            )
+            self.gw_reachable_label.setStyleSheet(f"color: {OK_COLOR};")
+        else:
+            self.gw_reachable_label.setText("no")
+            self.gw_reachable_label.setStyleSheet(f"color: {ERROR_COLOR};")
+
+        latency = result.get("latency_ms")
+        self.gw_latency_label.setText(
+            f"{latency:.0f} ms" if isinstance(latency, (int, float)) else "-"
+        )
+
+        if result.get("alias_advertised"):
+            self.gw_alias_label.setText("yes")
+            self.gw_alias_label.setStyleSheet(f"color: {OK_COLOR};")
+        elif result.get("reachable"):
+            self.gw_alias_label.setText("no — fallback model will be used")
+            self.gw_alias_label.setStyleSheet(f"color: {WARN_COLOR};")
+        else:
+            self.gw_alias_label.setText("unknown (gateway unreachable)")
+            self.gw_alias_label.setStyleSheet(f"color: {WARN_COLOR};")
+
+        message = str(result.get("error") or "")
+        if not message and result.get("reachable"):
+            message = f"Checked at {result.get('checked_at', '')} — gateway healthy."
+        self.gw_status_label.setText(message)
+        try:
+            logger.info(
+                "Diagnostics gateway probe: host=%s reachable=%s latency_ms=%s "
+                "alias_advertised=%s",
+                result.get("host"),
+                bool(result.get("reachable")),
+                result.get("latency_ms"),
+                bool(result.get("alias_advertised")),
+            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Bottom-row actions

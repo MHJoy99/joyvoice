@@ -141,6 +141,12 @@ class WhisperEngine(QObject):
 
         download_root = str(paths.models_dir())
         fallback_reason = None
+        _load_t0 = time.monotonic()
+        # Trace: model load start — names/devices only, never content.
+        logger.info(
+            "Whisper trace model load start (model_size=%s, device_preference=%s)",
+            self.model_size, self.device_preference,
+        )
 
         if self.device_preference == "cpu":
             device, compute_type = "cpu", "int8"
@@ -154,6 +160,13 @@ class WhisperEngine(QObject):
                 )
                 device, compute_type = "cuda", "float16"
                 self._status = EngineStatus(device, compute_type, self.model_size)
+                # Trace: model load done (cuda path) — timings only.
+                logger.info(
+                    "Whisper trace model load done (model_size=%s, device=%s, "
+                    "compute_type=%s, cpu_fallback=%s, load_s=%.2fs)",
+                    self.model_size, device, compute_type, False,
+                    time.monotonic() - _load_t0,
+                )
                 self.model_loaded.emit(self._status)
                 return
             except Exception as exc:
@@ -170,10 +183,25 @@ class WhisperEngine(QObject):
             )
         except Exception as exc:
             self._model = None
+            # Trace: model load failed — reason length only, never content.
+            logger.error(
+                "Whisper trace model load failed (model_size=%s, device=%s, "
+                "compute_type=%s, cpu_fallback=%s, load_s=%.2fs, reason_chars=%d)",
+                self.model_size, device, compute_type,
+                fallback_reason is not None, time.monotonic() - _load_t0,
+                len(str(exc)),
+            )
             self.load_failed.emit(str(exc))
             return
 
         self._status = EngineStatus(device, compute_type, self.model_size, fallback_reason)
+        # Trace: model load done (cpu/fallback path) — timings only.
+        logger.info(
+            "Whisper trace model load done (model_size=%s, device=%s, "
+            "compute_type=%s, cpu_fallback=%s, load_s=%.2fs)",
+            self.model_size, device, compute_type, fallback_reason is not None,
+            time.monotonic() - _load_t0,
+        )
         self.model_loaded.emit(self._status)
 
     @Slot(object, object, str)
@@ -187,6 +215,15 @@ class WhisperEngine(QObject):
             return
         try:
             start = time.monotonic()
+            _samples = int(audio.shape[0]) if hasattr(audio, "shape") and audio.size else 0
+            _audio_s = _samples / 16000.0 if _samples else 0.0
+            # Trace: decode start — counts/durations only, never audio/text.
+            logger.info(
+                "Whisper trace decode start (task=%s, model_size=%s, device=%s, "
+                "language=%s, samples=%d, audio_s=%.2fs)",
+                task, self.model_size, self.device_preference,
+                language or "auto", _samples, _audio_s,
+            )
             segments, _info = self._model.transcribe(
                 audio,
                 language=language,
@@ -200,6 +237,13 @@ class WhisperEngine(QObject):
             text = "".join(seg.text for seg in segments).strip()
             elapsed = time.monotonic() - start
             clip_seconds = len(audio) / 16000
+            # Trace: decode done — audio_s vs decode_s (rtf) and char count only.
+            logger.info(
+                "Whisper trace decode done (task=%s, model_size=%s, samples=%d, "
+                "audio_s=%.2fs, decode_s=%.2fs, rtf=%.3f, chars=%d)",
+                task, self.model_size, _samples, _audio_s, elapsed,
+                (elapsed / _audio_s) if _audio_s > 0 else 0.0, len(text or ""),
+            )
             logger.info(
                 "Transcribed %.1fs of audio (task=%s) in %.2fs (%.2fx realtime)",
                 clip_seconds, task, elapsed, clip_seconds / elapsed if elapsed > 0 else 0,

@@ -67,6 +67,21 @@ class FreeASRWorker(QThread):
             )
 
     def _transcribe(self, model, task: str) -> str:
+        _extra = {"job_id": self.job_id, "phase": "transcribing"}
+        _samples = (
+            int(self._audio.shape[0])
+            if isinstance(self._audio, np.ndarray) and self._audio.size
+            else 0
+        )
+        _audio_s = _samples / 16000.0 if _samples else 0.0
+        _decode_t0 = time.monotonic()
+        # Trace: decode start — counts/durations only, never audio/text content.
+        logger.info(
+            "Free ASR trace decode start (task=%s, model=%s, samples=%d, "
+            "audio_s=%.2fs)",
+            task, self._asr_model, _samples, _audio_s,
+            extra=_extra,
+        )
         segments, _info = model.transcribe(
             self._audio,
             beam_size=2,
@@ -74,7 +89,17 @@ class FreeASRWorker(QThread):
             language=self._lang,
             task=task,
         )
-        return " ".join(seg.text for seg in segments).strip()
+        text = " ".join(seg.text for seg in segments).strip()
+        # Trace: decode done — audio_s vs decode_s (rtf) and char count only.
+        _decode_s = time.monotonic() - _decode_t0
+        logger.info(
+            "Free ASR trace decode done (task=%s, model=%s, samples=%d, "
+            "audio_s=%.2fs, decode_s=%.2fs, rtf=%.3f, chars=%d)",
+            task, self._asr_model, _samples, _audio_s, _decode_s,
+            (_decode_s / _audio_s) if _audio_s > 0 else 0.0, len(text or ""),
+            extra=_extra,
+        )
+        return text
 
     def _resolve_engine(self) -> str:
         engine = self._translate_engine
@@ -117,6 +142,18 @@ class FreeASRWorker(QThread):
                 extra=_extra,
             )
             model = self._load_model(WhisperModel)
+            # Trace: model load done — requested vs resolved device only.
+            _load_s = time.monotonic() - _t0
+            try:
+                _resolved = str(getattr(model, "device", "") or "unknown")
+            except Exception:
+                _resolved = "unknown"
+            logger.info(
+                "Free ASR trace model load done (model=%s, requested_device=%s, "
+                "resolved_device=%s, load_s=%.2fs, audio_s=%.2fs, samples=%d)",
+                self._asr_model, self._device, _resolved, _load_s, _dur, _samples,
+                extra=_extra,
+            )
             if self._cancelled:
                 return
             transcript = self._transcribe(model, "transcribe")

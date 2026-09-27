@@ -9,13 +9,21 @@
 
 No engine is assumed best -- ratings are the user's own judgment. The live
 dictation default (IndicConformer RNNT) is unaffected by anything here.
+
+- Results: a measurement-only ledger of every run in this session -- one row per
+  engine/model with duration_s, latency_s, ttft_s, RTF, transcript_chars and
+  translation_chars, plus an avg/p95 "compare last N" rollup. LENGTHS ONLY: the
+  ledger never copies transcript or translation text out of the existing
+  tables, and it does not touch the clip library, the run/save buttons, or the
+  existing ASR/Translation logic.
 """
 
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from PySide6.QtCore import Qt, QTimer
@@ -54,6 +62,70 @@ logger = logging.getLogger("joyvoice.benchmark_dialog")
 RECORD_SECONDS = 10
 EXPERIMENTAL_KEYS = {"indic_conformer", "seamless_m4t_v2"}
 
+RESULTS_COLUMNS = (
+    "Run",
+    "Source",
+    "Status",
+    "duration_s",
+    "latency_s",
+    "ttft_s",
+    "RTF",
+    "transcript_chars",
+    "translation_chars",
+)
+
+#: Max rows kept in the in-session ledger. Oldest are dropped first so a long
+#: benchmarking session cannot grow the table without bound.
+MAX_RESULT_ROWS = 500
+
+COMPARE_DEFAULT_N = 5
+COMPARE_MAX_N = 50
+
+DASH = "-"
+
+
+# ----------------------------------------------------------------------
+# Aggregation helpers (pure, no Qt)
+# ----------------------------------------------------------------------
+
+def _numeric(values: list[Any]) -> list[float]:
+    """Keep only finite floats; bools and junk are dropped."""
+    out: list[float] = []
+    for v in values:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            continue
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(f):
+            out.append(f)
+    return out
+
+
+def _avg(values: list[Any]) -> Optional[float]:
+    nums = _numeric(values)
+    return round(sum(nums) / len(nums), 3) if nums else None
+
+
+def _p95(values: list[Any]) -> Optional[float]:
+    """95th percentile, nearest-rank on the sorted sample."""
+    nums = _numeric(values)
+    if not nums:
+        return None
+    ordered = sorted(nums)
+    idx = max(0, min(len(ordered) - 1, math.ceil(0.95 * len(ordered)) - 1))
+    return round(ordered[idx], 3)
+
+
+def _rtf(latency_s: Any, duration_s: Any) -> Optional[float]:
+    """Real-time factor = latency / audio duration. None when either is absent."""
+    lat = _numeric([latency_s])
+    dur = _numeric([duration_s])
+    if not lat or not dur or dur[0] <= 0:
+        return None
+    return round(lat[0] / dur[0], 3)
+
 
 class BenchmarkDialog(QDialog):
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -67,10 +139,14 @@ class BenchmarkDialog(QDialog):
         self._asr_rows: dict[str, int] = {}   # engine key -> table row
         self._tr_rows: dict[str, int] = {}
         self._current_clip_label = ""
+        self._current_clip_seconds: Optional[float] = None
+        # In-session measurement ledger (lengths only, never text).
+        self._result_runs: list[dict[str, Any]] = []
 
         tabs = QTabWidget(self)
         tabs.addTab(self._build_asr_tab(), "ASR Engines")
         tabs.addTab(self._build_translation_tab(), "Translation")
+        tabs.addTab(self._build_results_tab(), "Results")
 
         layout = QVBoxLayout(self)
         layout.addWidget(tabs)
@@ -230,6 +306,7 @@ class BenchmarkDialog(QDialog):
             self.asr_progress.setText(f"Could not load clip: {exc}")
             return
         self._current_clip_label = item.text()
+        self._current_clip_seconds = self._clip_seconds_for(filename)
 
         engines = self._selected_engines()
         self.asr_table.setRowCount(0)
@@ -262,18 +339,28 @@ class BenchmarkDialog(QDialog):
 
     def _on_asr_result(self, key: str, text: str, elapsed: float) -> None:
         row = self._asr_rows.get(key)
-        if row is None:
-            return
-        self.asr_table.setItem(row, 1, QTableWidgetItem(text or "(empty)"))
-        self.asr_table.setItem(row, 2, QTableWidgetItem(f"{elapsed:.1f}"))
-        self.asr_table.resizeRowToContents(row)
+        if row is not None:
+            self.asr_table.setItem(row, 1, QTableWidgetItem(text or "(empty)"))
+            self.asr_table.setItem(row, 2, QTableWidgetItem(f"{elapsed:.1f}"))
+            self.asr_table.resizeRowToContents(row)
+        self.record_run(
+            self.asr_table.item(row, 0).text() if row is not None else key,
+            status="ok",
+            duration_s=self._current_clip_seconds,
+            latency_s=elapsed,
+            transcript_chars=len(text or ""),
+        )
 
     def _on_asr_failed(self, key: str, message: str) -> None:
         row = self._asr_rows.get(key)
-        if row is None:
-            return
-        self.asr_table.setItem(row, 1, QTableWidgetItem(f"FAILED: {message}"))
-        self.asr_table.setItem(row, 2, QTableWidgetItem("-"))
+        if row is not None:
+            self.asr_table.setItem(row, 1, QTableWidgetItem(f"FAILED: {message}"))
+            self.asr_table.setItem(row, 2, QTableWidgetItem("-"))
+        self.record_run(
+            self.asr_table.item(row, 0).text() if row is not None else key,
+            status="failed",
+            duration_s=self._current_clip_seconds,
+        )
 
     def _on_asr_done(self) -> None:
         self.asr_progress.setText("Done - rate each result 1-5, then Save")
@@ -369,17 +456,27 @@ class BenchmarkDialog(QDialog):
 
     def _on_tr_result(self, key: str, text: str, elapsed: float) -> None:
         row = self._tr_rows.get(key)
-        if row is None:
-            return
-        self.tr_table.setItem(row, 1, QTableWidgetItem(text or "(empty)"))
-        self.tr_table.setItem(row, 2, QTableWidgetItem(f"{elapsed:.1f}"))
-        self.tr_table.resizeRowToContents(row)
+        if row is not None:
+            self.tr_table.setItem(row, 1, QTableWidgetItem(text or "(empty)"))
+            self.tr_table.setItem(row, 2, QTableWidgetItem(f"{elapsed:.1f}"))
+            self.tr_table.resizeRowToContents(row)
+        try:
+            source_chars = len(self.tr_input.toPlainText().strip())
+        except Exception:
+            source_chars = None
+        self.record_run(
+            key,
+            status="ok",
+            latency_s=elapsed,
+            transcript_chars=source_chars,
+            translation_chars=len(text or ""),
+        )
 
     def _on_tr_failed(self, key: str, message: str) -> None:
         row = self._tr_rows.get(key)
-        if row is None:
-            return
-        self.tr_table.setItem(row, 1, QTableWidgetItem(f"FAILED: {message}"))
+        if row is not None:
+            self.tr_table.setItem(row, 1, QTableWidgetItem(f"FAILED: {message}"))
+        self.record_run(key, status="failed")
 
     def _on_tr_done(self) -> None:
         self.tr_progress.setText("Done - rate each 1-5, then Save")
@@ -405,6 +502,258 @@ class BenchmarkDialog(QDialog):
             "results": results,
         })
         self.tr_progress.setText("Saved to benchmarks.json")
+
+    # ==================================================================
+    # Results tab — measurement ledger (lengths only, no text)
+    # ==================================================================
+    def _build_results_tab(self) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        header = QHBoxLayout()
+        header.addWidget(
+            QLabel(
+                "Per-run measurements from this session "
+                "(LENGTHS ONLY — no transcript or translation text is copied here):"
+            ),
+            1,
+        )
+        self.results_copy_button = QPushButton("Copy summary")
+        self.results_copy_button.setToolTip("Copy the comparison summary to the clipboard")
+        self.results_copy_button.clicked.connect(self._copy_results_summary)
+        header.addWidget(self.results_copy_button)
+        self.results_clear_button = QPushButton("Clear")
+        self.results_clear_button.setToolTip("Clear the in-session ledger (does not touch benchmarks.json)")
+        self.results_clear_button.clicked.connect(self._clear_results)
+        header.addWidget(self.results_clear_button)
+        layout.addLayout(header)
+
+        self.results_table = QTableWidget(0, len(RESULTS_COLUMNS))
+        self.results_table.setHorizontalHeaderLabels(list(RESULTS_COLUMNS))
+        try:
+            self.results_table.horizontalHeader().setSectionResizeMode(
+                QHeaderView.ResizeToContents
+            )
+            self.results_table.setEditTriggers(QTableWidget.NoEditTriggers)
+            self.results_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        except Exception as exc:
+            logger.debug("Results table header setup failed: %s", exc)
+        layout.addWidget(self.results_table, 1)
+
+        compare_row = QHBoxLayout()
+        compare_row.addWidget(QLabel("Compare last"))
+        self.compare_n_spin = QSpinBox()
+        self.compare_n_spin.setRange(1, COMPARE_MAX_N)
+        self.compare_n_spin.setValue(COMPARE_DEFAULT_N)
+        self.compare_n_spin.setToolTip("How many of the most recent runs to average")
+        compare_row.addWidget(self.compare_n_spin)
+        compare_row.addWidget(QLabel("runs:"))
+        self.compare_button = QPushButton("Compare")
+        self.compare_button.clicked.connect(self._compare_last_n)
+        compare_row.addWidget(self.compare_button)
+        compare_row.addStretch(1)
+        layout.addLayout(compare_row)
+
+        self.compare_summary_label = QLabel("(no runs yet — run a clip or a translation first)")
+        self.compare_summary_label.setWordWrap(True)
+        layout.addWidget(self.compare_summary_label)
+
+        self.results_hint = QLabel(
+            "duration_s = clip length; latency_s = wall time the engine/model took; "
+            "RTF = latency_s / duration_s (<1.0 is faster than real time). "
+            "ttft_s stays '-' because the local benchmark engines are non-streaming "
+            "(no first-token signal exists to measure); it is a live column, not a gap. "
+            "The ASR tab records transcript_chars only; the Translation tab records the "
+            "input length as transcript_chars and the output as translation_chars."
+        )
+        self.results_hint.setStyleSheet("color: #8b8fa3; font-size: 10px;")
+        self.results_hint.setWordWrap(True)
+        layout.addWidget(self.results_hint)
+        return widget
+
+    def record_run(
+        self,
+        source: str,
+        *,
+        status: str = "ok",
+        duration_s: Optional[float] = None,
+        latency_s: Optional[float] = None,
+        ttft_s: Optional[float] = None,
+        transcript_chars: Optional[int] = None,
+        translation_chars: Optional[int] = None,
+    ) -> None:
+        """Append one measurement row. Never raises; never stores text."""
+        try:
+            row = {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "source": str(source or "unknown"),
+                "status": str(status or "ok"),
+                "duration_s": _numeric([duration_s])[0] if _numeric([duration_s]) else None,
+                "latency_s": _numeric([latency_s])[0] if _numeric([latency_s]) else None,
+                "ttft_s": _numeric([ttft_s])[0] if _numeric([ttft_s]) else None,
+                "transcript_chars": (
+                    int(transcript_chars) if isinstance(transcript_chars, (int, float)) else None
+                ),
+                "translation_chars": (
+                    int(translation_chars) if isinstance(translation_chars, (int, float)) else None
+                ),
+            }
+            row["rtf"] = _rtf(row["latency_s"], row["duration_s"])
+            self._result_runs.append(row)
+            if len(self._result_runs) > MAX_RESULT_ROWS:
+                del self._result_runs[: len(self._result_runs) - MAX_RESULT_ROWS]
+            self._render_results_table()
+            self._compare_last_n()
+        except Exception as exc:
+            logger.debug("record_run failed: %s", exc)
+
+    @staticmethod
+    def _fmt(value: Any, digits: int = 3) -> str:
+        nums = _numeric([value])
+        if not nums:
+            return DASH
+        return f"{nums[0]:.{digits}f}"
+
+    def _render_results_table(self) -> None:
+        try:
+            self.results_table.setRowCount(len(self._result_runs))
+            for i, row in enumerate(self._result_runs):
+                values = (
+                    str(i + 1),
+                    row.get("source", ""),
+                    row.get("status", ""),
+                    self._fmt(row.get("duration_s"), 2),
+                    self._fmt(row.get("latency_s"), 2),
+                    self._fmt(row.get("ttft_s"), 3),
+                    self._fmt(row.get("rtf"), 3),
+                    str(row.get("transcript_chars"))
+                    if row.get("transcript_chars") is not None
+                    else DASH,
+                    str(row.get("translation_chars"))
+                    if row.get("translation_chars") is not None
+                    else DASH,
+                )
+                for j, text in enumerate(values):
+                    self.results_table.setItem(i, j, QTableWidgetItem(text))
+        except Exception as exc:
+            logger.debug("Results table render failed: %s", exc)
+
+    def _compare_last_n(self) -> None:
+        """avg/p95 rollup over the last N runs. Never raises."""
+        try:
+            n = self.compare_n_spin.value()
+        except Exception:
+            n = COMPARE_DEFAULT_N
+        try:
+            window = self._result_runs[-n:] if self._result_runs else []
+            if not window:
+                self.compare_summary_label.setText(
+                    f"(no runs yet — run a clip or a translation first; N={n})"
+                )
+                return
+            total = len(self._result_runs)
+            ok = sum(1 for r in window if r.get("status") == "ok")
+            failed = len(window) - ok
+
+            def _pair(key: str) -> str:
+                vals = [r.get(key) for r in window]
+                avg = _avg(vals)
+                p95 = _p95(vals)
+                if avg is None:
+                    return f"{key}=n/a"
+                return f"{key} avg {avg:.3f} p95 {p95:.3f} (n={len(_numeric(vals))}/{len(window)})"
+
+            parts = [
+                f"Last {len(window)} of {total} run(s) — ok={ok} failed={failed}",
+                _pair("latency_s"),
+                _pair("ttft_s"),
+                _pair("rtf"),
+                _pair("transcript_chars"),
+                _pair("translation_chars"),
+            ]
+            self.compare_summary_label.setText(" | ".join(parts))
+        except Exception as exc:
+            logger.debug("Compare last N failed: %s", exc)
+            try:
+                self.compare_summary_label.setText(f"(comparison unavailable: {exc})")
+            except Exception:
+                pass
+
+    def _results_summary_text(self) -> str:
+        try:
+            lines = [
+                "JoyVoice benchmark — results ledger (lengths only, session-scoped)",
+                f"rows: {len(self._result_runs)}",
+            ]
+            for i, row in enumerate(self._result_runs, start=1):
+                tr_chars = (
+                    str(row.get("transcript_chars"))
+                    if row.get("transcript_chars") is not None
+                    else DASH
+                )
+                trn_chars = (
+                    str(row.get("translation_chars"))
+                    if row.get("translation_chars") is not None
+                    else DASH
+                )
+                lines.append(
+                    f"  {i:>3}  {row.get('source','')} [{row.get('status','')}] "
+                    f"duration_s={self._fmt(row.get('duration_s'),2)} "
+                    f"latency_s={self._fmt(row.get('latency_s'),2)} "
+                    f"ttft_s={self._fmt(row.get('ttft_s'),3)} "
+                    f"RTF={self._fmt(row.get('rtf'),3)} "
+                    f"transcript_chars={tr_chars} "
+                    f"translation_chars={trn_chars}"
+                )
+            try:
+                summary = self.compare_summary_label.text()
+            except Exception:
+                summary = ""
+            if summary:
+                lines.append("")
+                lines.append(f"compare: {summary}")
+            return "\n".join(lines)
+        except Exception as exc:
+            return f"(could not build results summary: {exc})"
+
+    def _copy_results_summary(self) -> None:
+        try:
+            from PySide6.QtWidgets import QApplication
+
+            clipboard = QApplication.clipboard()
+            if clipboard is None:
+                return
+            clipboard.setText(self._results_summary_text())
+            self.compare_summary_label.setText(
+                self.compare_summary_label.text() + "  [copied]"
+            )
+        except Exception as exc:
+            logger.debug("Copy results summary failed: %s", exc)
+            try:
+                self.compare_summary_label.setText(f"(copy failed: {exc})")
+            except Exception:
+                pass
+
+    def _clear_results(self) -> None:
+        try:
+            self._result_runs = []
+            self._render_results_table()
+            self._compare_last_n()
+        except Exception as exc:
+            logger.debug("Clear results failed: %s", exc)
+
+    def _clip_seconds_for(self, filename: str) -> Optional[float]:
+        """Clip duration from the clip index; None when it cannot be resolved."""
+        try:
+            for entry in clip_store.load_index():
+                if entry.get("filename") == filename:
+                    seconds = entry.get("seconds")
+                    if isinstance(seconds, (int, float)) and not isinstance(seconds, bool):
+                        return float(seconds)
+                    return None
+        except Exception as exc:
+            logger.debug("Could not resolve clip duration for %s: %s", filename, exc)
+        return None
 
     def done(self, result: int) -> None:
         if self._recorder is not None:

@@ -59,6 +59,20 @@ def _lazy_benchmark_dialog():
     from app.ui.benchmark_dialog import BenchmarkDialog
     return BenchmarkDialog
 
+
+# Dev-overlay helpers. `dev_overlay` is intentionally absent from
+# settings_store.DEFAULTS for now, and settings_store.save()/load() only keep
+# keys that appear there -- so the toggle is session-scoped until that key is
+# added. Read defensively everywhere rather than assuming the key exists.
+_DEV_OVERLAY_PERSIST_WARNED = False
+
+
+def _dev_overlay_is_persistable() -> bool:
+    try:
+        return "dev_overlay" in settings_store.DEFAULTS
+    except Exception:
+        return False
+
 # ── Cloud LLM (translate / rewrite) ────────────────────────────────────────
 
 DEFAULT_API_BASE = "https://gpt.bdx.market/v1"
@@ -820,6 +834,14 @@ class AppController:
         self._phase = "idle"  # idle | recording | transcribing | pasting
         self._recording_started_at: float | None = None
         self._last_settings_target = self.settings.get("target_language", "en")
+        # Structured pipeline timing (monotonic clocks; lengths only, never text).
+        self._log_viewer_dialog = None
+        self._stats_dialog = None
+        self._dev_overlay_action = None
+        self._dev_state: dict = {}
+        self._paste_started_at: float | None = None
+        self._paste_job_id: int = 0
+        self._f8_down_mono: float | None = None
 
         self._level_poll_timer = QTimer()
         self._level_poll_timer.setInterval(40)
@@ -940,8 +962,8 @@ class AppController:
         self.widget.quit_requested.connect(self._quit)
         self.widget.cancel_requested.connect(self.cancel_current)
         self.hotkeys.toggle_activated.connect(self.on_toggle)
-        self.hotkeys.hold_started.connect(self.start_recording)
-        self.hotkeys.hold_ended.connect(self.stop_recording)
+        self.hotkeys.hold_started.connect(self._on_hold_started)
+        self.hotkeys.hold_ended.connect(self._on_hold_ended)
         self.hotkeys.registration_error.connect(
             lambda msg: self.widget.set_state("error", "Hotkey error")
         )
@@ -952,10 +974,190 @@ class AppController:
         self.tray.settings_requested.connect(self.show_settings)
         self.tray.benchmark_requested.connect(self.show_benchmark)
         self.tray.quit_requested.connect(self._quit)
+        self._extend_tray_menu()
+
+    def _extend_tray_menu(self) -> None:
+        """Append observability entries to the *existing* tray menu.
+
+        Purely additive: the pre-existing actions and their order are left
+        untouched. The log-viewer / stats modules are imported lazily at
+        trigger time (not here, not at module import) so a missing or broken
+        dialog module can never break app startup.
+        """
+        try:
+            menu = self.tray.contextMenu()
+        except Exception as exc:
+            logger.warning("Tray context menu unavailable, skipping extra entries: %s", exc)
+            return
+        if menu is None:
+            logger.warning("Tray context menu unavailable, skipping extra entries")
+            return
+
+        try:
+            menu.addSeparator()
+
+            logs_action = menu.addAction("View live logs")
+            logs_action.triggered.connect(self.show_log_viewer)
+
+            stats_action = menu.addAction("Usage & cost stats")
+            stats_action.triggered.connect(self.show_usage_stats)
+
+            self._dev_overlay_action = menu.addAction("Toggle dev overlay")
+            self._dev_overlay_action.setCheckable(True)
+            self._dev_overlay_action.setChecked(
+                bool(self.settings.get("dev_overlay", False))
+            )
+            # Read the action's own isChecked() rather than trusting the
+            # triggered(bool) argument: Qt has already flipped the state by
+            # the time the signal fires, and it is the single source of truth.
+            self._dev_overlay_action.triggered.connect(
+                lambda _checked=False: self.toggle_dev_overlay(
+                    self._dev_overlay_action.isChecked()
+                )
+            )
+        except Exception as exc:
+            logger.warning("Could not extend tray menu: %s", exc)
+            return
+
+        self._apply_dev_overlay(bool(self.settings.get("dev_overlay", False)))
+        logger.info(
+            "Tray observability entries added (t_mono=%.3f, dev_overlay=%s)",
+            time.monotonic(), bool(self.settings.get("dev_overlay", False)),
+        )
+
+    def show_log_viewer(self) -> None:
+        """Open the live log viewer. Lazy import + guard: never raises."""
+        try:
+            from app.ui import log_viewer_dialog
+
+            fn = getattr(log_viewer_dialog, "show_log_viewer", None)
+            if not callable(fn):
+                logger.warning("log_viewer_dialog.show_log_viewer unavailable")
+                return
+            self._log_viewer_dialog = fn(self.widget)
+        except Exception as exc:
+            logger.warning("Live log viewer failed to open: %s", exc)
+
+    def show_usage_stats(self) -> None:
+        """Open the usage & cost stats dashboard. Lazy import + guard."""
+        try:
+            from app.ui import stats_dialog
+
+            fn = getattr(stats_dialog, "show_stats", None)
+            if not callable(fn):
+                logger.warning("stats_dialog.show_stats unavailable")
+                return
+            self._stats_dialog = fn(self.widget)
+        except Exception as exc:
+            logger.warning("Usage & cost stats failed to open: %s", exc)
+
+    def toggle_dev_overlay(self, enabled: bool | None = None) -> None:
+        """Flip the developer readout overlay and persist `dev_overlay`.
+
+        Called from the checkable tray action, which passes the action's new
+        checked state; a bare call toggles. Persist/apply failures are logged
+        only -- the hotkey and paste paths are never touched.
+        """
+        try:
+            new_value = (
+                bool(enabled) if enabled is not None
+                else not bool(self.settings.get("dev_overlay", False))
+            )
+            self.settings["dev_overlay"] = new_value
+            try:
+                settings_store.save(self.settings)
+            except Exception as exc:
+                logger.warning("Could not persist dev_overlay: %s", exc)
+            if not _dev_overlay_is_persistable():
+                global _DEV_OVERLAY_PERSIST_WARNED
+                if not _DEV_OVERLAY_PERSIST_WARNED:
+                    _DEV_OVERLAY_PERSIST_WARNED = True
+                    logger.warning(
+                        "dev_overlay is not in settings_store.DEFAULTS, so "
+                        "settings_store.save()/load() drop it: the toggle works "
+                        "for this session only. Add \"dev_overlay\": False to "
+                        "app/storage/settings_store.py DEFAULTS to persist it."
+                    )
+
+            action = self._dev_overlay_action
+            if action is not None:
+                try:
+                    action.blockSignals(True)
+                    action.setChecked(new_value)
+                except Exception as exc:
+                    logger.debug("dev_overlay action sync skipped: %s", exc)
+                finally:
+                    try:
+                        action.blockSignals(False)
+                    except Exception:
+                        pass
+
+            self._apply_dev_overlay(new_value)
+            self._push_dev()  # repaint immediately with the latest snapshot
+            logger.info(
+                "Dev overlay toggled (dev_overlay=%s, t_mono=%.3f)",
+                new_value, time.monotonic(),
+                extra={"job_id": self._active_job_id, "phase": self._phase},
+            )
+        except Exception as exc:
+            logger.warning("Dev overlay toggle failed: %s", exc)
+
+    def _apply_dev_overlay(self, enabled: bool) -> None:
+        """Push overlay state onto the widget behind a hasattr guard."""
+        setter = getattr(self.widget, "set_dev_mode", None)
+        if not callable(setter):
+            return
+        try:
+            setter(bool(enabled))
+        except Exception as exc:
+            logger.warning("widget.set_dev_mode failed: %s", exc)
+
+    def _push_dev(self, state: str = "", **fields) -> None:
+        """Feed FloatingWidget.update_dev() a fresh snapshot of job stats.
+
+        Dev-only and strictly additive: the widget ignores the payload unless
+        dev mode is on, every call sits behind hasattr + try/except, and only
+        lengths/timings are ever included -- never dictation text. A fresh dict
+        is built per call because the widget stores the one it is handed.
+        """
+        try:
+            # dev_overlay is intentionally not in settings_store.DEFAULTS yet, so
+            # read it defensively and tolerate a missing/odd settings mapping.
+            overlay_on = bool(self.settings.get("dev_overlay", False))
+
+            info = dict(self._dev_state)
+            if state:
+                info["state"] = state
+            info["phase"] = self._phase
+            info["job_id"] = self._active_job_id
+            info["model"] = AUDIO_MODEL
+            for key, value in fields.items():
+                if value is not None:
+                    info[key] = value
+            info["timestamp"] = time.time()
+            self._dev_state = info
+
+            push = getattr(self.widget, "update_dev", None)
+            if not callable(push):
+                return
+            push(dict(info))
+
+            if not overlay_on:
+                logger.debug(
+                    "Dev snapshot stored (overlay off, state=%s, job=%s)",
+                    info.get("state"), self._active_job_id,
+                )
+        except Exception as exc:
+            logger.debug("update_dev push failed: %s", exc)
 
     # --- state machine -------------------------------------------------------
 
     def on_toggle(self) -> None:
+        logger.debug(
+            "Toggle (phase=%s, recording=%s, t_mono=%.3f)",
+            self._phase, self.recorder.is_recording(), time.monotonic(),
+            extra={"job_id": self._active_job_id, "phase": self._phase},
+        )
         if self._phase == "transcribing":
             # F8 during processing still means cancel for safety? No — keep F8
             # as start/stop-process only. Esc cancels.
@@ -964,6 +1166,31 @@ class AppController:
             self.stop_recording()
         else:
             self.start_recording()
+
+    def _on_hold_started(self) -> None:
+        """F8-down edge: monotonic timestamp, then delegate to start_recording."""
+        self._f8_down_mono = time.monotonic()
+        _next_id = self._job_id + 1
+        logger.info(
+            "Job %d stage=f8_down (phase=idle→recording, t_mono=%.3f)",
+            _next_id, self._f8_down_mono,
+            extra={"job_id": _next_id, "phase": "recording"},
+        )
+        self.start_recording()
+
+    def _on_hold_ended(self) -> None:
+        """F8-up edge: monotonic timestamp, then delegate to stop_recording."""
+        _t_up = time.monotonic()
+        _jid = self._active_job_id
+        _hold_s = (round(_t_up - self._f8_down_mono, 3)
+                   if self._f8_down_mono is not None else None)
+        logger.info(
+            "Job %d stage=f8_up (phase=recording, t_mono=%.3f, hold_s=%s)",
+            _jid, _t_up, _hold_s,
+            extra={"job_id": _jid, "phase": "recording"},
+        )
+        self._f8_down_mono = None
+        self.stop_recording()
 
     def start_recording(self) -> None:
         if self.recorder.is_recording() or self._phase in ("recording", "transcribing", "pasting"):
@@ -987,6 +1214,13 @@ class AppController:
             self.settings.get("engine_mode", "cloud"),
             extra={"job_id": self._active_job_id, "phase": "recording"},
         )
+        logger.debug(
+            "Job %d stage=record_start (t_mono=%.3f)",
+            self._active_job_id, self._recording_started_at,
+            extra={"job_id": self._active_job_id, "phase": "recording"},
+        )
+        self._dev_state = {}
+        self._push_dev("recording", record_s=0.0, asr_s=None, ttft_s=None, error=None)
         sounds.play_start()
         self.widget.set_state("recording")
         self._level_poll_timer.start()
@@ -1023,6 +1257,10 @@ class AppController:
             )
             self._phase = "idle"
             self._timing = None
+            self._push_dev(
+                "cancelled",
+                record_s=(time.monotonic() - started) if started is not None else None,
+            )
             self.widget.set_state("cancelled", "Cancelled")
             QTimer.singleShot(CANCELLED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
             return
@@ -1035,6 +1273,7 @@ class AppController:
             )
             self._phase = "idle"
             self._timing = None
+            self._push_dev("error", error=err or "No audio captured")
             self._show_error(err or "No audio captured")
             return
 
@@ -1080,6 +1319,14 @@ class AppController:
             self.settings.get("engine_mode", "cloud"),
             extra={"job_id": job_id, "phase": "transcribing"},
         )
+        self._push_dev(
+            "transcribing",
+            record_s=round(record_dur, 3),
+            audio_s=(
+                round(_audio_bytes_est / 2.0 / 16000.0, 3)
+                if isinstance(audio, np.ndarray) else None
+            ),
+        )
 
         # Free mode keeps the float32 array (faster-whisper input); cloud needs PCM16.
         if self.settings.get("engine_mode", "cloud") == "free" and isinstance(audio, np.ndarray):
@@ -1124,6 +1371,15 @@ class AppController:
         asr_worker = self._pending_asr
         asr_worker.finished.connect(
             lambda worker=asr_worker: self._release_worker(worker, "asr")
+        )
+        _worker_start_mono = time.monotonic()
+        if self._timing is not None:
+            self._timing["worker_start_mono"] = _worker_start_mono
+        logger.info(
+            "Job %d stage=worker_start (worker=%s, t_mono=%.3f, audio_bytes~%d)",
+            job_id, type(self._pending_asr).__name__,
+            _worker_start_mono, _audio_bytes_est,
+            extra={"job_id": job_id, "phase": "transcribing"},
         )
         self._pending_asr.start()
 
@@ -1225,7 +1481,8 @@ class AppController:
             return
         if not text or not text.strip():
             return
-        if self._timing is not None and "first_preview_s" not in self._timing:
+        _is_first = bool(self._timing is not None and "first_preview_s" not in self._timing)
+        if _is_first and self._timing is not None:
             _t0 = self._timing.get("asr_t0", self._timing.get("t0", time.monotonic()))
             try:
                 self._timing["first_preview_s"] = round(time.monotonic() - _t0, 3)
@@ -1236,6 +1493,18 @@ class AppController:
                     sounds.play_first_token()
                 except Exception:
                     pass
+            logger.info(
+                "Job %d stage=first_preview (t_mono=%.3f, first_preview_s=%.3f, preview_chars=%d)",
+                job_id, time.monotonic(),
+                self._timing.get("first_preview_s", -1.0), len(text or ""),
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
+        else:
+            logger.debug(
+                "Job %d stage=preview (t_mono=%.3f, preview_chars=%d)",
+                job_id, time.monotonic(), len(text or ""),
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
         try:
             if hasattr(self.widget, "set_streaming_preview"):
                 self.widget.set_streaming_preview(text)
@@ -1282,6 +1551,27 @@ class AppController:
                 (translated_text or "")[:80],
                 extra={"job_id": job_id, "phase": "transcribing"},
             )
+            logger.info(
+                "Job %d stage=asr_done (t_mono=%.3f, asr_s=%.3f, "
+                "first_preview_s=%s, transcript_chars=%d, translation_chars=%d)",
+                job_id, time.monotonic(), self._timing["asr_s"],
+                self._timing.get("first_preview_s"),
+                len(raw_text or ""), len(translated_text or ""),
+                extra={"job_id": job_id, "phase": "transcribing"},
+            )
+        self._push_dev(
+            "asr_done",
+            asr_s=(
+                round(self._timing["asr_s"], 3)
+                if self._timing is not None and self._timing.get("asr_s") is not None
+                else None
+            ),
+            ttft_s=(
+                self._timing.get("first_preview_s")
+                if self._timing is not None else None
+            ),
+            out_chars=len(translated_text or "") or len(raw_text or ""),
+        )
 
         settings_target = self.settings.get("target_language", "en")
         model_ov = model_override.strip().lower() if model_override else None
@@ -1500,6 +1790,7 @@ class AppController:
             )
             return
         self._phase = "pasting"
+        self._push_dev("pasting", out_chars=len(final_text or ""))
         if self._timing is not None:
             t = self._timing
             self._timing = None
@@ -1541,9 +1832,22 @@ class AppController:
             final_text, datetime.now(timezone.utc).isoformat(),
             None if language == "auto" else language
         )
+        logger.debug(
+            "Job %d stage=history_saved (t_mono=%.3f, out_chars=%d)",
+            job_id, time.monotonic(), len(final_text or ""),
+            extra={"job_id": job_id, "phase": "pasting"},
+        )
 
         # Defer clipboard paste to background worker to prevent GUI thread freezes.
         # paste.py logs the outcome (pasted/copied/failed + latency) with job_id.
+        self._paste_started_at = time.monotonic()
+        self._paste_job_id = job_id
+        logger.info(
+            "Job %d stage=paste_start (t_mono=%.3f, out_chars=%d, mode=%s)",
+            job_id, self._paste_started_at, len(final_text or ""),
+            self.settings.get("paste_mode", "paste"),
+            extra={"job_id": job_id, "phase": "pasting"},
+        )
         self._paste_worker = PasteWorker(final_text, self.settings, job_id=job_id)
         self._paste_worker.done.connect(
             safe_slot(lambda err: self._on_paste_complete(err, final_text, job_id))
@@ -1561,6 +1865,12 @@ class AppController:
 
         _jid = job_id or self._active_job_id
         self._phase = "idle"
+        _paste_s = None
+        try:
+            if self._paste_started_at is not None and (job_id == self._paste_job_id or not job_id):
+                _paste_s = round(time.monotonic() - self._paste_started_at, 3)
+        except Exception:
+            _paste_s = None
 
         if err:
             logger.warning(
@@ -1568,6 +1878,16 @@ class AppController:
                 "out_chars=%d): %s (text saved to history)",
                 _jid, len(final_text or ""), err,
                 extra={"job_id": _jid, "phase": "idle"},
+            )
+            logger.info(
+                "Job %d stage=paste_done (t_mono=%.3f, paste_s=%s, "
+                "outcome=fallback, out_chars=%d)",
+                _jid, time.monotonic(), _paste_s, len(final_text or ""),
+                extra={"job_id": _jid, "phase": "idle"},
+            )
+            self._push_dev(
+                "pasted", paste="fallback", paste_s=_paste_s, error=err,
+                out_chars=len(final_text or ""),
             )
             copy_only = self.settings["paste_mode"] == "copy_only"
             label = "Copied to clipboard" if copy_only else "Copied (paste failed)"
@@ -1583,12 +1903,22 @@ class AppController:
             _jid, _outcome, len(final_text or ""),
             extra={"job_id": _jid, "phase": "idle"},
         )
+        logger.info(
+            "Job %d stage=paste_done (t_mono=%.3f, paste_s=%s, outcome=%s, out_chars=%d)",
+            _jid, time.monotonic(), _paste_s, _outcome, len(final_text or ""),
+            extra={"job_id": _jid, "phase": "idle"},
+        )
+        self._push_dev(
+            "pasted", paste=_outcome, paste_s=_paste_s,
+            out_chars=len(final_text or ""), error=None,
+        )
         label = "Copied" if _mode == "copy_only" else "Pasted"
         self.widget.set_state("pasted", label)
         QTimer.singleShot(PASTED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
         self.widget.show_toast(final_text)
 
     def _show_error(self, message: str) -> None:
+        self._push_dev("error", error=message)
         sounds.play_error()
         self.widget.set_state("error", "Error")
         self.widget.setToolTip(message)
@@ -1713,6 +2043,33 @@ class AppController:
 
         if old.get("audio_device_name") != self.settings.get("audio_device_name"):
             self._apply_audio_device()
+
+        # The Settings window owns a dev_overlay checkbox too; keep the tray
+        # action and the widget in step when it is toggled from there.
+        if old.get("dev_overlay") != self.settings.get("dev_overlay"):
+            new_dev = bool(self.settings.get("dev_overlay", False))
+            try:
+                action = self._dev_overlay_action
+                if action is not None:
+                    try:
+                        action.blockSignals(True)
+                        action.setChecked(new_dev)
+                    except Exception as exc:
+                        logger.debug("dev_overlay action sync skipped: %s", exc)
+                    finally:
+                        try:
+                            action.blockSignals(False)
+                        except Exception:
+                            pass
+                self._apply_dev_overlay(new_dev)
+                self._push_dev()
+                logger.info(
+                    "Dev overlay synced from settings (dev_overlay=%s)",
+                    new_dev,
+                    extra={"job_id": self._active_job_id, "phase": self._phase},
+                )
+            except Exception as exc:
+                logger.warning("Dev overlay sync from settings failed: %s", exc)
 
         # Update language badge if language settings changed.
         old_source = old.get("language", "auto")

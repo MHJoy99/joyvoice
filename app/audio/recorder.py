@@ -8,6 +8,7 @@ Never raises into the caller for a missing/broken device -- callers get
 
 from __future__ import annotations
 
+import logging
 import tempfile
 import threading
 import wave
@@ -16,6 +17,8 @@ from typing import Optional
 
 import numpy as np
 import sounddevice as sd
+
+logger = logging.getLogger("joyvoice.recorder")
 
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -35,6 +38,7 @@ class Recorder:
     def set_device(self, device: Optional[int | str]) -> None:
         """device=None means system default input device."""
         self._device = device
+        logger.info("Mic device selected (device=%r)", device)
 
     def is_recording(self) -> bool:
         return self._recording
@@ -51,6 +55,7 @@ class Recorder:
     def start(self) -> Optional[str]:
         """Start capturing audio. Returns an error message on failure, else None."""
         if self._recording:
+            logger.debug("Mic start skipped (already recording, device=%r)", self._device)
             return None
         self._chunks = []
         self._frames_captured = 0
@@ -66,7 +71,8 @@ class Recorder:
                 peak = float(np.abs(indata).max()) if indata.size else 0.0
                 with self._level_lock:
                     self._level = peak
-            except Exception:
+            except Exception as exc:
+                logger.debug("Mic callback error (device=%r): %s", self._device, exc)
                 pass  # never let PortAudio C callback raise
 
         try:
@@ -80,20 +86,30 @@ class Recorder:
             self._stream.start()
         except Exception as exc:  # sounddevice raises plain Exception/PortAudioError
             self._stream = None
+            logger.error(
+                "Mic stream start failed (device=%r, sample_rate=%d, channels=%d): %s",
+                self._device, SAMPLE_RATE, CHANNELS, exc,
+            )
             return f"Microphone error: {exc}"
 
         self._recording = True
+        logger.info(
+            "Mic stream started (device=%r, sample_rate=%d, channels=%d)",
+            self._device, SAMPLE_RATE, CHANNELS,
+        )
         return None
 
     def stop(self) -> tuple[Optional[np.ndarray], Optional[str]]:
         """Stop capturing. Returns (audio_float32_mono, error_message)."""
         if not self._recording or self._stream is None:
+            logger.warning("Mic stop skipped (not recording)")
             return None, "Not recording"
         self._recording = False
         try:
             self._stream.stop()
             self._stream.close()
         except Exception as exc:
+            logger.error("Mic stream stop failed: %s", exc)
             return None, f"Error stopping stream: {exc}"
         finally:
             self._stream = None
@@ -101,10 +117,19 @@ class Recorder:
                 self._level = 0.0
 
         if not self._chunks:
+            logger.warning(
+                "Mic stop with no audio (frames=%d, duration_s=%.2f)",
+                self._frames_captured, self._frames_captured / float(SAMPLE_RATE),
+            )
             return None, "No audio captured"
 
         audio = np.concatenate(self._chunks, axis=0).reshape(-1)
         self._chunks = []
+        peak = float(np.abs(audio).max()) if audio.size else 0.0
+        logger.info(
+            "Mic stream stopped (frames=%d, duration_s=%.2f, peak=%.3f)",
+            self._frames_captured, self._frames_captured / float(SAMPLE_RATE), peak,
+        )
         return audio.astype(np.float32), None
 
     @staticmethod
@@ -126,6 +151,10 @@ class Recorder:
             wf.setframerate(SAMPLE_RATE)
             wf.writeframes(pcm16.tobytes())
 
+        logger.debug(
+            "Mic WAV saved (frames=%d, duration_s=%.2f)",
+            int(audio.size), float(audio.size) / float(SAMPLE_RATE),
+        )
         return path
 
     @staticmethod
@@ -147,6 +176,8 @@ class Recorder:
                             "default": idx == default_input,
                         }
                     )
-        except Exception:
+        except Exception as exc:
+            logger.warning("Mic device query failed: %s", exc)
             pass
+        logger.debug("Mic device query (inputs=%d)", len(devices))
         return devices

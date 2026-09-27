@@ -62,6 +62,7 @@ _DEBOUNCE_MS = 500
 def detect_running_call_apps() -> list[str]:
     """Return list of app keys for detected call apps."""
     if not HAS_PSUTIL:
+        logger.debug("Call-mute detection skipped (psutil unavailable)")
         return []
     found: list[str] = []
     try:
@@ -72,6 +73,7 @@ def detect_running_call_apps() -> list[str]:
                     found.append(app_key)
     except Exception as exc:
         logger.debug("Process scan error: %s", exc)
+    logger.info("Call-mute detection (running_apps=%s, count=%d)", found, len(found))
     return found
 
 
@@ -88,6 +90,7 @@ def detect_virtual_devices() -> list[str]:
         name_lower = dev.get("name", "").lower()
         if any(kw in name_lower for kw in virtual_keywords):
             result.append(dev["name"])
+    logger.info("Call-mute detection (virtual_devices=%s, count=%d)", result, len(result))
     return result
 
 
@@ -111,6 +114,7 @@ class CallMuteManager:
 
     def configure(self, mode: str, virtual_device: Optional[str] = None,
                   hotkeys: Optional[dict[str, str]] = None) -> None:
+        logger.info("Call-mute configured (mode=%s, virtual_device=%s)", mode, virtual_device)
         self._mode = mode
         if virtual_device:
             self._virtual_device_name = virtual_device
@@ -135,22 +139,37 @@ class CallMuteManager:
         {"mode", "muted": [..], "ok": bool, "note": str}."""
         with self._lock:
             if self._mode == "off":
+                logger.debug("Call-mute engage skipped (mode=off)")
                 return {"mode": "off", "muted": [], "ok": True, "note": ""}
             if self._engaged:
+                logger.debug(
+                    "Call-mute engage skipped (already engaged, mode=%s, muted=%s)",
+                    self._mode, self._muted_apps,
+                )
                 return {"mode": self._mode, "muted": list(self._muted_apps), "ok": True, "note": ""}
             # Debounce rapid toggling
             now = time.monotonic()
             if (now - self._last_toggle_time) * 1000 < _DEBOUNCE_MS:
+                logger.debug("Call-mute engage debounced (mode=%s)", self._mode)
                 return {"mode": self._mode, "muted": [], "ok": True, "note": ""}
             self._last_toggle_time = now
             self._last_failure = ""
             try:
                 if self._mode == "virtual_device":
+                    logger.info(
+                        "Call-mute dispatch mute (mode=virtual_device, device=%s)",
+                        self._virtual_device_name,
+                    )
                     self._engage_virtual_device()
                 elif self._mode == "hotkey":
+                    logger.info("Call-mute dispatch mute (mode=hotkey)")
                     self._engage_hotkey()
                 self._engaged = True
                 self._persist_state()
+                logger.info(
+                    "Call-mute engaged (mode=%s, muted_apps=%s, virtual_muted=%s)",
+                    self._mode, self._muted_apps, self._we_muted_virtual,
+                )
             except Exception as exc:
                 logger.error("Call mute engage failed: %s", exc)
                 self._last_failure = str(exc)
@@ -178,12 +197,18 @@ class CallMuteManager:
         """Unmute call apps. Never raises. Idempotent."""
         with self._lock:
             if not self._engaged:
+                logger.debug("Call-mute release skipped (not engaged)")
                 return
+            logger.info(
+                "Call-mute dispatch unmute (mode=%s, muted_apps=%s, virtual_muted=%s)",
+                self._mode, self._muted_apps, self._we_muted_virtual,
+            )
             try:
                 if self._mode == "virtual_device":
                     self._release_virtual_device()
                 elif self._mode == "hotkey":
                     self._release_hotkey()
+                logger.info("Call-mute released (mode=%s)", self._mode)
             except Exception as exc:
                 logger.error("Call mute release failed: %s", exc)
             finally:
@@ -253,6 +278,7 @@ class CallMuteManager:
             devs = detect_virtual_devices()
             if devs:
                 self._virtual_device_name = devs[0]
+                logger.info("Call-mute virtual device auto-selected (device=%s)", self._virtual_device_name)
             else:
                 logger.warning("No virtual audio device found")
                 self._last_failure = "No virtual audio device found (install VB-Cable or VoiceMeeter)"
@@ -290,6 +316,7 @@ class CallMuteManager:
                             self._we_muted_virtual = True
                             logger.info("Muted virtual device: %s", name)
                         else:
+                            logger.debug("Virtual device already muted: %s", name)
                             self._we_muted_virtual = False
                         break
             finally:
@@ -346,6 +373,7 @@ class CallMuteManager:
             self._last_failure = "Keyboard library not available"
             return
         apps = detect_running_call_apps()
+        logger.info("Call-mute hotkey dispatch targets (apps=%s, count=%d)", apps, len(apps))
         if not apps:
             logger.info("No call apps detected")
             self._last_failure = "No call apps detected (Discord/Zoom/Teams not running)"

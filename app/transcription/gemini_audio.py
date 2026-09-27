@@ -116,6 +116,40 @@ def _estimate_text_tokens(n_chars: int) -> int:
     return max(1, (max(0, n) // 4) + 1)
 
 
+def _classify_retry_reason(message: str) -> str:
+    """Classify a retry/failure reason for developer-readable traces.
+
+    Returns one of: empty-stream | contract | http | timeout | unknown.
+    Logging only — never affects retry logic. Inspects message text only
+    (lengths elsewhere); never logs audio bytes, text content, or api key.
+    """
+    try:
+        msg = (message or "").lower()
+    except Exception:
+        return "unknown"
+    if not msg:
+        return "empty-stream"
+    if "empty" in msg or "no json result" in msg or "empty message content" in msg:
+        return "empty-stream"
+    if "timed out" in msg or "timeout" in msg or "deadline" in msg:
+        return "timeout"
+    if "http" in msg or "status" in msg or "urlerror" in msg or "url error" in msg:
+        return "http"
+    if (
+        "json" in msg
+        or "contract" in msg
+        or "choices" in msg
+        or "incomplete" in msg
+        or "non-object" in msg
+        or "transcript" in msg
+        or "translation" in msg
+        or "message content missing" in msg
+        or "finish_reason" in msg
+    ):
+        return "contract"
+    return "unknown"
+
+
 def _wav_base64(pcm16: bytes) -> str:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wav:
@@ -459,6 +493,8 @@ def transcribe_and_translate(
     """
     _extra = {"job_id": job_id, "phase": "transcribing"}
     # Phase 2: trim silence to cut wire payload before anything else
+    _orig_bytes = len(pcm16 or b"")
+    _orig_duration_s = _orig_bytes / 32000.0
     try:
         trimmed = _trim_silence_pcm16(pcm16 or b"")
     except Exception:
@@ -474,6 +510,54 @@ def transcribe_and_translate(
         source_language, target_language,
         extra=_extra,
     )
+    # Trace: input stats — lengths only, never audio bytes/content/key.
+    logger.info(
+        "Gemini audio trace input (model=%s, audio_bytes=%d, duration=%.2fs, "
+        "need_transcript=%s, translation_only=%s, max_tokens=%d, timeout=%.1fs)",
+        model, len(pcm_eff), duration_s,
+        need_transcript, translation_only, max_tokens_eff, timeout,
+        extra=_extra,
+    )
+    # Trace: trim savings — byte counts only.
+    try:
+        _trimmed_bytes = len(trimmed or b"")
+    except Exception:
+        _trimmed_bytes = len(pcm_eff)
+    logger.info(
+        "Gemini audio trace trim (orig_bytes=%d, orig_duration=%.2fs, "
+        "trimmed_bytes=%d, eff_bytes=%d, saved_bytes=%d)",
+        _orig_bytes, _orig_duration_s,
+        _trimmed_bytes, len(pcm_eff), _orig_bytes - len(pcm_eff),
+        extra=_extra,
+    )
+    # Trace: chunk-split preview when audio >12s — counts/sizes only.
+    # Logging only: the request path still sends a single payload. The
+    # isEnabledFor guard keeps the preview cost out of the hot path when
+    # INFO tracing is switched off.
+    if duration_s > 12.0 and logger.isEnabledFor(logging.INFO):
+        try:
+            _preview_chunks = split_pcm16_chunks(pcm_eff)
+            _preview_sizes = [len(c or b"") for c in _preview_chunks]
+            _preview_durs = [round(s / 32000.0, 2) for s in _preview_sizes]
+            logger.info(
+                "Gemini audio trace chunk-split (duration=%.2fs, n_chunks=%d, "
+                "sizes_bytes=%s, durations_s=%s, target_s=8.0, max_s=10.0)",
+                duration_s, len(_preview_chunks), _preview_sizes, _preview_durs,
+                extra=_extra,
+            )
+        except Exception as _split_exc:
+            logger.info(
+                "Gemini audio trace chunk-split failed (duration=%.2fs, reason_chars=%d)",
+                duration_s, len(str(_split_exc)),
+                extra=_extra,
+            )
+    else:
+        logger.info(
+            "Gemini audio trace chunk-split skipped (duration=%.2fs <= 12.0s, n_chunks=1, "
+            "size_bytes=%d)",
+            duration_s, len(pcm_eff),
+            extra=_extra,
+        )
     src = LANGUAGES.get(source_language, LANGUAGES["bn"])
     tgt = LANGUAGES.get(target_language, LANGUAGES["en"])
     target_name = tgt["name"]
@@ -544,6 +628,24 @@ def transcribe_and_translate(
 
     for attempt_idx, text_prompt in enumerate(attempts):
         t0 = time.monotonic()
+        # Trace: per-attempt start — idx/model/cap/duration only, never content/key.
+        logger.info(
+            "Gemini audio trace attempt start (attempt=%d/%d, model=%s, max_tokens=%d, "
+            "duration=%.2fs, need_transcript=%s, prompt_chars=%d)",
+            attempt_idx + 1, len(attempts), model, max_tokens_eff,
+            duration_s, need_transcript, len(text_prompt),
+            extra=_extra,
+        )
+        # Trace: encode size estimate — lengths only, no content/key. WAV framing
+        # adds a 44-byte header and base64 emits 4 chars per 3 bytes, so both
+        # sizes are derived arithmetically instead of re-encoding the audio.
+        _wav_est = len(pcm_eff) + 44
+        logger.info(
+            "Gemini audio trace audio-encode (attempt=%d, pcm_bytes=%d, "
+            "wav_bytes_est=%d, b64_chars_est=%d)",
+            attempt_idx + 1, len(pcm_eff), _wav_est, ((_wav_est + 2) // 3) * 4,
+            extra=_extra,
+        )
         raw_payload = json.dumps(
             {
                 "model": model,
@@ -566,6 +668,19 @@ def transcribe_and_translate(
             }
         ).encode("utf-8")
         payload = gzip.compress(raw_payload)
+        # Trace: payload sizes — raw vs gzipped bytes only, never content/key.
+        try:
+            _raw_n = len(raw_payload)
+            _gzip_n = len(payload)
+            _ratio = (_gzip_n / _raw_n) if _raw_n else 0.0
+        except Exception:
+            _raw_n, _gzip_n, _ratio = -1, -1, 0.0
+        logger.info(
+            "Gemini audio trace payload (attempt=%d, model=%s, raw_bytes=%d, "
+            "gzip_bytes=%d, gzip_ratio=%.3f)",
+            attempt_idx + 1, model, _raw_n, _gzip_n, _ratio,
+            extra=_extra,
+        )
         request = urllib.request.Request(
             f"{api_base}/chat/completions",
             data=payload,
@@ -580,6 +695,11 @@ def transcribe_and_translate(
         finish_reason = None
         usage_data = {}
         first_token_latency = None
+        # Trace counters — counts only, never content.
+        _sse_data_lines = 0
+        _sse_json_chunks = 0
+        _sse_delta_chunks = 0
+        _sse_read_calls = 0
 
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -587,6 +707,7 @@ def transcribe_and_translate(
                 line_buffer = ""
                 while True:
                     raw_chunk = response.read(1024)
+                    _sse_read_calls += 1
                     if not raw_chunk:
                         break
                     line_buffer += decoder.decode(raw_chunk, final=False)
@@ -595,6 +716,7 @@ def transcribe_and_translate(
                         line_str = line_str.strip()
                         if not line_str.startswith("data: "):
                             continue
+                        _sse_data_lines += 1
                         data_str = line_str[6:].strip()
                         if data_str == "[DONE]":
                             break
@@ -602,6 +724,7 @@ def transcribe_and_translate(
                             chunk = json.loads(data_str)
                         except json.JSONDecodeError:
                             continue
+                        _sse_json_chunks += 1
                         if "usage" in chunk and isinstance(chunk["usage"], dict):
                             usage_data.update(chunk["usage"])
                         chunk_choices = chunk.get("choices")
@@ -612,6 +735,7 @@ def transcribe_and_translate(
                             delta = choice.get("delta", {})
                             delta_text = delta.get("content", "")
                             if delta_text:
+                                _sse_delta_chunks += 1
                                 if first_token_latency is None:
                                     first_token_latency = time.monotonic() - t0
                                 content_accum.append(delta_text)
@@ -628,12 +752,30 @@ def transcribe_and_translate(
                 timeout_exc,
                 extra=_extra,
             )
+            # Trace: retry-reason classification — timeout class.
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=timeout, "
+                "timeout_s=%.1f, reason_chars=%d)",
+                attempt_idx + 1, timeout, len(str(timeout_exc)),
+                extra=_extra,
+            )
             raise
         except urllib.error.HTTPError as http_err:
             from app.transcription.http_errors import http_error_detail
             err_detail = http_error_detail(http_err)
             logger.warning(
                 "Gemini audio HTTP error: %s", err_detail,
+                extra=_extra,
+            )
+            # Trace: retry-reason classification — http class, codes only.
+            try:
+                _http_code = int(getattr(http_err, "code", -1) or -1)
+            except Exception:
+                _http_code = -1
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=http, "
+                "http_code=%d, detail_chars=%d)",
+                attempt_idx + 1, _http_code, len(str(err_detail)),
                 extra=_extra,
             )
             raise
@@ -645,6 +787,14 @@ def transcribe_and_translate(
                     url_err,
                     extra=_extra,
                 )
+            # Trace: retry-reason classification for URL errors.
+            _url_cls = _classify_retry_reason(str(url_err))
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=%s, "
+                "reason_chars=%d)",
+                attempt_idx + 1, _url_cls, len(str(url_err)),
+                extra=_extra,
+            )
             raise
 
         full_content = "".join(content_accum).strip()
@@ -659,10 +809,42 @@ def transcribe_and_translate(
             finish_reason,
             extra=_extra,
         )
+        # Trace: SSE stream stats — counts/lengths only, never content.
+        logger.info(
+            "Gemini audio trace stream (attempt=%d, model=%s, sse_lines=%d, "
+            "json_chunks=%d, delta_chunks=%d, read_calls=%d, content_chars=%d, "
+            "usage_keys=%d)",
+            attempt_idx + 1, model, _sse_data_lines,
+            _sse_json_chunks, _sse_delta_chunks, _sse_read_calls,
+            len(full_content), len(usage_data),
+            extra=_extra,
+        )
+        # Trace: per-attempt done — idx/model/cap/duration only.
+        logger.info(
+            "Gemini audio trace attempt done (attempt=%d/%d, model=%s, max_tokens=%d, "
+            "duration=%.2fs, need_transcript=%s, latency=%.2fs, content_chars=%d, "
+            "finish_reason=%s)",
+            attempt_idx + 1, len(attempts), model, max_tokens_eff,
+            duration_s, need_transcript, latency_s,
+            len(full_content), finish_reason,
+            extra=_extra,
+        )
 
         if finish_reason == "length":
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=contract, "
+                "reason=finish_reason_length, max_tokens=%d)",
+                attempt_idx + 1, max_tokens_eff,
+                extra=_extra,
+            )
             raise ValueError("Gemini native audio response exceeded max_tokens (finish_reason='length')")
         if finish_reason == "tool_calls":
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=contract, "
+                "reason=finish_reason_tool_calls)",
+                attempt_idx + 1,
+                extra=_extra,
+            )
             raise ValueError("finish_reason='tool_calls'")
         if not full_content:
             if attempt_idx == 0:
@@ -670,7 +852,24 @@ def transcribe_and_translate(
                     "Gemini audio returned empty stream on attempt 1; retrying",
                     extra=_extra,
                 )
+                # Trace: retry-reason classification — empty-stream class.
+                logger.warning(
+                    "Gemini audio trace retry-reason (attempt=%d, class=%s, "
+                    "content_chars=0, delta_chunks=%d, finish_reason=%s)",
+                    attempt_idx + 1,
+                    _classify_retry_reason("empty stream"),
+                    _sse_delta_chunks, finish_reason,
+                    extra=_extra,
+                )
                 continue
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=%s, "
+                "content_chars=0, finish_reason=%s)",
+                attempt_idx + 1,
+                _classify_retry_reason("empty message content"),
+                finish_reason,
+                extra=_extra,
+            )
             raise ValueError("Gemini returned empty message content")
 
         usage = usage_store.extract_usage({"usage": usage_data})
@@ -738,9 +937,28 @@ def transcribe_and_translate(
                 len(transcript or ""), len(translation or ""), override or "none",
                 extra=_extra,
             )
+            # Trace: success summary — lengths only.
+            logger.info(
+                "Gemini audio trace success (attempt=%d, model=%s, max_tokens=%d, "
+                "duration=%.2fs, latency=%.2fs, content_chars=%d, "
+                "transcript_chars=%d, translation_chars=%d)",
+                attempt_idx + 1, model, max_tokens_eff,
+                duration_s, latency_s, len(full_content),
+                len(transcript or ""), len(translation or ""),
+                extra=_extra,
+            )
             return transcript, translation, override
         except ValueError as exc:
             retry_reason = str(exc)
+            _retry_class = _classify_retry_reason(retry_reason)
+            # Trace: retry-reason classification — class + lengths, never content.
+            logger.warning(
+                "Gemini audio trace retry-reason (attempt=%d, class=%s, "
+                "reason_chars=%d, content_chars=%d, finish_reason=%s)",
+                attempt_idx + 1, _retry_class,
+                len(retry_reason), len(full_content), finish_reason,
+                extra=_extra,
+            )
             if "finish_reason='length'" in retry_reason:
                 raise
             if attempt_idx == 0:

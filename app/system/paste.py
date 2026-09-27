@@ -33,16 +33,20 @@ def _wait_for_keys_released(timeout_s: float = 2.0) -> None:
     we just proceed.
     """
     if keyboard is None:
+        logger.debug("Paste focus check skipped (backend unavailable)")
         return
     deadline = time.monotonic() + timeout_s
     watched = ("ctrl", "alt", "shift", "space", "f8")
     while time.monotonic() < deadline:
         try:
             if not any(keyboard.is_pressed(k) for k in watched):
+                logger.debug("Paste focus ready (keys released)")
                 return
-        except Exception:
+        except Exception as exc:
+            logger.debug("Paste focus check failed (focus-fail, proceeding): %s", exc)
             return
         time.sleep(0.02)
+    logger.debug("Paste focus check timed out (focus-fail, proceeding anyway)")
 
 
 def paste_text(
@@ -119,11 +123,24 @@ def paste_text(
     if wait_for_release:
         _wait_for_keys_released()
 
+    logger.debug(
+        "Paste focus note (job_id=%d, out_chars=%d, wait_for_release=%s, "
+        "keyboard_available=%s): pasting into focused app via Ctrl+V",
+        job_id, len(text or ""), wait_for_release, keyboard is not None,
+        extra=_extra,
+    )
+
     # ── paste with retries ──
     first_paste_t0: Optional[float] = None
     for attempt in range(retries):
-        if paste_delay_ms > 0 and attempt > 0:
-            time.sleep(paste_delay_ms / 1000.0 * (attempt + 1))
+        delay_ms = paste_delay_ms * (attempt + 1) if (paste_delay_ms > 0 and attempt > 0) else 0
+        logger.info(
+            "Paste attempt %d/%d (delay_ms=%d, out_chars=%d)",
+            attempt + 1, retries, delay_ms, len(text or ""),
+            extra=_extra,
+        )
+        if delay_ms > 0:
+            time.sleep(delay_ms / 1000.0)
 
         # First-paste timing hook: monotonic t0 recorded immediately
         # before the first Ctrl+V so first_paste_s measures time from
@@ -132,7 +149,17 @@ def paste_text(
             first_paste_t0 = time.monotonic()
         try:
             keyboard.send("ctrl+v")
+            logger.debug(
+                "Paste attempt %d/%d sent (focus assumed, out_chars=%d)",
+                attempt + 1, retries, len(text or ""),
+                extra=_extra,
+            )
         except Exception as exc:
+            logger.warning(
+                "Paste attempt %d/%d failed (focus-fail?, out_chars=%d): %s",
+                attempt + 1, retries, len(text or ""), exc,
+                extra=_extra,
+            )
             if attempt == retries - 1:
                 _latency = time.monotonic() - t0
                 if isinstance(result, dict):
@@ -151,15 +178,32 @@ def paste_text(
 
         # Success — restore previous clipboard in background
         if restore_clipboard and previous_clip is not None:
-            def _restore():
+            _prev_chars = len(previous_clip or "")
+            logger.info(
+                "Paste clipboard-restore scheduled (prev_chars=%d, delay_s=%.1f)",
+                _prev_chars, restore_delay_s,
+                extra=_extra,
+            )
+            def _restore(_chars: int = _prev_chars):
                 time.sleep(restore_delay_s)
                 try:
                     pyperclip.copy(previous_clip)
-                except Exception:
-                    pass
+                    logger.info(
+                        "Paste clipboard-restore done (prev_chars=%d)",
+                        _chars,
+                        extra=_extra,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Paste clipboard-restore failed (prev_chars=%d): %s",
+                        _chars, exc,
+                        extra=_extra,
+                    )
 
             import threading
             threading.Thread(target=_restore, daemon=True).start()
+        elif restore_clipboard:
+            logger.debug("Paste clipboard-restore skipped (no previous content)", extra=_extra)
 
         _latency = time.monotonic() - t0
         _attempts = attempt + 1

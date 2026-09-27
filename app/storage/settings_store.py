@@ -48,6 +48,7 @@ DEFAULTS: dict[str, Any] = {
     "streaming_preview": True,
     "waiting_timer": True,
     "sound_enabled": False,  # completion/first-token beeps; False = silent (pre-Phase-8 behavior)
+    "dev_overlay": False,   # live developer readout on the floating widget
 }
 
 
