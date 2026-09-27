@@ -1238,6 +1238,11 @@ class AppController:
                 self._timing["first_preview_s"] = round(time.monotonic() - _t0, 3)
             except Exception:
                 pass
+            if self.settings.get("sound_enabled", False):
+                try:
+                    sounds.play_first_token()
+                except Exception:
+                    pass
         try:
             if hasattr(self.widget, "set_streaming_preview"):
                 self.widget.set_streaming_preview(text)
@@ -1262,7 +1267,8 @@ class AppController:
             )
             return
 
-        sounds.play_done()
+        if self.settings.get("sound_enabled", False):
+            sounds.play_done()
         if self._timing is not None:
             _asr_t0 = self._timing.pop("asr_t0", self._timing["t0"])
             self._timing["asr_s"] = time.monotonic() - _asr_t0
