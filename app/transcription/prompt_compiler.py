@@ -523,16 +523,15 @@ def _verb_grounded(verb: str, norm_source: str) -> bool:
     return False
 
 
-def _negated_near(words: list[str], index: int, span: int = 6) -> bool:
-    lo = max(0, index - span)
-    hi = min(len(words), index + span + 1)
-    for j in range(lo, hi):
-        if j == index:
-            continue
-        token = words[j]
-        if token in _NEGATION_TOKENS or token.endswith("n't"):
-            return True
-    return False
+def _clause_negated(words: list[str]) -> bool:
+    """Fail closed on negation anywhere in a lexical clause.
+
+    A finite word window can be bypassed by harmless filler between "not"
+    and a destructive verb. Explicit "but" clauses are split separately;
+    other mixed-scope clauses conservatively require manual review.
+    """
+    return any(token in _NEGATION_TOKENS or token.endswith("n't")
+               for token in words)
 
 
 # Stopwords excluded from the verb-adjacent target window: auxiliaries,
@@ -730,7 +729,7 @@ def _check_high_risk_drift(
                         "not stated in current request or cited turns"
                     )
                     continue
-                composed_neg = _negated_near(words, at)
+                composed_neg = _clause_negated(words)
                 verb_forms = set(_HIGH_RISK_VERB_FORMS.get(verb, (verb,)))
                 composed_atomic = _clause_tech_ids(clause)
                 bag_c = _clause_bag(words, clause, verb_forms)
@@ -739,7 +738,7 @@ def _check_high_risk_drift(
                     source_clauses, source_clause_words
                 ):
                     for sat, sat_len in _verb_occurrences(src_words, verb):
-                        if _negated_near(src_words, sat) != composed_neg:
+                        if _clause_negated(src_words) != composed_neg:
                             continue
                         src_atomic = _clause_tech_ids(src_clause)
                         # Fail-closed clause comparison (all must hold):
@@ -772,7 +771,7 @@ def _check_high_risk_drift(
                     else:
                         errors.append(
                             f"high-risk polarity mismatch for {verb!r}: "
-                            "negation near the action differs from cited sources"
+                            "clause negation differs from cited sources"
                         )
         if errors:
             break  # One witness forces fallback; keep errors short.

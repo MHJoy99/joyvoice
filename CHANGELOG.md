@@ -3,6 +3,13 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.5.3 - Clause Negation Safety Patch (2026-09-27)
+
+- **Closes a v2.5.2 fail-open:** a finite six-token window accepted `Shut down production` when the source said `Do not please now today here there then also just shut down production`. Every negation in the same lexical clause now marks that clause negative; explicit `but` contrasts remain separate. Ambiguous mixed-action clauses may fall back for manual review rather than guessing scope. The public v2.5.2 release carries an advisory.
+- **Tests the production worker, not just an unused helper:** new no-network `CloudASRWorker.run()` regressions cover a translation-only good chunk followed by a failed tail, plus a malformed `None` result. Both assert ordered partial output and failed-chunk-only recovery. The live worker deliberately treats only all-zero PCM as digital silence; the helper has a different near-zero threshold and is not used by the live worker.
+- **Verification:** isolated full suite 294 passed / 3 skipped with a dummy API key, temporary profile, and sanitized evidence fixture. Standalone unlocked EXE startup must be checked again on the exact v2.5.3 build.
+- **Still limited:** this guard is lexical rather than semantic, and live multi-minute failed-tail recovery remains unverified. No claim of universal high-risk instruction safety.
+
 ## v2.5.2 — Guard Boundary Fixes & Audit Corrections (2026-09-27)
 
 - **Post-publication audit fix (v2.5.1 bypass closed):** standalone fabricated-completion check now uses word boundaries, so `Task finished.` no longer passes when the source says `Task unfinished business.` (same for `completed`/`incompleted`, `deleted`/`undeleted`). Verb grounding is now token-based instead of substring (`stop` is not grounded by `stopwatch`; `start` is not grounded by `restart`), multi-word verb parts are excluded from content bags (`shut`/`down` no longer leak into target comparison), negation window widened to ±6 tokens (distant `Do not under any circumstances shut down ...` stays negated), and chunk unpack failures preserve the first error instead of dropping it.

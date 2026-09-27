@@ -129,6 +129,21 @@ class TestHighRiskGuard(unittest.TestCase):
             )
         )
 
+    def test_padding_cannot_move_negation_out_of_scope(self):
+        source = (
+            "Do not please now today here there then also just "
+            "shut down production"
+        )
+        claim = "Shut down production"
+        errors = _check_high_risk_drift(claim, source, [])
+        self.assertTrue(errors, "a padded negation must block a bare destructive action")
+        parsed = parse_model_output(
+            _ok_json(claim), allowed_turn_ids=[],
+            current_request=source, cited_turn_texts={},
+        )
+        self.assertFalse(parsed.valid)
+        self.assertEqual(_check_high_risk_drift(source, source, []), [])
+
     def test_novel_filler_fails_closed(self):
         # Conservative by design: novel content words ("per your note") with
         # no cited grounding fail closed even around a grounded completion.

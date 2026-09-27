@@ -1126,6 +1126,73 @@ class TestChunkLossRootRegression(_IsolatedEnvMixin, unittest.TestCase):
                 pass
         return worker, done, failed
 
+    def test_live_worker_translation_only_prefix_stays_partial(self):
+        import app.main as _m
+
+        chunks = [b"\x01" * 3200, b"\x02" * 3200]
+        audio = b"\x00" * int(40.12 * 32000)
+        worker = _m.CloudASRWorker(
+            audio, "bn", "en", job_id=44,
+            settings={"cloud_chunking": True, "translation_only_fast": False},
+            output_mode="translation",
+        )
+        done, failed = MagicMock(), MagicMock()
+        worker.done.connect(done)
+        worker.failed.connect(failed)
+
+        def native_chunk(chunk, **_kwargs):
+            if chunk == chunks[0]:
+                return "", "translated prefix", None
+            raise RuntimeError("tail failed")
+
+        with patch.object(_m, "NATIVE_AUDIO_ENABLED", True), \
+             patch.object(_m, "resolve_audio_model", return_value="joyvoice-fast-audio"), \
+             patch.object(_m, "split_pcm16_chunks", return_value=chunks), \
+             patch.object(_m, "transcribe_and_translate", side_effect=native_chunk) as native, \
+             patch("app.transcription.cloud_asr.transcribe_failed_chunks_google",
+                   return_value={}) as recover:
+            worker.run()
+
+        self.assertEqual(native.call_count, 2)
+        recover.assert_called_once()
+        self.assertEqual(recover.call_args.args[0], [(1, chunks[1])])
+        self.assertEqual(done.call_count, 1)
+        self.assertEqual(failed.call_count, 0)
+        self.assertEqual(done.call_args.args[:2], ("translated prefix", "translated prefix"))
+        self.assertTrue(worker.partial_audio)
+        self.assertEqual(worker.partial_counts["fail"], 1)
+
+    def test_live_worker_malformed_chunk_uses_partial_recovery(self):
+        import app.main as _m
+
+        chunks = [b"\x01" * 3200, b"\x02" * 3200]
+        audio = b"\x00" * int(40.12 * 32000)
+        worker = _m.CloudASRWorker(
+            audio, "en", "en", job_id=45,
+            settings={"cloud_chunking": True, "translation_only_fast": False},
+            output_mode="translation",
+        )
+        done, failed = MagicMock(), MagicMock()
+        worker.done.connect(done)
+        worker.failed.connect(failed)
+
+        def native_chunk(chunk, **_kwargs):
+            return ("prefix", "prefix", None) if chunk == chunks[0] else None
+
+        with patch.object(_m, "NATIVE_AUDIO_ENABLED", True), \
+             patch.object(_m, "resolve_audio_model", return_value="joyvoice-fast-audio"), \
+             patch.object(_m, "split_pcm16_chunks", return_value=chunks), \
+             patch.object(_m, "transcribe_and_translate", side_effect=native_chunk), \
+             patch("app.transcription.cloud_asr.transcribe_failed_chunks_google",
+                   return_value={}) as recover:
+            worker.run()
+
+        self.assertEqual(recover.call_args.args[0], [(1, chunks[1])])
+        self.assertEqual(done.call_count, 1)
+        self.assertEqual(failed.call_count, 0)
+        self.assertTrue(worker.partial_audio)
+        self.assertEqual(done.call_args.args[:2], ("prefix", "prefix"))
+
     def test_40s_4valid_silence_tail_returns_prefix_once(self):
         # 4 valid HTTP200 3-field JSON + silent tail (empty SSE twice) must
         # return the 4-chunk prefix once, not discard whole speech.
