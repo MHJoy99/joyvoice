@@ -583,6 +583,12 @@ class CloudASRWorker(QThread):
                         on_delta=_on_delta,
                         need_transcript=_need_transcript,
                     )
+                    if not (transcript or "").strip() and (translation or "").strip():
+                        # Translation-only fast path drops the source transcript.
+                        # Mirror the chunked branch so short (<12s) single-call
+                        # dictations keep a non-empty transcript for history and
+                        # for the "no speech" guard downstream.
+                        transcript = translation
                 if self._cancelled:
                     return
                 logger.info(
@@ -1626,7 +1632,7 @@ class AppController:
                 extra={"job_id": job_id, "phase": "transcribing"},
             )
 
-            if not cleaned_transcript.strip():
+            if not cleaned_transcript.strip() and not (translation or "").strip():
                 # Pure command with no content — nothing useful to paste.
                 logger.info(
                     "Job %d ended — pure override command, no content (phase→idle)",
@@ -1645,7 +1651,11 @@ class AppController:
 
         base_text = self._style_text(cleaned_transcript)
 
-        if not base_text.strip():
+        # Guard on the text that will actually be pasted, not on the transcript
+        # alone. With the translation-only fast path the transcript can legitimately
+        # be empty while the translation carries the whole dictation.
+        _has_translation = bool((translation or "").strip())
+        if not base_text.strip() and not _has_translation:
             logger.info(
                 "Job %d ended — no speech detected (phase→idle)",
                 job_id,
