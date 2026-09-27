@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import base64
 import codecs
+import contextlib
 import gzip
+import http.client
 import io
 import json
 import logging
 import re
 import socket
+import ssl
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import wave
 
@@ -461,6 +465,502 @@ def _extract_content(result: dict) -> str:
     return content
 
 
+# ── Persistent-connection transport ───────────────────────────────────────────
+# urllib.request builds and discards one TCP+TLS connection per urlopen() call,
+# so every dictation paid a full handshake to the gateway (measured: 430ms to
+# gpt.bdx.market, 875ms cold request vs 292ms on a reused socket). _ConnectionPool
+# keeps one http.client connection per (scheme, host, port) alive between calls.
+# Every pooled failure degrades to the original urllib.request call with identical
+# bytes on the wire and identical exception types, so behaviour is never worse
+# than the urllib-only path.
+_SSL_CONTEXT: ssl.SSLContext | None = None
+_SSL_CONTEXT_LOCK = threading.Lock()
+_CONNECTION_POOLS: dict[tuple[str, str, int], "_ConnectionPool"] = {}
+_CONNECTION_POOLS_LOCK = threading.Lock()
+_RETRYABLE_TRANSPORT_ERRORS = (http.client.HTTPException, OSError)
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Shared default SSL context (same trust store and verification urllib uses).
+
+    ``SSLContext`` is safe to share across threads; one instance avoids paying
+    context construction on every handshake.
+    """
+    global _SSL_CONTEXT
+    with _SSL_CONTEXT_LOCK:
+        if _SSL_CONTEXT is None:
+            _SSL_CONTEXT = ssl.create_default_context()
+        return _SSL_CONTEXT
+
+
+def _close_quietly(conn) -> None:
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    """True for socket timeouts — ``socket.timeout`` is ``TimeoutError`` on 3.10+."""
+    return isinstance(exc, (TimeoutError, socket.timeout))
+
+
+def _as_timeout_error(exc: BaseException) -> TimeoutError:
+    """Normalize a transport timeout onto the type the caller already catches."""
+    if isinstance(exc, TimeoutError):
+        return exc
+    return TimeoutError(str(exc) or "timed out")
+
+
+def _transport_reason(exc: BaseException) -> str:
+    """Classify a transport failure for trace logs — type slugs, never content."""
+    if isinstance(exc, socket.gaierror):
+        return "dns"
+    if isinstance(exc, http.client.RemoteDisconnected):
+        return "remote-disconnected"
+    if isinstance(exc, http.client.BadStatusLine):
+        return "bad-status-line"
+    if isinstance(exc, http.client.ResponseNotReady):
+        return "response-not-ready"
+    if isinstance(exc, ConnectionRefusedError):
+        return "refused"
+    if isinstance(exc, ConnectionResetError):
+        return "reset"
+    if isinstance(exc, ssl.SSLError):
+        return "tls"
+    if _is_timeout_error(exc):
+        return "timeout"
+    if isinstance(exc, OSError):
+        return "oserror"
+    return type(exc).__name__
+
+
+def _split_url(url: str) -> tuple[str, str, int, str]:
+    """Split an absolute http(s) URL into ``(scheme, host, port, path+query)``.
+
+    The endpoint is derived from the full request URL, so
+    ``f"{api_base}/chat/completions"`` keeps working unchanged whether or not
+    ``api_base`` already ends in ``/v1``. Anything the pooled transport cannot
+    serve (other schemes, missing host, bad port) raises ValueError so the
+    caller falls back to urllib.
+    """
+    parsed = urllib.parse.urlsplit(url or "")
+    scheme = (parsed.scheme or "").lower()
+    host = parsed.hostname or ""
+    if scheme not in ("http", "https") or not host:
+        raise ValueError("unsupported-url")
+    try:
+        port = parsed.port or (443 if scheme == "https" else 80)
+    except ValueError:
+        raise ValueError("invalid-port") from None
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    return scheme, host, port, path
+
+
+def _uses_proxy(scheme: str) -> bool:
+    """True when urllib would route this scheme through a proxy.
+
+    urllib honours HTTP(S)_PROXY env vars and, on Windows, the Internet Settings
+    registry keys. The pooled transport connects directly, so a configured proxy
+    must keep the urllib path instead of being silently bypassed.
+    """
+    try:
+        return bool(urllib.request.getproxies().get(scheme))
+    except Exception:
+        return True
+
+
+def _log_transport_fallback(reason: str, *, host: str = "n/a", detail: str = "", extra=None) -> None:
+    """Trace one urllib fallback decision — reason slug and lengths only."""
+    logger.info(
+        "Gemini audio transport fallback (reason=%s, host=%s, detail_chars=%d)",
+        reason, host or "n/a", len(detail or ""),
+        extra=extra or {},
+    )
+
+
+class _PoolFallback(Exception):
+    """Internal signal: pooled transport cannot serve this request.
+
+    Raised only inside :meth:`_ConnectionPool.request` and always converted into
+    a ``urllib.request`` fallback by :func:`_open_stream` — it never escapes to
+    callers.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class _PooledResponse:
+    """File-like, context-managed view over a pooled ``http.client`` response.
+
+    Presents the same surface the SSE loop uses from ``urlopen``'s return value:
+    ``.read(n)``, line iteration, and ``with``-block cleanup. ``close()`` hands
+    the connection back to its pool only when the body was drained to EOF and
+    the server did not ask for a close; otherwise the connection is discarded so
+    a half-read stream can never be reused by the next dictation.
+    """
+
+    __slots__ = ("_raw", "_conn", "_pool", "_eof", "_closed")
+
+    def __init__(
+        self,
+        raw,
+        conn: "http.client.HTTPConnection",
+        pool: "_ConnectionPool",
+    ) -> None:
+        self._raw = raw
+        self._conn = conn
+        self._pool = pool
+        self._eof = False
+        self._closed = False
+
+    # -- file-like surface (matches what the SSE loop expects from urlopen) --
+    def read(self, amt=None):
+        data = self._raw.read(amt)
+        if not data:
+            self._eof = True
+        return data
+
+    def readline(self, limit: int = -1):
+        data = self._raw.readline(limit)
+        if not data:
+            self._eof = True
+        return data
+
+    def readinto(self, buffer):
+        count = self._raw.readinto(buffer)
+        if not count:
+            self._eof = True
+        return count
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        line = self.readline()
+        if not line:
+            raise StopIteration
+        return line
+
+    def __getattr__(self, name):
+        # status / headers / reason / will_close / fileno behave like urllib's.
+        try:
+            raw = object.__getattribute__(self, "_raw")
+        except AttributeError:
+            raise AttributeError(name) from None
+        return getattr(raw, name)
+
+    # -- lifecycle ----------------------------------------------------------
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        raw = self._raw
+        # Reuse is only safe when http.client finished the body on its own (it
+        # closes the response fp once the stream is complete) and the server
+        # kept the connection alive.
+        keep = bool(self._eof and not raw.will_close and raw.isclosed())
+        try:
+            raw.close()
+        except Exception:
+            keep = False
+        # The slot holds the connection, not the response that borrowed it.
+        self._pool.release(self._conn, keep=keep)
+
+    def __enter__(self) -> "_PooledResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        self.close()
+        return False
+
+
+class _ConnectionPool:
+    """One persistent ``http.client`` connection per (scheme, host, port).
+
+    Thread-safe under the 3-wide chunk fan-out in main.py: checkout is a single
+    atomic slot take with no wait, so a worker that finds the slot busy builds its
+    own connection instead of blocking a multi-second streaming read behind
+    another worker. Correctness over reuse — at most one connection per origin is
+    retained, extras are closed on release.
+    """
+
+    def __init__(self, scheme: str, host: str, port: int) -> None:
+        self._scheme = scheme
+        self._host = host
+        self._port = port
+        self._lock = threading.Lock()
+        self._idle: http.client.HTTPConnection | None = None
+        self._handshake_ms = 0.0
+        self.reuse_hits = 0
+        self.fresh_conns = 0
+        self.stale_retries = 0
+        self.discards = 0
+
+    # -- slot management ----------------------------------------------------
+    def _checkout(self):
+        with self._lock:
+            conn = self._idle
+            self._idle = None
+            if conn is not None:
+                self.reuse_hits += 1
+        return conn
+
+    def release(self, conn, *, keep: bool) -> None:
+        """Return a finished connection to the slot, or close it."""
+        with self._lock:
+            if keep and self._idle is None:
+                self._idle = conn
+                return
+            self.discards += 1
+        _close_quietly(conn)
+
+    def _drop(self, conn) -> None:
+        """Remove a broken connection from the slot and close its socket."""
+        with self._lock:
+            self.discards += 1
+            if self._idle is conn:
+                self._idle = None
+        _close_quietly(conn)
+
+    def _retire(self, conn) -> None:
+        """Drop a connection from the slot WITHOUT closing its socket.
+
+        Used when the live socket is handed to an ``HTTPError`` body: the caller
+        still has to read that body, and the error releases the socket when it
+        goes out of scope.
+        """
+        with self._lock:
+            self.discards += 1
+            if self._idle is conn:
+                self._idle = None
+
+    def close(self) -> int:
+        """Close the retained connection. Returns 1 when one was open."""
+        with self._lock:
+            conn, self._idle = self._idle, None
+        if conn is None:
+            return 0
+        _close_quietly(conn)
+        return 1
+
+    # -- request path -------------------------------------------------------
+    def _connect(self, *, timeout: float, extra: dict | None = None) -> http.client.HTTPConnection:
+        """Build a new connection and time its TCP+TLS handshake."""
+        _extra = extra or {}
+        started = time.monotonic()
+        if self._scheme == "https":
+            conn = http.client.HTTPSConnection(
+                self._host, self._port, timeout=timeout, context=_ssl_context(),
+            )
+        else:
+            conn = http.client.HTTPConnection(self._host, self._port, timeout=timeout)
+        try:
+            conn.connect()
+        except _RETRYABLE_TRANSPORT_ERRORS:
+            self._handshake_ms = (time.monotonic() - started) * 1000.0
+            _close_quietly(conn)
+            raise
+        self._handshake_ms = (time.monotonic() - started) * 1000.0
+        with self._lock:
+            self.fresh_conns += 1
+        logger.info(
+            "Gemini audio transport handshake (state=paid, host=%s, port=%d, "
+            "handshake_ms=%.1f)",
+            self._host, self._port, self._handshake_ms,
+            extra=_extra,
+        )
+        return conn
+
+    def _send(
+        self,
+        conn,
+        method: str,
+        path: str,
+        body: bytes,
+        headers: dict,
+        *,
+        timeout: float,
+    ):
+        if conn.sock is not None:
+            # A reused socket keeps the timeout captured at connect() time.
+            conn.timeout = timeout
+            conn.sock.settimeout(timeout)
+        conn.request(method, path, body=body, headers=headers)
+        return conn.getresponse()
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        body: bytes,
+        headers: dict,
+        *,
+        timeout: float,
+        url: str = "",
+        extra: dict | None = None,
+    ) -> _PooledResponse:
+        """Send one request over a pooled or fresh connection.
+
+        Returns a :class:`_PooledResponse`. Raises :class:`_PoolFallback` when the
+        caller must use urllib instead, and urllib-shaped errors
+        (``TimeoutError`` / ``URLError`` / ``HTTPError``) for every other failure
+        so the caller's existing handlers are unaffected.
+        """
+        _extra = extra or {}
+        conn = self._checkout()
+        reused = conn is not None
+        started = time.monotonic()
+        try:
+            if conn is None:
+                conn = self._connect(timeout=timeout, extra=_extra)
+            raw = self._send(conn, method, path, body, headers, timeout=timeout)
+        except _RETRYABLE_TRANSPORT_ERRORS as exc:
+            # Handshake failures (DNS, refused, TLS) land here too: a fresh
+            # connection that cannot even connect is not worth retrying here —
+            # urllib gets the request instead.
+            broken, conn = conn, None
+            if broken is not None:
+                self._drop(broken)
+            if _is_timeout_error(exc):
+                raise _as_timeout_error(exc) from exc
+            if not reused:
+                raise _PoolFallback(_transport_reason(exc)) from exc
+            with self._lock:
+                self.stale_retries += 1
+                saved_ms = self._handshake_ms
+            logger.info(
+                "Gemini audio transport conn (outcome=stale-retry, host=%s, port=%d, "
+                "reason=%s, handshake_avoided_ms=%.1f, elapsed_ms=%.1f)",
+                self._host, self._port, _transport_reason(exc), saved_ms,
+                (time.monotonic() - started) * 1000.0,
+                extra=_extra,
+            )
+            try:
+                conn = self._connect(timeout=timeout, extra=_extra)
+                raw = self._send(conn, method, path, body, headers, timeout=timeout)
+            except _RETRYABLE_TRANSPORT_ERRORS as exc2:
+                broken2, conn = conn, None
+                if broken2 is not None:
+                    self._drop(broken2)
+                if _is_timeout_error(exc2):
+                    raise _as_timeout_error(exc2) from exc2
+                raise _PoolFallback(_transport_reason(exc2)) from exc2
+
+        elapsed_ms = (time.monotonic() - started) * 1000.0
+        status = getattr(raw, "status", 0) or 0
+        if not 200 <= status < 300:
+            if 300 <= status < 400:
+                # Redirect: let urllib follow it exactly as it does today.
+                self._drop(conn)
+                raise _PoolFallback(f"http-{status}")
+            # 4xx/5xx: raise a real urllib HTTPError with the live body attached
+            # so http_error_detail() and the existing handler keep working.
+            self._retire(conn)
+            raise urllib.error.HTTPError(
+                url or path, status, getattr(raw, "reason", "") or "",
+                raw.headers, raw,
+            )
+        logger.info(
+            "Gemini audio transport conn (outcome=%s, host=%s, port=%d, "
+            "http_status=%d, request_bytes=%d, ttfb_ms=%.1f, handshake=%s)",
+            "reuse-hit" if reused else "fresh-miss",
+            self._host, self._port, status, len(body or b""),
+            elapsed_ms, "avoided" if reused else "paid",
+            extra=_extra,
+        )
+        if reused:
+            with self._lock:
+                saved_ms = self._handshake_ms
+                reuse_hits, fresh_conns = self.reuse_hits, self.fresh_conns
+                stale_retries, discards = self.stale_retries, self.discards
+            logger.info(
+                "Gemini audio transport handshake (state=avoided, host=%s, port=%d, "
+                "handshake_avoided_ms=%.1f, reuse_hits=%d, fresh_conns=%d, "
+                "stale_retries=%d, discards=%d)",
+                self._host, self._port, saved_ms, reuse_hits, fresh_conns,
+                stale_retries, discards,
+                extra=_extra,
+            )
+        return _PooledResponse(raw, conn, self)
+
+
+def _pool_for(scheme: str, host: str, port: int) -> _ConnectionPool:
+    """Return the process-wide pool for one origin, creating it on first use."""
+    key = (scheme, host, int(port))
+    with _CONNECTION_POOLS_LOCK:
+        pool = _CONNECTION_POOLS.get(key)
+        if pool is None:
+            pool = _ConnectionPool(*key)
+            _CONNECTION_POOLS[key] = pool
+        return pool
+
+
+def close_connections() -> int:
+    """Close every pooled connection. Safe from any thread; returns count closed."""
+    global _CONNECTION_POOLS
+    with _CONNECTION_POOLS_LOCK:
+        pools, _CONNECTION_POOLS = list(_CONNECTION_POOLS.values()), {}
+    return sum(1 for pool in pools if pool.close())
+
+
+@contextlib.contextmanager
+def _open_stream(
+    request,
+    *,
+    timeout: float,
+    headers: dict | None = None,
+    extra: dict | None = None,
+):
+    """Context-managed response for the streaming chat-completions call.
+
+    Uses a pooled persistent connection when possible and otherwise yields the
+    response from the original ``urllib.request.urlopen`` call. The caller's
+    try/except for ``TimeoutError`` / ``socket.timeout`` / ``HTTPError`` /
+    ``URLError`` and its ``response.read(1024)`` SSE loop are unchanged either way.
+    """
+    _extra = extra or {}
+    url = getattr(request, "full_url", "") or ""
+    parts = None
+    if url:
+        try:
+            parts = _split_url(url)
+        except ValueError as exc:
+            _log_transport_fallback(f"url-parse:{exc}", extra=_extra)
+    if parts is not None and _uses_proxy(parts[0]):
+        _log_transport_fallback("proxy-configured", host=parts[1], extra=_extra)
+        parts = None
+    if parts is not None:
+        scheme, host, port, path = parts
+        pool = _pool_for(scheme, host, port)
+        try:
+            response = pool.request(
+                "POST", path, request.data or b"", dict(headers or {}),
+                timeout=timeout, url=url, extra=_extra,
+            )
+        except _PoolFallback as fallback_exc:
+            _log_transport_fallback(
+                fallback_exc.reason, host=host, detail=str(fallback_exc.__cause__ or ""),
+                extra=_extra,
+            )
+        except (urllib.error.URLError, TimeoutError, socket.timeout):
+            raise
+        except Exception as exc:  # never worse than the urllib-only path
+            _log_transport_fallback(
+                f"unexpected:{type(exc).__name__}", host=host, detail=str(exc), extra=_extra,
+            )
+        else:
+            with response:
+                yield response
+            return
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        yield response
+
+
 def transcribe_and_translate(
     pcm16: bytes,
     *,
@@ -681,14 +1181,18 @@ def transcribe_and_translate(
             attempt_idx + 1, model, _raw_n, _gzip_n, _ratio,
             extra=_extra,
         )
+        request_headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Content-Encoding": "gzip",
+        }
+        # Explicit Content-Length: http.client would add it for a bytes body, but
+        # setting it here keeps the pooled request byte-identical to the urllib one.
+        request_headers["Content-Length"] = str(len(payload))
         request = urllib.request.Request(
             f"{api_base}/chat/completions",
             data=payload,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "Content-Encoding": "gzip",
-            },
+            headers=request_headers,
         )
 
         content_accum = []
@@ -702,7 +1206,12 @@ def transcribe_and_translate(
         _sse_read_calls = 0
 
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with _open_stream(
+                request,
+                timeout=timeout,
+                headers=request_headers,
+                extra=_extra,
+            ) as response:
                 decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
                 line_buffer = ""
                 while True:
