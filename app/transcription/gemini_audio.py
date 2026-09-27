@@ -189,7 +189,10 @@ def _wav_base64(pcm16: bytes) -> str:
 # problem must never break dictation. Set JV_AUDIO_FORMAT=wav to restore the
 # exact pre-change wire format instantly if the gateway ever regresses.
 DEFAULT_AUDIO_FORMAT = "ogg"
-_VALID_AUDIO_FORMATS = ("ogg", "opus", "wav")
+# Upstream allowlist is {wav, mp3, ogg, flac, aac, webm, pcm16, g711_ulaw,
+# g711_alaw}; "opus" is NOT a valid format string (400 from the gateway). Opus
+# is the CODEC; "ogg" is the CONTAINER we send it in. Never branch on the codec.
+_VALID_AUDIO_FORMATS = ("ogg", "wav")
 _OPUS_BITRATE_KBPS = 24
 _OPUS_BITRATE = f"{_OPUS_BITRATE_KBPS}k"  # ffmpeg -b:a argument
 _FFMPEG_TIMEOUT_S = 20.0
@@ -1376,6 +1379,10 @@ def transcribe_and_translate(
                 "max_tokens": max_tokens_eff,
                 "temperature": 0,
                 "stream": True,
+                # Sibling of "stream", NOT nested inside it. Without this the
+                # terminal SSE chunk carries no usage object, which is exactly
+                # why logs showed usage_keys=0 / prompt=None.
+                "stream_options": {"include_usage": True},
             }
         ).encode("utf-8")
         payload = gzip.compress(raw_payload)
