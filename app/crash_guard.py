@@ -3,6 +3,7 @@
 import functools
 import json
 import logging
+import re
 import sys
 import threading
 import traceback
@@ -21,6 +22,55 @@ _SESSION_ID = uuid.uuid4().hex[:12]
 TRACEBACK_MAX_CHARS = 8 * 1024
 
 _CACHED_VERSION: str | None = None
+
+# Closed-vocabulary kinds. An exception message can embed dictated speech, a
+# gateway URL with a key in its query string, or an absolute user path, so the
+# raw text never reaches the log. Type + length is enough to triage a crash.
+_SECRET_RE = re.compile(
+    r"(?i)\b(?:sk-[A-Za-z0-9_\-]{4,}|bearer\s+\S+|[?&](?:key|api_key|apikey|token|access_token)=[^&\s]+)"
+)
+_PATH_RE = re.compile(r"[A-Za-z]:\\\\?[^\s\"']*")
+_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+_MESSAGE_MAX_CHARS = 2000
+
+
+def _redact(text: str) -> str:
+    """Strip secrets, URLs, and Windows paths from untrusted text."""
+    if not text:
+        return ""
+    cleaned = _SECRET_RE.sub("[REDACTED]", text)
+    cleaned = _URL_RE.sub("[URL]", cleaned)
+    cleaned = _PATH_RE.sub("[PATH]", cleaned)
+    if len(cleaned) > _MESSAGE_MAX_CHARS:
+        cleaned = cleaned[:_MESSAGE_MAX_CHARS] + "...[truncated]"
+    return cleaned
+
+
+def _message_length(exc_value) -> int:
+    """Length of the raw exception message, reported instead of the text.
+
+    The message is free-form and can embed dictated speech, so only its size
+    is persisted. Returns 0 when the value cannot be rendered.
+    """
+    try:
+        return len(str(exc_value)) if exc_value is not None else 0
+    except Exception:
+        return 0
+
+
+def _frames_only(tb) -> str:
+    """Render traceback frames (file/line/function) without any source text.
+
+    ``traceback.format_exception`` appends the exception message, which is the
+    leak vector. ``format_tb`` yields only the call stack, so the crash block
+    stays code-only.
+    """
+    if tb is None:
+        return "<traceback unavailable>"
+    try:
+        return "".join(traceback.format_tb(tb))
+    except Exception:
+        return "<traceback unavailable>"
 
 
 def get_session_id() -> str:
@@ -79,14 +129,8 @@ def format_crash_block(kind: str, exc_info) -> str:
     try:
         exc_type, exc_value, exc_tb = exc_info
         type_name = getattr(exc_type, "__name__", str(exc_type))
-        try:
-            message = str(exc_value) if exc_value is not None else ""
-        except Exception:
-            message = "<unprintable exception>"
-        try:
-            tb_text = "".join(traceback.format_exception(*exc_info))
-        except Exception:
-            tb_text = "<traceback unavailable>"
+        message_chars = _message_length(exc_value)
+        tb_text = _redact(_frames_only(exc_tb))
         truncated = False
         if len(tb_text) > TRACEBACK_MAX_CHARS:
             tb_text = tb_text[:TRACEBACK_MAX_CHARS] + "\n...[truncated]"
@@ -101,7 +145,7 @@ def format_crash_block(kind: str, exc_info) -> str:
             "session_id": get_session_id(),
             "version": get_version(),
             "exc_type": type_name,
-            "message": message[:2000],
+            "message_chars": message_chars,
             "traceback_truncated": truncated,
             "traceback": tb_text,
         }
@@ -115,7 +159,7 @@ def format_crash_block(kind: str, exc_info) -> str:
                     "session_id": get_session_id(),
                     "version": "unknown",
                     "exc_type": type_name,
-                    "message": message[:500],
+                    "message_chars": message_chars,
                 },
                 ensure_ascii=False,
             )
@@ -123,7 +167,7 @@ def format_crash_block(kind: str, exc_info) -> str:
             f"\n{'=' * 72}\n"
             f"CRASH GUARD [{kind}] {ts} "
             f"(session={get_session_id()} version={get_version()} "
-            f"{type_name}: {message[:200]})\n"
+            f"{type_name}: <{message_chars} chars withheld>)\n"
             f"{tb_text}\n"
             f"--- crash.json ---\n{json_block}\n"
             f"{'=' * 72}\n"
@@ -144,7 +188,20 @@ def _write_crash_report(kind: str, exc_info) -> None:
             exc_value = exc_info[1] if len(exc_info) > 1 else None
         except Exception:
             exc_value = None
-        logger.critical("Unhandled exception (%s): %s", kind, exc_value)
+        # Redacted + closed-vocabulary: never log the raw exception text.
+        try:
+            exc_type_name = getattr(
+                exc_info[0], "__name__", str(exc_info[0])
+            )
+        except Exception:
+            exc_type_name = "UnknownError"
+        _safe_len = _message_length(exc_value)
+        logger.critical(
+            "Unhandled exception (kind=%s, exc_type=%s, message_chars=%d)",
+            kind,
+            exc_type_name,
+            _safe_len,
+        )
         if _crash_log_path:
             with open(_crash_log_path, "a", encoding="utf-8") as f:
                 f.write(entry)
