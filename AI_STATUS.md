@@ -1,10 +1,16 @@
 # AI Status & Session Ledger — JoyVoice
 
+## Session Log - 2026-09-27 - v2.5.4 packaged version closeout
+
+- **Scope:** retain the tagged-but-unpublished v2.5.3 clause-negation and production-worker tests; include `pyproject.toml` in the one-file bundle so the existing packaged version resolvers can report the release version. Advance public version surfaces to v2.5.4 without rewriting the immutable v2.5.3 tag.
+- **Verification:** isolated full suite 294 passed / 3 skipped / 2 subtests passed using a dummy API key, temporary profile and sanitized fixture. Core/app imports and the pre-commit guard passed. Exact-tag v2.5.4 build, isolated unlocked startup/version smoke and public asset checks remain pending.
+- **Closeout:** v2.5.4 release awaits those checks.
+
 ## Session Log - 2026-09-27 - v2.5.3 clause negation safety patch
 
 - **Scope:** reproduced the v2.5.2 padded-negation fail-open, replaced its finite six-token window with conservative whole-clause negation, retained explicit `but` clause splitting, and added direct production `CloudASRWorker.run()` partial/malformed-chunk tests. The live worker uses an all-zero digital-silence gate; the differently thresholded `transcribe_chunks_resilient` helper has no production caller. v2.5.2 has a public safety advisory.
-- **Verification:** isolated full suite 294 passed / 3 skipped (dummy `JV_API_KEY`, temporary `APPDATA`/`LOCALAPPDATA`/`JV_PROMPT_MEMORY_DB`, Qt offscreen, sanitized evidence fixture). One earlier run hit an intermittent Windows Qt access violation at `tests/test_prompt_memory_integration.py:525`; that test passed alone and the full suite passed on retry. The Qt instability is not claimed fixed. The attempted unlocked startup smoke did not return observable evidence; a lock-contention exit only proves rejection. A fresh unlocked offscreen test is required on the exact v2.5.3 binary.
-- **Closeout:** v2.5.3 build and publication follow verification; no claim of live multi-minute failed-tail recovery or semantic guard completeness.
+- **Verification:** isolated full suite 294 passed / 3 skipped (dummy `JV_API_KEY`, temporary `APPDATA`/`LOCALAPPDATA`/`JV_PROMPT_MEMORY_DB`, Qt offscreen, sanitized evidence fixture). One earlier run hit an intermittent Windows Qt access violation at `tests/test_prompt_memory_integration.py:525`; that test passed alone and the full suite passed on retry. The Qt instability is not claimed fixed. An exact-tag build using the authoritative spec in an isolated output path produced a valid PE/MZ EXE (202058138 bytes, SHA-256 `b674d13d9f3bd95a802baadc89a4719b308a63f90f1ecd37ead6aa7fb9bf5113`). An unlocked offscreen launch under a separate temporary profile reached tray initialization and stayed running, but logged `app=unknown`.
+- **Closeout:** commit `25a6657` and immutable annotated tag `v2.5.3` were pushed; no public v2.5.3 release was created. The checked-in `dist\JoyVoice.exe` was held open by an existing process, so the build used an isolated output directory without stopping that process. Packaged version verification failed; v2.5.4 supersedes this release candidate. No claim of live multi-minute failed-tail recovery or semantic guard completeness.
 
 ## Session Log — 2026-09-27 — v2.5.2 guard boundary fixes & audit corrections
 

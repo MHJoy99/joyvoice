@@ -3,11 +3,18 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
-## v2.5.3 - Clause Negation Safety Patch (2026-09-27)
+## v2.5.4 - Safety Patch and Packaged Version Fix (2026-09-27)
+
+- **Ships the v2.5.3 source patch:** the clause-level negation guard and direct production-worker recovery tests from the tagged but unpublished v2.5.3 commit. The v2.5.2 public release carries an advisory for its padded-negation bypass.
+- **Fixes packaged version display:** `JoyVoice.spec` includes `pyproject.toml` so the existing runtime version resolvers can find `2.5.4` after one-file extraction. The v2.5.3 tagged EXE reached tray initialization under an isolated profile, but reported `app=unknown`; it was not published.
+- **Verification:** isolated full suite 294 passed / 3 skipped / 2 subtests passed, core/app imports passed and pre-commit guard passed. The exact-tag build and unlocked startup/version check are still required before publication.
+- **Limits:** the guard remains lexical rather than semantic. Live multi-minute failed-tail recovery remains unverified.
+
+## v2.5.3 - Clause Negation Safety Patch (tagged, not published; 2026-09-27)
 
 - **Closes a v2.5.2 fail-open:** a finite six-token window accepted `Shut down production` when the source said `Do not please now today here there then also just shut down production`. Every negation in the same lexical clause now marks that clause negative; explicit `but` contrasts remain separate. Ambiguous mixed-action clauses may fall back for manual review rather than guessing scope. The public v2.5.2 release carries an advisory.
 - **Tests the production worker, not just an unused helper:** new no-network `CloudASRWorker.run()` regressions cover a translation-only good chunk followed by a failed tail, plus a malformed `None` result. Both assert ordered partial output and failed-chunk-only recovery. The live worker deliberately treats only all-zero PCM as digital silence; the helper has a different near-zero threshold and is not used by the live worker.
-- **Verification:** isolated full suite 294 passed / 3 skipped with a dummy API key, temporary profile, and sanitized evidence fixture. Standalone unlocked EXE startup must be checked again on the exact v2.5.3 build.
+- **Verification:** isolated full suite 294 passed / 3 skipped with a dummy API key, temporary profile, and sanitized evidence fixture. The exact-tag EXE reached tray initialization under an unlocked isolated profile but reported its packaged app version as `unknown`, so this tag was not published.
 - **Still limited:** this guard is lexical rather than semantic, and live multi-minute failed-tail recovery remains unverified. No claim of universal high-risk instruction safety.
 
 ## v2.5.2 — Guard Boundary Fixes & Audit Corrections (2026-09-27)

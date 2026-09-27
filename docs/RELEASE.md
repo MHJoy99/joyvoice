@@ -35,6 +35,7 @@ This is the canonical checklist for moving a reported JoyVoice bug from a fix to
 - Check out the exact tagged commit, and confirm `HEAD` resolves to `vX.Y.Z` before building.
 - Build from that exact tag with `build_exe.bat` and the authoritative `JoyVoice.spec`.
 - Verify `dist\JoyVoice.exe` exists and passes the release smoke checks, including launch/version and the expected packaged behavior.
+- If an existing user process locks `dist\JoyVoice.exe`, set `JV_DIST_PATH` and `JV_WORK_PATH` to separate temporary directories before invoking `build_exe.bat`. Verify the EXE at the selected output path; leave the user's process and default `dist` untouched.
 
 ## 5. Publish and confirm the public release
 

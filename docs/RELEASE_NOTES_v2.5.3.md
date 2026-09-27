@@ -1,5 +1,9 @@
 # JoyVoice v2.5.3
 
+This tag was not published as a GitHub Release: the tagged EXE started under an
+isolated profile, but its packaged app version displayed as `unknown`. The
+version-bundling correction is included in v2.5.4.
+
 ## Safety Patch
 
 The v2.5.2 lexical guard could accept a bare destructive command when its
@@ -27,10 +31,10 @@ overbroad earlier claim of production parity.
 
 - Isolated full suite: 294 passed, 3 skipped, with a dummy API key, temporary
   app profile, Qt offscreen, and sanitized evidence fixture.
-- Binary build and artifact digests are recorded in the published release
-  after building from the exact annotated tag.
-- An unlocked offscreen startup smoke test is required on the exact-tag EXE;
-  single-instance lock rejection alone is not a startup test.
+- Exact-tag EXE: 202058138 bytes, SHA-256
+  `b674d13d9f3bd95a802baadc89a4719b308a63f90f1ecd37ead6aa7fb9bf5113`.
+- An unlocked offscreen startup reached tray initialization under an isolated
+  profile, but logged `app=unknown`; this fails version verification.
 
 ## Limits
 

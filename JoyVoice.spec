@@ -21,7 +21,7 @@ a = Analysis(
     ['app\\main.py'],
     pathex=[],
     binaries=binaries,
-    datas=[('assets', 'assets')] + datas,
+    datas=[('assets', 'assets'), ('pyproject.toml', '.')] + datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

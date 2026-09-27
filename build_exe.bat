@@ -10,17 +10,20 @@ if not exist ".venv\Scripts\python.exe" (
     endlocal & exit /b 1
 )
 
-".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean JoyVoice.spec
+if not defined JV_DIST_PATH set "JV_DIST_PATH=dist"
+if not defined JV_WORK_PATH set "JV_WORK_PATH=build"
+
+".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --distpath "%JV_DIST_PATH%" --workpath "%JV_WORK_PATH%" JoyVoice.spec
 set "BUILD_EXIT=%ERRORLEVEL%"
 
 if not "%BUILD_EXIT%"=="0" (
     endlocal & exit /b %BUILD_EXIT%
 )
 
-if not exist "dist\JoyVoice.exe" (
-    echo [ERROR] PyInstaller succeeded but dist\JoyVoice.exe was not created.
+if not exist "%JV_DIST_PATH%\JoyVoice.exe" (
+    echo [ERROR] PyInstaller succeeded but %JV_DIST_PATH%\JoyVoice.exe was not created.
     endlocal & exit /b 1
 )
 
-echo [OK] Created %CD%\dist\JoyVoice.exe
+echo [OK] Created %JV_DIST_PATH%\JoyVoice.exe
 endlocal & exit /b 0
