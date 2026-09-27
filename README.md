@@ -6,7 +6,7 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.4.2-22d3ee?style=flat-square" alt="Version 2.4.2"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.5.0-22d3ee?style=flat-square" alt="Version 2.5.0"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="llms.txt"><img src="https://img.shields.io/badge/AGO-llms.txt-22d3ee?style=flat-square" alt="llms.txt compliant"></a>
@@ -23,6 +23,26 @@
 # JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows
 
 > Open-source Bangla voice typing and multilingual speech-to-text for Windows 11/10. Press `F8`, dictate in Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French or Portuguese, and auto-paste clean translated text into any app — zero GPU required in cloud mode.
+
+<hr>
+
+## Questions people ask
+
+### Does JoyVoice lose my words if a long recording fails halfway?
+
+No. For long text the pipeline translates in chunks, and if one chunk fails after earlier chunks succeeded, it keeps the translated chunks so far instead of dropping the whole dictation (`app/main.py`). Usable partial speech is also preserved to the local history store for review instead of being discarded, so text is never silently lost.
+
+### Is my dictated text or API key written to any log file?
+
+No. The crash guard (`app/crash_guard.py`) never writes the raw exception message to the log because that text can embed dictated speech or a key in a URL. Crash reports store only the exception type, the message length in characters, and redacted stack frames, with secrets, URLs, and Windows paths replaced by placeholders. Your API key itself lives only in local settings or the `JV_API_KEY` environment variable.
+
+### What does the conversation memory feature do, and is it on by default?
+
+It is off by default and opt-in (`prompt_memory_enabled: False` in `app/storage/settings_store.py`). When enabled, it only affects the Prompt-for-AI text style: the compiler (`app/transcription/prompt_compiler.py`) sends your current request in full plus dated prior statements from the active conversation within a character budget, and the receiving agent is told to verify live state and ask when details are missing. Normal dictation paths are unchanged, and any failure falls back to your verbatim current request.
+
+### How do I dictate Bengali or Banglish into English on Windows?
+
+Press `F8`, speak naturally in Bengali or Bengali-English mixed speech, and JoyVoice auto-detects the source and pastes clean English into the app under your cursor via `Ctrl+V`. The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, and the text-style step translates Bengali or mixed Bengali-English input into natural English. No manual language switching or GPU is needed in cloud mode.
 
 <hr>
 
@@ -681,6 +701,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.4.2 · September 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.5.0 · September 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>

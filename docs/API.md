@@ -230,7 +230,7 @@ def _parse_result(content: str) -> tuple[str, str, str | None]:
 | `500 Internal Server Error` | Gateway or model error     | Backend issue — triggers fallback           |
 | `Timeout`                   | Request exceeded 180s      | Network slow or audio too long              |
 
-All errors trigger the **fallback chain** (see below).
+All errors trigger the **fallback chain** (see below). Public HTTP diagnostics are content-free and closed-vocabulary via `http_error_detail` (`app/transcription/http_errors.py`): numeric status + static reason + static `category`/`signal` tokens only — no response/request body excerpts, no provider message strings, no credential patterns. Raw dictated text is never written to logs.
 
 ---
 
@@ -440,7 +440,8 @@ JoyVoice first checks `GET /models`. It uses `joyvoice-fast-audio` only when the
 
 - Fallback only triggers if the Gemini audio call **throws an exception** (HTTP error, timeout, parse failure)
 - Native request timeouts are logged as errors and are never retried automatically; the existing Google cloud fallback may then run.
-- The fallback is NOT triggered for "empty transcript" responses from Gemini — those are treated as success but show "No speech detected" in the widget
+- Long-audio chunking: valid HTTP-200 chunks are retained in ordered slots (overlap-dedup join) and only failed voiced chunks get bounded Google recovery; a voiced chunk that returns empty counts as a failure and enters recovery, while digital silence is skipped with no network call. Unrecoverable jobs route to history-once + copy-only partial review, never autopaste.
+- Single-call "empty transcript" responses from Gemini are treated as success ("No speech detected" in the widget); the voiced-empty-counts-as-failure rule above applies to the chunked long-audio path only
 - If `JV_API_KEY` is missing, Stage 1 fails immediately and Stage 3 also fails — only Google ASR (Stage 2) works, producing a source-language transcript without translation
 - If Google ASR also fails (network down, rate limited by Google, `typing_extensions` missing), the widget shows error state
 - The fallback chain is implemented in `CloudASRWorker.run()` (app/main.py, lines 121–141)

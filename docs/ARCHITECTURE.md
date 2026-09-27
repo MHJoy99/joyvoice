@@ -537,7 +537,7 @@ Text Style Processing:
     "raw"           → no processing, return as-is
     "clean_english" → text_cleaner.py: remove fillers, collapse repeats,
                        apply replacements, normalize whitespace, capitalize
-    "prompt_for_ai" → CloudLLMWorker: rewrite as AI prompt
+    "prompt_for_ai" → CloudLLMWorker: rewrite as AI prompt (opt-in memory: one budgeted compile; empty snapshot skips compile, stateless path)
     "professional_message" → CloudLLMWorker: rewrite as email
     "facebook_post" → CloudLLMWorker: rewrite as social post
     │
@@ -613,9 +613,9 @@ class CloudLLMWorker(QThread):
     # Calls cloud_llm_rewrite() with style-specific prompts
 ```
 
-### `app/transcription/gemini_audio.py` — Gemini Native Audio (~172 lines)
+### `app/transcription/gemini_audio.py` — Gemini Native Audio
 
-**Single API call: transcription + translation.** The core of the cloud pipeline.
+**Single API call per chunk: transcription + translation.** The core of the cloud pipeline. Long recordings are transcribed as ordered chunks joined with ~250 ms overlap dedup: valid HTTP-200 chunks are retained in ordered slots and only failed voiced chunks get bounded Google recovery; digital silence (peak ≤ 1 LSB, ≥ 0.5 s) is skipped with no network call. Unrecoverable jobs raise typed partials routed to history-once + copy-only review; stale/cancelled jobs are no-ops.
 
 ```python
 LANGUAGES = {
@@ -647,9 +647,9 @@ def transcribe_and_translate(
 1. `_wav_base64(pcm16)` — Wraps raw PCM bytes in a valid WAV container (16-bit, 16kHz, mono) via Python's `wave` module, then base64-encodes for the API.
 2. `_parse_result(content)` — Extracts JSON from Gemini's response using regex (`r"\{.*\}"`). Gemini returns JSON inside markdown code fences — don't assume raw JSON. Returns `(transcript, translation)` tuple.
 
-### `app/transcription/cloud_asr.py` — Google Web Speech Fallback (~51 lines)
+### `app/transcription/cloud_asr.py` — Google Web Speech Fallback
 
-**Free, keyless ASR via Google's Web Speech API** (same API Chrome's voice typing uses).
+**Free, keyless ASR via Google's Web Speech API** (same API Chrome's voice typing uses). Also provides bounded failed-voiced-chunk recovery for the native path (per-chunk timeout + monotonic deadline + cancellation honoured); incomplete prefix recovery raises a typed partial (`GooglePartialResult`) routed to history-once + copy-only review, never marked complete.
 
 ```python
 GOOGLE_LANGUAGE_TAGS = {

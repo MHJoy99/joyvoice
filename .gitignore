@@ -50,6 +50,9 @@ portable.txt
 *.swo
 *~
 *.bak
+temp/
+*.code-workspace
+joyvoice.code-workspace
 
 # OS generated files
 .DS_Store
