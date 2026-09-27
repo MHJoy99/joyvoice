@@ -63,6 +63,7 @@ class FloatingWidget(QWidget):
     cancel_requested = Signal()
     ai_model_start_requested = Signal()
     ai_model_stop_requested = Signal()
+    prompt_memory_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -679,6 +680,11 @@ class FloatingWidget(QWidget):
         menu.addAction("Settings...", self.settings_requested.emit)
         menu.addAction("Diagnostics...", self.diagnostics_requested.emit)
         menu.addAction("Benchmark ASR Engines...", self.benchmark_requested.emit)
+        # Single discoverable entry point for Prompt memory (per
+        # docs/sol-prompt-memory-plan.md). New/Compress/Clear live in the
+        # manager dialog owned by the main integrator — keep the tiny widget
+        # menu free of clutter.
+        menu.addAction("Prompt memory...", self.prompt_memory_requested.emit)
         menu.addSeparator()
         menu.addAction("Start AI Model", self.ai_model_start_requested.emit)
         menu.addAction("Stop AI Model", self.ai_model_stop_requested.emit)

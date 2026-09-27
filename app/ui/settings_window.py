@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QRadioButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -233,6 +235,65 @@ class SettingsWindow(QDialog):
 
         layout.addLayout(form)
 
+        # Prompt-for-AI memory (opt-in). Discoverable next to Text style since
+        # it only affects style == "prompt_for_ai"; normal dictation unchanged.
+        memory_group = QGroupBox("Prompt-for-AI memory (opt-in)")
+        memory_layout = QVBoxLayout(memory_group)
+        self.prompt_memory_enabled_checkbox = QCheckBox("Remember this conversation")
+        self.prompt_memory_enabled_checkbox.setObjectName("promptMemoryEnabledCheckbox")
+        self.prompt_memory_enabled_checkbox.setChecked(
+            bool(self._settings.get("prompt_memory_enabled", False))
+        )
+        self.prompt_memory_enabled_checkbox.setToolTip(
+            "Applies to Prompt for AI only. Other styles stay stateless."
+        )
+        self.prompt_memory_enabled_checkbox.toggled.connect(self._on_prompt_memory_toggled)
+        memory_layout.addWidget(self.prompt_memory_enabled_checkbox)
+
+        self.prompt_memory_review_checkbox = QCheckBox("Copy for manual review (do not auto-paste)")
+        self.prompt_memory_review_checkbox.setObjectName("promptMemoryReviewCheckbox")
+        self.prompt_memory_review_checkbox.setChecked(
+            bool(self._settings.get("prompt_memory_review_before_paste", False))
+        )
+        self.prompt_memory_review_checkbox.setToolTip(
+            "When enabled, Prompt-for-AI memory requests are copied to the clipboard instead of auto-pasting (Ctrl+V) so you can review before pasting manually."
+        )
+        memory_layout.addWidget(self.prompt_memory_review_checkbox)
+
+        budget_row = QHBoxLayout()
+        budget_label = QLabel("Working input budget:")
+        self.prompt_memory_budget_spin = QSpinBox()
+        self.prompt_memory_budget_spin.setObjectName("promptMemoryBudgetSpin")
+        self.prompt_memory_budget_spin.setRange(2000, 128000)
+        self.prompt_memory_budget_spin.setSingleStep(1000)
+        self.prompt_memory_budget_spin.setSuffix(" chars")
+        try:
+            _budget = int(self._settings.get("prompt_memory_budget_chars", 12000))
+        except (TypeError, ValueError):
+            _budget = 12000
+        self.prompt_memory_budget_spin.setValue(max(2000, min(128000, _budget)))
+        self.prompt_memory_budget_spin.setToolTip(
+            "Max working input for one Prompt-for-AI compilation."
+        )
+        budget_row.addWidget(budget_label)
+        budget_row.addWidget(self.prompt_memory_budget_spin)
+        budget_row.addStretch(1)
+        memory_layout.addLayout(budget_row)
+
+        memory_note = QLabel(
+            "Off by default. When on, active conversation text is sent to the "
+            "configured cloud text model with Prompt-for-AI requests only. "
+            "Normal dictation is unchanged."
+        )
+        memory_note.setObjectName("promptMemoryNote")
+        memory_note.setWordWrap(True)
+        memory_note.setStyleSheet("color: #6b7280;")
+        memory_layout.addWidget(memory_note)
+        layout.addWidget(memory_group)
+        self._on_prompt_memory_toggled(
+            self.prompt_memory_enabled_checkbox.isChecked()
+        )
+
         note = QLabel(
             "Audio is sent to the cloud for transcription and translation via "
             "Gemini. No local models required — just an active internet "
@@ -271,6 +332,15 @@ class SettingsWindow(QDialog):
         # The text model is used for translation as well as AI styles, so it
         # stays enabled regardless of the selected style.
         pass
+
+    def _on_prompt_memory_toggled(self, checked: bool) -> None:
+        # Review/budget only matter when memory is enabled; keep them visible
+        # but disabled so the opt-in hierarchy is obvious. Values are still
+        # persisted so re-enabling restores the user's choice.
+        if hasattr(self, "prompt_memory_review_checkbox"):
+            self.prompt_memory_review_checkbox.setEnabled(bool(checked))
+        if hasattr(self, "prompt_memory_budget_spin"):
+            self.prompt_memory_budget_spin.setEnabled(bool(checked))
 
     # ------------------------------------------------------------------
     # API (OpenAI-compatible endpoint, key, models)
@@ -1077,6 +1147,12 @@ class SettingsWindow(QDialog):
         updated["paste_delay_ms"] = self.paste_delay_combo.currentData()
         updated["restore_clipboard"] = self.restore_clipboard_checkbox.isChecked()
         updated["wait_for_hotkey_release"] = self.wait_for_release_checkbox.isChecked()
+
+        updated["prompt_memory_enabled"] = self.prompt_memory_enabled_checkbox.isChecked()
+        updated["prompt_memory_review_before_paste"] = self.prompt_memory_review_checkbox.isChecked()
+        updated["prompt_memory_budget_chars"] = int(self.prompt_memory_budget_spin.value())
+        # Active conversation selection is owned by the memory view (integrator);
+        # preserve it across Settings roundtrips so Save never clears it.
 
         updated["cloud_chunking"] = self.dev_cloud_chunking_checkbox.isChecked()
         updated["translation_only_fast"] = self.dev_translation_only_fast_checkbox.isChecked()

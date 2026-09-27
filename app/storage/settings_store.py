@@ -49,6 +49,12 @@ DEFAULTS: dict[str, Any] = {
     "waiting_timer": True,
     "sound_enabled": False,  # completion/first-token beeps; False = silent (pre-Phase-8 behavior)
     "dev_overlay": False,   # live developer readout on the floating widget
+    # Prompt-for-AI conversation memory (opt-in, off by default).
+    # Only affects style == "prompt_for_ai"; normal dictation paths unchanged.
+    "prompt_memory_enabled": False,              # bool — Remember this conversation
+    "prompt_memory_review_before_paste": False,  # bool — optional review step
+    "prompt_memory_budget_chars": 12000,  # int — working input budget (chars, canonical)
+    "prompt_memory_active_conversation_id": None,  # str | None — persisted selection
 }
 
 
@@ -65,6 +71,20 @@ def load() -> dict[str, Any]:
             for key in DEFAULTS:
                 if key in loaded:
                     settings[key] = loaded[key]
+            # Sanitize Prompt-memory keys (backward compatible; old files miss them).
+            settings["prompt_memory_enabled"] = bool(settings.get("prompt_memory_enabled", False))
+            settings["prompt_memory_review_before_paste"] = bool(
+                settings.get("prompt_memory_review_before_paste", False)
+            )
+            try:
+                _budget = int(settings.get("prompt_memory_budget_chars", 12000))
+            except (TypeError, ValueError):
+                _budget = 12000
+            settings["prompt_memory_budget_chars"] = max(2000, min(128000, _budget))
+            _active = settings.get("prompt_memory_active_conversation_id")
+            settings["prompt_memory_active_conversation_id"] = (
+                str(_active) if isinstance(_active, str) and _active.strip() else None
+            )
         except Exception as exc:
             logger.warning("Could not read settings.json, using defaults: %s", exc)
     return settings

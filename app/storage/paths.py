@@ -60,6 +60,11 @@ def log_path() -> Path:
     return data_dir() / "joyvoice.log"
 
 
+def prompt_memory_db_path() -> Path:
+    """SQLite file for Prompt-for-AI conversation memory (separate from history/settings)."""
+    return data_dir() / "prompt_memory.db"
+
+
 def usage_path() -> Path:
     """Append-only JSONL of per-request token + latency telemetry."""
     return data_dir() / "usage.jsonl"

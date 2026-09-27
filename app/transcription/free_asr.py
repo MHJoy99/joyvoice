@@ -61,7 +61,7 @@ class FreeASRWorker(QThread):
                 self._asr_model, device="cuda", compute_type="float16", download_root=root
             )
         except Exception as exc:
-            logger.info("CUDA unavailable, falling back to CPU int8: %s", exc)
+            logger.info("CUDA unavailable, falling back to CPU int8 (%s)", type(exc).__name__)
             return whisper_model_cls(
                 self._asr_model, device="cpu", compute_type="int8", download_root=root
             )
@@ -123,13 +123,13 @@ class FreeASRWorker(QThread):
             from faster_whisper import WhisperModel
         except Exception as exc:
             logger.error(
-                "Free ASR start failed (model=%s, latency=%.2fs): %s",
-                self._asr_model, time.monotonic() - _t0, exc,
+                "Free ASR start failed (model=%s, latency=%.2fs, error=%s)",
+                self._asr_model, time.monotonic() - _t0, type(exc).__name__,
                 extra=_extra,
             )
             self.failed.emit(
                 "Free mode is not set up yet (missing offline model library). "
-                f"Open Settings \u2192 Free Mode and click Set up. ({exc})"
+                "Open Settings \u2192 Free Mode and click Set up."
             )
             return
 
@@ -170,8 +170,8 @@ class FreeASRWorker(QThread):
                     # salvage the transcript rather than losing the dictation.
                     logger.warning(
                         "Free translate fallback — salvaging transcript "
-                        "(chars=%d): %s",
-                        len(transcript or ""), translate_exc,
+                        "(chars=%d, error=%s)",
+                        len(transcript or ""), type(translate_exc).__name__,
                         extra=_extra,
                     )
                     translation = transcript
@@ -183,9 +183,9 @@ class FreeASRWorker(QThread):
                 return
             logger.info(
                 "Free ASR done (model=%s, engine=%s, latency=%.2fs, "
-                "transcript_chars=%d): %s",
+                "transcript_chars=%d)",
                 self._asr_model, engine, time.monotonic() - _t0,
-                len(transcript or ""), (transcript or "")[:80],
+                len(transcript or ""),
                 extra=_extra,
             )
             self.done.emit(transcript, translation, "")
@@ -193,8 +193,8 @@ class FreeASRWorker(QThread):
             if self._cancelled:
                 return
             logger.error(
-                "Free ASR failed (model=%s, latency=%.2fs): %s",
-                self._asr_model, time.monotonic() - _t0, exc,
+                "Free ASR failed (model=%s, latency=%.2fs, error=%s)",
+                self._asr_model, time.monotonic() - _t0, type(exc).__name__,
                 extra=_extra,
             )
-            self.failed.emit(str(exc))
+            self.failed.emit(f"Free ASR failed ({type(exc).__name__})")

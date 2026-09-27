@@ -68,6 +68,82 @@ def _language_likelihood(text: str, language: str) -> int:
     )
 
 
+# ── Chunk-tail root fix (job 1 sess 6508623d, Google fallback leg) ─────────────
+# Digital/near-digital silence ONLY, shared with gemini_audio.is_silence_pcm16:
+# skip exact-zero/+/-1 LSB chunks with NO network; attenuated real speech
+# (e.g. peak~100) always goes to the network. Never broad amplitude cutoffs.
+_SILENCE_MIN_BYTES = 16000
+_SILENCE_PEAK = 1
+_SILENCE_MEAN = 1.0
+
+
+def is_silence_pcm16(pcm16: bytes) -> bool:
+    """True only for digital/near-digital silent PCM16 (no network needed)."""
+    try:
+        data = pcm16 or b""
+        if not data:
+            return True
+        if len(data) < _SILENCE_MIN_BYTES:
+            return False
+        import array as _array
+        samples = _array.array("h")
+        samples.frombytes(data)
+        if not samples:
+            return True
+        peak = 0
+        total = 0
+        for value in samples:
+            abs_value = value if value >= 0 else -value
+            if abs_value > peak:
+                peak = abs_value
+                if peak > _SILENCE_PEAK:
+                    return False
+            total += abs_value
+        return peak <= _SILENCE_PEAK and (total / len(samples)) <= _SILENCE_MEAN
+    except Exception:
+        return False
+
+
+class GooglePartialResult(Exception):
+    """Typed partial for Google chunked fallback: prefix recovered, tail missing.
+
+    Raised INSTEAD of silently returning the joined successful prefix as if
+    complete. Main owner: catch distinctly and route to the same copy-only /
+    history / no-memory path as native partials. str() carries counts only,
+    never user text. Complete successes still return plain str.
+    """
+
+    def __init__(
+        self,
+        recovered: list[str],
+        failed_indexes: list[int],
+        *,
+        total_chunks: int = 0,
+        silent_skipped: int = 0,
+        reason: str = "partial",
+    ) -> None:
+        self.recovered = [t for t in (recovered or []) if (t or "").strip()]
+        self.failed_indexes = list(failed_indexes or [])
+        self.total_chunks = int(total_chunks or 0)
+        self.silent_skipped = int(silent_skipped or 0)
+        self.reason = str(reason or "partial")
+        try:
+            self.partial_text = " ".join(self.recovered).strip()
+        except Exception:
+            self.partial_text = ""
+        # Native-loop aliases so one main catch covers both engines.
+        try:
+            self.partial_transcript = self.partial_text
+            self.partial_translation = self.partial_text
+        except Exception:
+            pass
+        super().__init__(
+            f"Google partial result ({self.reason}): "
+            f"{len(self.recovered)}/{self.total_chunks} chunks recovered, "
+            f"failed={self.failed_indexes}, silent_skipped={self.silent_skipped}"
+        )
+
+
 def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
     """Recognize Bangla/English audio without passing ``None`` to Google.
 
@@ -108,7 +184,7 @@ def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
         except Exception as exc:
             errors.append(exc)
             logger.warning(
-                "Google ASR auto candidate %s failed: %s", code, exc,
+                "Google ASR auto candidate %s failed (%s)", code, type(exc).__name__,
                 extra=_extra,
             )
             # Trace: per-candidate done (error) with duration — lengths only.
@@ -180,16 +256,14 @@ def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
         if _has_deva and not _has_bn:
             logger.warning(
                 "Google ASR auto script drift: bn candidate contains Devanagari "
-                "without Bengali script (chars=%d): %s",
+                "without Bengali script (chars=%d)",
                 len(selected_text),
-                selected_text[:80],
                 extra=_extra,
             )
     logger.info(
-        "Google ASR auto selected lang=%s, chars=%d: %s",
+        "Google ASR auto selected lang=%s, chars=%d",
         GOOGLE_LANGUAGE_TAGS[selected_code],
         len(selected_text),
-        selected_text[:80],
         extra=_extra,
     )
     return selected_text
@@ -224,6 +298,17 @@ def transcribe(
         language, _in_bytes, _in_dur,
         extra=_extra,
     )
+    # Silent-input gate: no Google network call for genuine silence.
+    try:
+        if is_silence_pcm16(audio_bytes or b""):
+            logger.info(
+                "Google ASR silent-skipped (audio_bytes=%d, duration=%.2fs, no network)",
+                _in_bytes, _in_dur,
+                extra=_extra,
+            )
+            return ""
+    except Exception:
+        pass
     recognizer = sr.Recognizer()
 
     # Wrap raw PCM bytes as an AudioData object (16 kHz, 16-bit mono).
@@ -233,9 +318,9 @@ def transcribe(
     t0 = time.monotonic()
     text = recognizer.recognize_google(audio_data, language=lang)
     logger.info(
-        "Google ASR done (lang=%s, latency=%.2fs, audio_bytes=%d, chars=%d): %s",
+        "Google ASR done (lang=%s, latency=%.2fs, audio_bytes=%d, chars=%d)",
         lang, time.monotonic() - t0, len(audio_bytes or b""),
-        len(text or ""), (text or "")[:80],
+        len(text or ""),
         extra=_extra,
     )
     # Trace: single-call done with durations — lengths only, never content.
@@ -321,11 +406,50 @@ def transcribe_chunked(
 
     results: list[str] = []
     unknown_val_count = 0
+    failed_indexes: list[int] = []
+    salvage_reason: str | None = None
+
+    # Silent-chunk gate: genuinely silent 30 s chunks skip Google with NO
+    # network (None placeholder keeps order). All-silence returns "" with zero
+    # calls. Conservative evidence only — quiet speech still goes to Google.
+    silent_flags: list[bool] = []
+    try:
+        for chunk in chunks:
+            silent_flags.append(bool(is_silence_pcm16(chunk or b"")))
+    except Exception:
+        silent_flags = [False] * total_chunks
+    try:
+        _n_silent = sum(1 for flag in silent_flags if flag)
+    except Exception:
+        _n_silent = 0
+    if _n_silent:
+        logger.info(
+            "Google ASR silent-skipped %d/%d chunk(s), no network",
+            _n_silent, total_chunks,
+            extra=_extra,
+        )
+    if _n_silent >= total_chunks and total_chunks > 0:
+        logger.info(
+            "Google ASR chunked done: all %d chunk(s) silent, no calls",
+            total_chunks,
+            extra=_extra,
+        )
+        return ""
 
     # Total fallback budget bounds the ordered join so one hung chunk cannot
-    # stall the whole dictation. Per-chunk timeout stays ~6s; the total budget
-    # scales with chunk count and is enforced via the per-result timeout below.
-    total_budget_s = max(12.0, _PER_CHUNK_TIMEOUT_S * total_chunks)
+    # stall the whole dictation. Per-chunk floor stays 6 s for short chunks;
+    # long (30 s) chunks get an adaptive timeout so job-1 style 6 s timeouts
+    # on slow networks do not fail the whole fallback. Total budget also
+    # scales with audio duration, enforced via the per-result timeout below.
+    try:
+        _total_dur = total_len / 32000.0
+    except Exception:
+        _total_dur = 0.0
+    total_budget_s = max(
+        12.0,
+        _PER_CHUNK_TIMEOUT_S * total_chunks,
+        _total_dur * 0.6 + 8.0,
+    )
     deadline = t0 + total_budget_s
 
     # Thread-safety: workers only call transcribe() (own Recognizer per call)
@@ -334,9 +458,9 @@ def transcribe_chunked(
         max_workers=_CHUNK_MAX_WORKERS
     )
     try:
-        futures: list[concurrent.futures.Future[str]] = [
-            executor.submit(transcribe, chunk, language, job_id)
-            for chunk in chunks
+        futures: list[concurrent.futures.Future[str] | None] = [
+            None if silent_flags[idx] else executor.submit(transcribe, chunk, language, job_id)
+            for idx, chunk in enumerate(chunks)
         ]
         logger.info(
             "Google ASR chunked parallel: workers=%d, per_chunk_timeout=%.1fs, "
@@ -357,6 +481,18 @@ def transcribe_chunked(
             chunk_num = idx + 1
             _chunk_bytes = len(chunks[idx] or b"")
             _chunk_dur = _chunk_bytes / 32000.0
+            # Silent chunks were never submitted: skip with no network.
+            try:
+                _is_silent_slot = bool(silent_flags[idx]) or fut is None
+            except Exception:
+                _is_silent_slot = fut is None
+            if _is_silent_slot:
+                logger.info(
+                    "Google ASR chunk %d/%d silent-skipped (%d bytes, no network)",
+                    chunk_num, total_chunks, _chunk_bytes,
+                    extra=_extra,
+                )
+                continue
             logger.info(
                 "Transcribing Google ASR chunk %d/%d (%d bytes)",
                 chunk_num,
@@ -374,12 +510,18 @@ def transcribe_chunked(
                 extra=_extra,
             )
             remaining = deadline - time.monotonic()
+            # Adaptive per-chunk timeout: 6 s floor for short chunks, longer
+            # for 30 s fallback chunks so slow networks do not fail job-1 style.
+            try:
+                _adaptive_timeout = max(_PER_CHUNK_TIMEOUT_S, _chunk_dur * 0.5 + 2.0)
+            except Exception:
+                _adaptive_timeout = _PER_CHUNK_TIMEOUT_S
             # Trace: timeout/salvage budget decision — durations only.
             logger.info(
                 "Google ASR trace chunk budget (chunk=%d/%d, remaining=%.2fs, "
                 "per_chunk_timeout=%.1fs, total_budget=%.1fs, n_done=%d)",
                 chunk_num, total_chunks, max(0.0, remaining),
-                _PER_CHUNK_TIMEOUT_S, total_budget_s, len(results),
+                _adaptive_timeout, total_budget_s, len(results),
                 extra=_extra,
             )
             if remaining <= 0:
@@ -389,8 +531,8 @@ def transcribe_chunked(
                 if results:
                     logger.warning(
                         "Google ASR chunk %d/%d error — salvaging %d prior "
-                        "chunk(s): %s",
-                        chunk_num, total_chunks, len(results), exc,
+                        "chunk(s) (total budget exhausted)",
+                        chunk_num, total_chunks, len(results),
                         extra=_extra,
                     )
                     # Trace: salvage decision — counts only.
@@ -404,8 +546,8 @@ def transcribe_chunked(
                     )
                     break
                 logger.error(
-                    "Google ASR chunk %d/%d error: %s",
-                    chunk_num, total_chunks, exc,
+                    "Google ASR chunk %d/%d error (total budget exhausted)",
+                    chunk_num, total_chunks,
                     extra=_extra,
                 )
                 logger.error(
@@ -415,10 +557,11 @@ def transcribe_chunked(
                     extra=_extra,
                 )
                 raise RuntimeError(
-                    f"Google ASR chunk {chunk_num}/{total_chunks} failed: {exc}"
+                    f"Google ASR chunk {chunk_num}/{total_chunks} failed (total budget exhausted)"
                 ) from exc
-            timeout = min(_PER_CHUNK_TIMEOUT_S, remaining)
+            timeout = min(_adaptive_timeout, remaining)
             try:
+                assert fut is not None
                 text = fut.result(timeout=timeout)
                 _chunk_lat = time.monotonic() - _chunk_t0
                 if text and text.strip():
@@ -454,29 +597,37 @@ def transcribe_chunked(
                 if total_chunks == 1:
                     raise
             except (concurrent.futures.TimeoutError, TimeoutError) as exc:
-                # Timeout salvage: same policy as a mid-loop chunk error —
-                # keep completed chunks and proceed to return them.
+                # Timeout: NEVER return the prefix as complete. Record audible
+                # failed/missing indexes and raise typed partial after the loop.
                 _chunk_lat = time.monotonic() - _chunk_t0
                 if results:
                     logger.warning(
-                        "Google ASR chunk %d/%d timeout after %.1fs — salvaging "
-                        "%d prior chunk(s): %s",
-                        chunk_num, total_chunks, timeout, len(results), exc,
+                        "Google ASR chunk %d/%d timeout after %.1fs — partial "
+                        "%d prior chunk(s)",
+                        chunk_num, total_chunks, timeout, len(results),
                         extra=_extra,
                     )
-                    # Trace: timeout/salvage decision — counts/durations only.
+                    # Trace: timeout/partial decision — counts/durations only.
                     logger.warning(
-                        "Google ASR trace salvage (chunk=%d/%d, decision=salvage, "
+                        "Google ASR trace salvage (chunk=%d/%d, decision=partial, "
                         "reason=per_chunk_timeout, timeout=%.1fs, wait=%.2fs, "
                         "n_salvaged=%d, chunk_duration=%.2fs)",
                         chunk_num, total_chunks, timeout, _chunk_lat,
                         len(results), _chunk_dur,
                         extra=_extra,
                     )
+                    try:
+                        failed_indexes = [idx] + [
+                            j for j in range(idx + 1, total_chunks)
+                            if not (silent_flags[j] if j < len(silent_flags) else False)
+                        ]
+                    except Exception:
+                        failed_indexes = [idx]
+                    salvage_reason = "per_chunk_timeout"
                     break
                 logger.error(
-                    "Google ASR chunk %d/%d timeout after %.1fs: %s",
-                    chunk_num, total_chunks, timeout, exc,
+                    "Google ASR chunk %d/%d timeout after %.1fs",
+                    chunk_num, total_chunks, timeout,
                     extra=_extra,
                 )
                 logger.error(
@@ -487,30 +638,38 @@ def transcribe_chunked(
                 )
                 raise RuntimeError(
                     f"Google ASR chunk {chunk_num}/{total_chunks} timed out "
-                    f"after {timeout:.1f}s: {exc}"
+                    f"after {timeout:.1f}s"
                 ) from exc
             except Exception as exc:
                 _chunk_lat = time.monotonic() - _chunk_t0
                 if results:
-                    # Partial salvage for long recordings: keep what succeeded
-                    # so the dictation is reusable from History instead of lost.
+                    # Audible error: NEVER return the prefix as complete. Raise
+                    # typed partial after the loop so history stays copy-only.
                     logger.warning(
-                        "Google ASR chunk %d/%d error — salvaging %d prior chunk(s): %s",
-                        chunk_num, total_chunks, len(results), exc,
+                        "Google ASR chunk %d/%d error — partial %d prior chunk(s) (%s)",
+                        chunk_num, total_chunks, len(results), type(exc).__name__,
                         extra=_extra,
                     )
-                    # Trace: error/salvage decision — counts/durations only.
+                    # Trace: error/partial decision — counts/durations only.
                     logger.warning(
-                        "Google ASR trace salvage (chunk=%d/%d, decision=salvage, "
+                        "Google ASR trace salvage (chunk=%d/%d, decision=partial, "
                         "reason=chunk_error, reason_chars=%d, wait=%.2fs, "
                         "n_salvaged=%d, chunk_duration=%.2fs)",
                         chunk_num, total_chunks, len(str(exc)), _chunk_lat,
                         len(results), _chunk_dur,
                         extra=_extra,
                     )
+                    try:
+                        failed_indexes = [idx] + [
+                            j for j in range(idx + 1, total_chunks)
+                            if not (silent_flags[j] if j < len(silent_flags) else False)
+                        ]
+                    except Exception:
+                        failed_indexes = [idx]
+                    salvage_reason = "chunk_error"
                     break
                 logger.error(
-                    "Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc,
+                    "Google ASR chunk %d/%d error (%s)", chunk_num, total_chunks, type(exc).__name__,
                     extra=_extra,
                 )
                 logger.error(
@@ -520,13 +679,26 @@ def transcribe_chunked(
                     extra=_extra,
                 )
                 raise RuntimeError(
-                    f"Google ASR chunk {chunk_num}/{total_chunks} failed: {exc}"
+                    f"Google ASR chunk {chunk_num}/{total_chunks} failed ({type(exc).__name__})"
                 ) from exc
     finally:
         # Non-blocking on salvage path: cancel pending, let running network
         # calls finish in background. On full success all futures are done so
         # this returns immediately.
         executor.shutdown(wait=False, cancel_futures=True)
+
+    if failed_indexes and results:
+        # Partial prefix recovered but tail audible-failed/missing: never mark
+        # complete. Main routes this to copy-only/history/no-memory path.
+        try:
+            _n_silent_done = sum(1 for flag in silent_flags if flag)
+        except Exception:
+            _n_silent_done = 0
+        raise GooglePartialResult(
+            list(results), list(failed_indexes),
+            total_chunks=total_chunks, silent_skipped=_n_silent_done,
+            reason=salvage_reason or "partial",
+        )
 
     if not results:
         if unknown_val_count > 0:
@@ -539,3 +711,123 @@ def transcribe_chunked(
         extra=_extra,
     )
     return " ".join(results)
+
+
+def transcribe_failed_chunks_google(
+    failed_chunks: list[tuple[int, bytes]],
+    *,
+    language: str | None = None,
+    job_id: int = 0,
+    per_chunk_timeout: float = 6.0,
+    deadline: float | None = None,
+    is_cancelled=None,
+) -> dict[int, str]:
+    """Recover ONLY failed audible native chunks with Google (fakeable).
+
+    Direct API for main owner: after a native batch with 4 good chunks and
+    audible missing chunk(s), pass ``[(original_index, pcm), ...]`` for the
+    missing ones (in any order; results rejoin by original index). Each chunk
+    goes through the existing fakeable ``transcribe()`` (patch
+    ``app.transcription.cloud_asr.transcribe`` in tests), one at a time, with
+    bounded ``per_chunk_timeout`` and overall ``deadline``. Silent chunks are
+    skipped with no network. Cancellation stops new attempts (a blocked
+    recognize call cannot abort mid-flight); already-recovered text is kept.
+
+    Returns:
+        dict mapping original_index -> stripped non-empty text for chunks
+        Google recovered. Missing/failed/cancelled chunks are simply absent —
+        the caller rejoins in original index order and keeps typed partial if
+        anything is still missing. Never raises for per-chunk failure; never
+        returns partial as complete.
+    """
+    _extra = {"job_id": job_id, "phase": "transcribing"}
+    items = list(failed_chunks or [])
+    if not items:
+        return {}
+    try:
+        _per_timeout = max(1.0, float(per_chunk_timeout))
+    except Exception:
+        _per_timeout = 6.0
+    t0 = time.monotonic()
+    if deadline is None:
+        try:
+            deadline = t0 + max(6.0, _per_timeout * max(1, len(items)))
+        except Exception:
+            deadline = t0 + 30.0
+    logger.info(
+        "Google ASR failed-chunk recovery start (n_failed=%d, per_chunk_timeout=%.1fs)",
+        len(items), _per_timeout,
+        extra=_extra,
+    )
+    recovered: dict[int, str] = {}
+    try:
+        workers = min(_CHUNK_MAX_WORKERS, max(1, len(items)))
+    except Exception:
+        workers = 1
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+    try:
+        for original_index, pcm in items:
+            try:
+                if callable(is_cancelled) and is_cancelled():
+                    logger.info(
+                        "Google ASR failed-chunk recovery cancelled (%d/%d recovered)",
+                        len(recovered), len(items),
+                        extra=_extra,
+                    )
+                    break
+            except Exception:
+                pass
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning(
+                    "Google ASR failed-chunk recovery deadline (%d/%d recovered)",
+                    len(recovered), len(items),
+                    extra=_extra,
+                )
+                break
+            data = pcm or b""
+            try:
+                if is_silence_pcm16(data):
+                    logger.info(
+                        "Google ASR failed-chunk %s silent-skipped (bytes=%d, no network)",
+                        original_index, len(data),
+                        extra=_extra,
+                    )
+                    continue
+            except Exception:
+                pass
+            timeout = min(_per_timeout, max(1.0, remaining))
+            try:
+                fut = executor.submit(transcribe, data, language, job_id)
+                text = fut.result(timeout=timeout)
+            except sr.UnknownValueError:
+                continue
+            except (concurrent.futures.TimeoutError, TimeoutError):
+                logger.warning(
+                    "Google ASR failed-chunk %s timeout after %.1fs",
+                    original_index, timeout,
+                    extra=_extra,
+                )
+                continue
+            except Exception as exc:
+                logger.warning(
+                    "Google ASR failed-chunk %s error (%s)",
+                    original_index, type(exc).__name__,
+                    extra=_extra,
+                )
+                continue
+            try:
+                if time.monotonic() > deadline or (callable(is_cancelled) and is_cancelled()):
+                    break
+            except Exception:
+                pass
+            if text and text.strip():
+                recovered[original_index] = text.strip()
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+    logger.info(
+        "Google ASR failed-chunk recovery done (recovered=%d/%d, latency=%.2fs)",
+        len(recovered), len(items), time.monotonic() - t0,
+        extra=_extra,
+    )
+    return recovered

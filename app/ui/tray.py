@@ -49,6 +49,7 @@ class TrayIcon(QSystemTrayIcon):
     diagnostics_requested = Signal()
     settings_requested = Signal()
     benchmark_requested = Signal()
+    prompt_memory_requested = Signal()
     quit_requested = Signal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -67,6 +68,9 @@ class TrayIcon(QSystemTrayIcon):
 
         self.benchmark_action = menu.addAction("Benchmark ASR Engines...")
         self.benchmark_action.triggered.connect(self.benchmark_requested.emit)
+
+        self.prompt_memory_action = menu.addAction("Prompt memory...")
+        self.prompt_memory_action.triggered.connect(self.prompt_memory_requested.emit)
 
         menu.addSeparator()
 

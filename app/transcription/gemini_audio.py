@@ -176,22 +176,23 @@ def _wav_base64(pcm16: bytes) -> str:
     return base64.b64encode(_wav_bytes(pcm16)).decode("ascii")
 
 
-# ── Upload encoding: Ogg/Opus preferred, WAV fallback ─────────────────────────
-# The gateway accepts input_audio.format in {wav, opus, ogg}. Ogg/Opus at 24 kbps
-# is the cheap path: the upload body shrinks by roughly 9-12x versus 16 kHz mono
-# WAV (measured on a 4.4 s clip: 107,859 B gzipped -> 11,767 B, a 9.2x cut), so
-# the model starts working on a tenth of the bytes. A same-clip A/B also showed a
-# much faster TTFT on the gateway benchmark this was built from (3.95s -> 2.16s);
-# that win is benchmark-dependent, the size win is not.
+# ── Upload encoding: Ogg/Opus default, WAV fallback ───────────────────────────
+# Shipped efficient default is Ogg/Opus 24 kbps (9.2x smaller gzipped on a
+# 4.4 s clip). Prior multi-chunk forensics (job 1, 4/5 chunks HTTP 200)
+# proves BDX accepted OGG — so the generic OpenAI-spec "ogg risks 400" note is a SPECULATIVE risk for strict
+# third-party gateways, NOT a confirmed BDX incompatibility. Default stays OGG.
+# A narrow one-shot 400->WAV capability fallback remains for justified
+# format-indicated 400s only (never blanket). JV_AUDIO_FORMAT=wav opts out.
 #
 # Encoder order is PyAV (in-process, no external exe) -> ffmpeg CLI -> the
 # original WAV path. Every failure is a silent DEBUG fallthrough: an encoder
-# problem must never break dictation. Set JV_AUDIO_FORMAT=wav to restore the
-# exact pre-change wire format instantly if the gateway ever regresses.
+# problem must never break dictation.
 DEFAULT_AUDIO_FORMAT = "ogg"
-# Upstream allowlist is {wav, mp3, ogg, flac, aac, webm, pcm16, g711_ulaw,
-# g711_alaw}; "opus" is NOT a valid format string (400 from the gateway). Opus
-# is the CODEC; "ogg" is the CONTAINER we send it in. Never branch on the codec.
+# "opus" is NOT a valid format string. Opus is the CODEC; "ogg" is the
+# CONTAINER we send it in. Never branch on the codec. "mp3" is valid on some
+# upstream specs but JoyVoice never produces it — unknown values (including
+# legacy "opus") fall through to the OGG default path (then WAV if encoders
+# are missing) rather than failing.
 _VALID_AUDIO_FORMATS = ("ogg", "wav")
 _OPUS_BITRATE_KBPS = 24
 _OPUS_BITRATE = f"{_OPUS_BITRATE_KBPS}k"  # ffmpeg -b:a argument
@@ -329,19 +330,20 @@ def _encode_audio(pcm16: bytes, *, extra: dict | None = None) -> tuple[str, str]
     """Encode 16 kHz mono PCM16 for the gateway; return ``(base64, format)``.
 
     Tries PyAV, then the ffmpeg CLI, then the original WAV path. Honours the
-    ``JV_AUDIO_FORMAT`` kill switch: "wav" skips Opus entirely and produces the
-    exact pre-change payload. Never raises — the WAV path is the floor.
+    ``JV_AUDIO_FORMAT`` selector: "wav" skips Opus entirely (opt-out path).
+    Never raises — the WAV path is the floor.
     """
     data = pcm16 or b""
     wanted = _resolve_audio_format()
     if wanted == "wav":
-        # Kill switch: the old path verbatim, no import or subprocess cost.
+        # Opt-out path verbatim, no import or subprocess cost.
         return _encode_result(
             _wav_bytes(data), "wav", "wav",
-            wav_fallback=True, wav_reason="kill-switch", extra=extra,
+            wav_fallback=True, wav_reason="opt-out-wav", extra=extra,
         )
-    # "ogg" and "opus" are the same libopus bitstream in an Ogg container; the
-    # label only differs so the gateway-side A/B can be read off the traces.
+    # "ogg" is the libopus bitstream in an Ogg container. The legacy "opus"
+    # format label is intentionally unsupported (upstream 400) and resolves to
+    # WAV via _resolve_audio_format, so it never reaches this branch.
     pyav_ok, ffmpeg_exe = _encoder_availability()
     if pyav_ok:
         try:
@@ -370,11 +372,13 @@ def _encode_audio(pcm16: bytes, *, extra: dict | None = None) -> tuple[str, str]
 # ── Instant-pipeline helpers (Phases 2/6/7) ──────────────────────────────────
 
 
-def _trim_silence_pcm16(pcm16: bytes, *, frame_ms: int = 20, threshold: float = 500.0) -> bytes:
-    """Drop leading/trailing silence + low-energy pause frames (numpy-free safe).
+def _trim_silence_pcm16(pcm16: bytes, *, frame_ms: int = 20, threshold: float = 2.0) -> bytes:
+    """Drop leading/trailing digital silence only (numpy-free safe).
 
-    Keeps voiced frames only; returns original bytes when too short to be safe.
-    16kHz mono int16 → frame = 320 samples @20ms.
+    Threshold is digital/near-digital (±1 LSB + margin): only frames with mean
+    |sample| below it are treated as silence. Quiet voiced edges (e.g. mean~60)
+    are NEVER trimmed. Keeps 1 frame context; returns original when too short
+    to be safe. 16kHz mono int16 → frame = 320 samples @20ms.
     """
     if not pcm16 or len(pcm16) < 6400:
         return pcm16
@@ -512,6 +516,286 @@ def split_pcm16_chunks(
         return chunks or [pcm16]
     except Exception:
         return [pcm16]
+
+
+# ── Chunk-tail root fix (job 1 sess 6508623d) ─────────────────────────────────
+# 40.12 s / 1,283,776 B split into 5 native chunks: 4x HTTP 200 valid, tail
+# 3.68 s / 117,696 B (tiny Ogg 2,153 B) returned 41-char incomplete/empty twice
+# so the whole valid prefix was discarded via Executor.map fail-fast, then the
+# entire Google 30 s-chunk fallback timed out. No JoyVoice 400 involved.
+#
+# Contract for main/test owners (three-field normal return UNCHANGED):
+#   * genuinely silent tails / all-silence -> ("","",None) with NO network.
+#   * audible tail failure -> PartialAudioResult carrying the 4 good chunks
+#     distinctly; main must preserve partial for history/manual copy-only
+#     review and MUST NOT autopaste/actionable-compile or save it as complete.
+_SILENCE_MIN_BYTES = 16000  # 0.5 s — never skip shorter (protects quiet speech)
+# Digital/near-digital silence ONLY (quantization unit): peak<=1 covers exact
+# zeros and +/-1 dither. Broad amplitude cutoffs MUST NOT prove silence —
+# attenuated real speech (e.g. peak~100) always goes to the network.
+_SILENCE_PEAK = 1  # int16 peak: digital silence ceiling
+_SILENCE_MEAN = 1.0  # mean |sample|: digital silence ceiling
+
+
+def is_silence_pcm16(pcm16: bytes) -> bool:
+    """Digital-silence evidence: True only for exact/near-digital silence.
+
+    Numpy-free, int16-only. Returns False for short input (<0.5 s) and for ANY
+    voiced or noisy input above +/-1 LSB (including quiet peak~100 speech).
+    Empty input counts as silent (skip network, return empty).
+    Never inspects text/keys.
+    """
+    try:
+        data = pcm16 or b""
+        if not data:
+            return True
+        if len(data) < _SILENCE_MIN_BYTES:
+            return False
+        import array as _array
+        samples = _array.array("h")
+        samples.frombytes(data)
+        if not samples:
+            return True
+        peak = 0
+        total = 0
+        for value in samples:
+            abs_value = value if value >= 0 else -value
+            if abs_value > peak:
+                peak = abs_value
+                if peak > _SILENCE_PEAK:
+                    return False  # early exit: clearly not silent
+            total += abs_value
+        mean = total / len(samples)
+        return peak <= _SILENCE_PEAK and mean <= _SILENCE_MEAN
+    except Exception:
+        return False
+
+
+class PartialAudioResult(ValueError):
+    """Typed partial-result status for chunked native audio.
+
+    Raised INSTEAD of a generic ValueError when some chunks transcribed but an
+    audible chunk is unrecoverable within deadline. Normal three-field return
+    (transcript, translation, override) is unchanged for full success.
+    Main owner: catch this distinctly, preserve .transcripts/.translations for
+    history/manual copy-only review, never autopaste/compile as complete.
+    str() carries counts only, never user text.
+    """
+
+    def __init__(
+        self,
+        transcripts: list[str],
+        translations: list[str],
+        failed_indexes: list[int],
+        *,
+        total_chunks: int = 0,
+        silent_skipped: int = 0,
+        override: str | None = None,
+        reason: str = "partial",
+    ) -> None:
+        self.transcripts = list(transcripts or [])
+        self.translations = list(translations or [])
+        self.failed_indexes = list(failed_indexes or [])
+        self.total_chunks = int(total_chunks or 0)
+        self.silent_skipped = int(silent_skipped or 0)
+        self.override = override
+        self.reason = str(reason or "partial")
+        # Main-owner compatibility: CloudASRWorker looks for
+        # .partial_transcript/.partial_translation (joined str) on chunk
+        # exceptions. Lists stay canonical; joined copies are for that loop.
+        try:
+            self.partial_transcript = " ".join(
+                (t or "").strip() for t in self.transcripts if (t or "").strip()
+            ).strip()
+        except Exception:
+            self.partial_transcript = ""
+        try:
+            self.partial_translation = " ".join(
+                (t or "").strip() for t in self.translations if (t or "").strip()
+            ).strip()
+        except Exception:
+            self.partial_translation = ""
+        try:
+            self.partial_override = override
+        except Exception:
+            self.partial_override = None
+        super().__init__(
+            f"Partial audio result ({self.reason}): "
+            f"{len(self.transcripts)}/{self.total_chunks} chunks recovered, "
+            f"failed={self.failed_indexes}, silent_skipped={self.silent_skipped}"
+        )
+
+
+def _join_chunk_texts(texts: list[str], *, max_overlap_words: int = 8) -> str:
+    """Join ordered chunk texts, de-duplicating the ~250 ms audio overlap.
+
+    Finds the longest suffix/prefix word overlap (up to 8 words,
+    case-insensitive compare, original casing kept) and strips it from the
+    next chunk. Empty entries are skipped. Whitespace collapsed.
+    """
+    try:
+        joined_words: list[str] = []
+        for raw in texts or []:
+            words = (raw or "").split()
+            if not words:
+                continue
+            if not joined_words:
+                joined_words = list(words)
+                continue
+            max_check = min(max_overlap_words, len(joined_words), len(words))
+            overlap = 0
+            try:
+                joined_tail = [w.lower() for w in joined_words[-max_check:]]
+                for size in range(max_check, 0, -1):
+                    if joined_tail[-size:] == [w.lower() for w in words[:size]]:
+                        overlap = size
+                        break
+            except Exception:
+                overlap = 0
+            joined_words.extend(words[overlap:])
+        return " ".join(joined_words).strip()
+    except Exception:
+        return " ".join((t or "").strip() for t in (texts or []) if (t or "").strip()).strip()
+
+
+def transcribe_chunks_resilient(
+    chunks: list[bytes],
+    *,
+    api_base: str,
+    api_key: str,
+    model: str,
+    source_language: str = "bn",
+    target_language: str = "en",
+    timeout: float = NATIVE_AUDIO_TIMEOUT_S,
+    job_id: int = 0,
+    on_delta=None,
+    need_transcript: bool = True,
+    deadline: float | None = None,
+    is_cancelled=None,
+) -> tuple[str, str, str | None]:
+    """Transcribe ordered PCM16 chunks, retaining good chunks on tail failure.
+
+    Main-owner replacement for fail-fast ``list(executor.map(_one, chunks))``:
+      * silent chunks are skipped with NO network (conservative evidence).
+      * each audible chunk reuses single-call retry/fallback (format +
+        transient, bounded); only the failed chunk is lost, good prefix kept.
+      * ordered join with overlap dedup; override = last non-empty override.
+      * deadline (monotonic s) + is_cancelled() callable honoured; late or
+        cancelled results raise PartialAudioResult with recovered text.
+    Raises PartialAudioResult on partial recovery, else (transcript,
+    translation, override). Never returns partial as if complete.
+    """
+    _extra = {"job_id": job_id, "phase": "transcribing"}
+    items = list(chunks or [])
+    total = len(items)
+    if total == 0:
+        raise ValueError("Empty transcript (no chunks)")
+    try:
+        _timeout_value = max(1.0, float(timeout))
+    except Exception:
+        _timeout_value = NATIVE_AUDIO_TIMEOUT_S
+    _deadline = deadline
+    if _deadline is None:
+        _deadline = time.monotonic() + _timeout_value
+    transcripts: list[str] = []
+    translations: list[str] = []
+    failed: list[int] = []
+    silent_skipped = 0
+    override: str | None = None
+    first_error: BaseException | None = None
+    for idx, chunk in enumerate(items):
+        try:
+            if callable(is_cancelled) and is_cancelled():
+                raise PartialAudioResult(
+                    transcripts, translations, failed + list(range(idx, total)),
+                    total_chunks=total, silent_skipped=silent_skipped,
+                    override=override, reason="cancelled",
+                )
+        except PartialAudioResult:
+            raise
+        except Exception:
+            pass
+        remaining = _deadline - time.monotonic()
+        if remaining <= 0:
+            raise PartialAudioResult(
+                transcripts, translations, failed + list(range(idx, total)),
+                total_chunks=total, silent_skipped=silent_skipped,
+                override=override, reason="deadline",
+            )
+        data = chunk or b""
+        if is_silence_pcm16(data):
+            silent_skipped += 1
+            logger.info(
+                "Gemini audio chunk %d/%d silent-skipped (bytes=%d, no network)",
+                idx + 1, total, len(data),
+                extra=_extra,
+            )
+            continue
+        try:
+            per_chunk_timeout = min(_timeout_value, max(1.0, remaining))
+            result = transcribe_and_translate(
+                data,
+                api_base=api_base,
+                api_key=api_key,
+                model=model,
+                source_language=source_language,
+                target_language=target_language,
+                timeout=per_chunk_timeout,
+                job_id=job_id,
+                on_delta=on_delta,
+                need_transcript=need_transcript,
+                is_cancelled=is_cancelled,
+            )
+        except PartialAudioResult:
+            raise
+        except Exception as exc:
+            if first_error is None:
+                first_error = exc
+            failed.append(idx)
+            logger.warning(
+                "Gemini audio chunk %d/%d failed (%s); retaining %d good",
+                idx + 1, total, type(exc).__name__, len(transcripts),
+                extra=_extra,
+            )
+            continue
+        try:
+            transcript_part, translation_part, override_part = result
+        except Exception:
+            failed.append(idx)
+            continue
+        if (transcript_part or "").strip():
+            transcripts.append(transcript_part.strip())
+        if (translation_part or "").strip():
+            translations.append(translation_part.strip())
+        if (override_part or "").strip():
+            override = override_part
+        # Late-result guard: drop results that landed after deadline/cancel.
+        try:
+            if time.monotonic() > _deadline or (callable(is_cancelled) and is_cancelled()):
+                raise PartialAudioResult(
+                    transcripts, translations, failed + list(range(idx + 1, total)),
+                    total_chunks=total, silent_skipped=silent_skipped,
+                    override=override, reason="late-result",
+                )
+        except PartialAudioResult:
+            raise
+        except Exception:
+            pass
+    if failed and transcripts:
+        raise PartialAudioResult(
+            transcripts, translations, failed,
+            total_chunks=total, silent_skipped=silent_skipped,
+            override=override, reason="chunk-failed",
+        )
+    if not transcripts and not translations:
+        if first_error is not None:
+            raise first_error
+        raise ValueError("Empty transcript (chunked)")
+    return (
+        _join_chunk_texts(transcripts),
+        _join_chunk_texts(translations),
+        override,
+    )
 
 
 def resolve_audio_model(
@@ -1111,6 +1395,222 @@ def close_connections() -> int:
     return sum(1 for pool in pools if pool.close())
 
 
+# ── HTTP 400 capability fallback + bounded transient retry ────────────────────
+# Forensics rule: never blanket-retry a 400. Only three narrowly-indicated
+# one-shot fallbacks exist (format / stream_options / gzip), each gated on the
+# INTERNAL body classification (never logged — provider bodies can echo
+# private user text). Logs carry only static category/status/model/job/
+# requestID. Transient 408/429/5xx + network timeouts get bounded retries with
+# Retry-After respect (seconds or HTTP-date, never clamped down) inside the
+# caller's overall `timeout` deadline; 404 retries ONLY when NOT model_not_found
+# (no blind model_not_found retry). Pooled connections are discarded on every
+# failure so a half-read stream is never reused.
+_RETRYABLE_STATUS_CODES = frozenset(
+    {404, 408, 425, 429, 500, 502, 503, 504, 509, 520, 521, 522, 523, 524, 529, 599}
+)
+_MAX_TRANSIENT_RETRIES = 2
+_TRANSIENT_BASE_DELAY_S = 0.5
+_TRANSIENT_MAX_BACKOFF_S = 4.0
+
+
+def _is_retryable_status(code: int) -> bool:
+    """True for transient HTTP codes only. 400/401/403 are never retryable."""
+    try:
+        return int(code) in _RETRYABLE_STATUS_CODES
+    except Exception:
+        return False
+
+
+def _retry_after_delay(http_err, retry_index: int) -> float:
+    """Honor Retry-After (delay-seconds or HTTP-date) when present.
+
+    Server-provided delays are returned EXACTLY (never clamped down): callers
+    must skip the retry when delay > remaining deadline instead of retrying
+    early. Falls back to exponential backoff (0.5/1.0s, capped 4s) when the
+    header is absent/unparsable. Header parsing only — never bodies/keys.
+    """
+    try:
+        headers = getattr(http_err, "headers", None)
+        raw = None
+        if headers is not None:
+            try:
+                raw = headers.get("Retry-After", headers.get("retry-after"))
+            except Exception:
+                try:
+                    raw = headers.get("Retry-After")
+                except Exception:
+                    raw = None
+        if raw is not None:
+            text = str(raw).strip().split(",")[0].strip()
+            # delay-seconds form
+            try:
+                delay = float(text)
+                if delay == delay and delay >= 0:
+                    return float(delay)
+            except Exception:
+                pass
+            # HTTP-date form (RFC 7231): delay = date - now
+            try:
+                from email.utils import parsedate_to_datetime as _parse_http_date
+                from datetime import timezone as _tz
+                dt = _parse_http_date(str(raw).strip())
+                if dt is not None:
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=_tz.utc)
+                    from datetime import datetime as _dt
+                    now = _dt.now(_tz.utc)
+                    delay = (dt - now).total_seconds()
+                    if delay == delay and delay >= 0:
+                        return float(delay)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        idx = max(0, int(retry_index))
+    except Exception:
+        idx = 0
+    return min(_TRANSIENT_MAX_BACKOFF_S, _TRANSIENT_BASE_DELAY_S * (2.0 ** idx))
+
+
+def _is_model_not_found(detail: str) -> bool:
+    """True when a 404 body indicates unknown model (never blind-retry)."""
+    try:
+        text = (detail or "").lower()
+    except Exception:
+        return False
+    if not text:
+        return False
+    has_404 = "http 404" in text or " 404" in text or "not found" in text
+    has_model = "model" in text
+    return bool(has_404 and has_model)
+
+
+def _categorize_http_error(code: int, detail: str) -> str:
+    """Static category for LOGS ONLY (no body, no user text)."""
+    try:
+        if int(code) == 400:
+            if _is_format_error(detail or ""):
+                return "format"
+            if _is_stream_options_error(detail or ""):
+                return "stream_options"
+            if _is_encoding_error(detail or ""):
+                return "encoding"
+            return "bad-request"
+        if int(code) in (401, 403):
+            return "auth"
+        if int(code) == 404:
+            return "model_not_found" if _is_model_not_found(detail or "") else "not-found-transient"
+        if _is_retryable_status(int(code)):
+            return "transient"
+        return f"http-{int(code)}"
+    except Exception:
+        return "http-error"
+
+
+def _public_request_id(http_err) -> str:
+    """Extract a public gateway request/correlation id from headers only.
+
+    Sanitized to [A-Za-z0-9-_:.] max 64 chars. Empty string when absent.
+    Never inspects bodies, keys, or audio.
+    """
+    try:
+        headers = getattr(http_err, "headers", None)
+        if headers is None:
+            return ""
+        for name in (
+            "x-request-id", "x-requestid", "request-id", "x-correlation-id",
+            "cf-ray", "x-bdx-request-id",
+        ):
+            try:
+                val = headers.get(name, headers.get(name.title()))
+            except Exception:
+                val = None
+            if val:
+                cleaned = re.sub(r"[^A-Za-z0-9\-_: .]", "", str(val)).strip()[:64]
+                if cleaned:
+                    return cleaned
+    except Exception:
+        pass
+    return ""
+
+
+def _close_http_error_quietly(exc: BaseException) -> None:
+    """Release a pooled HTTPError socket after its bounded body was sampled.
+
+    The pool already retired the connection from the reusable slot; closing
+    here frees the socket instead of leaking it until GC. Safe from any
+    thread; never raises.
+    """
+    try:
+        if isinstance(exc, urllib.error.HTTPError):
+            try:
+                exc.close()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _is_format_error(detail: str) -> bool:
+    """True when a sanitized 400 reason blames the audio container/codec label.
+
+    Requires BOTH an audio/format signal AND an ogg/opus/wav/mp3/input_audio
+    token (or explicit unsupported/invalid-format language) so generic 400s
+    (e.g. max_tokens, model, schema) never trigger the WAV fallback.
+    """
+    try:
+        text = (detail or "").lower()
+    except Exception:
+        return False
+    if not text or "http 400" not in text:
+        # http_error_detail always prefixes "HTTP 400 ..." — insist on it so a
+        # stray "format" word elsewhere cannot justify a retry.
+        return False
+    has_audio_signal = (
+        "input_audio" in text
+        or "input audio" in text
+        or "audio" in text
+        or "format" in text
+    )
+    has_codec_token = (
+        "ogg" in text or "opus" in text or "wav" in text or "mp3" in text
+    )
+    has_unsupported = (
+        "unsupported" in text
+        or "not supported" in text
+        or "invalid" in text
+        or "unrecognized" in text
+    )
+    return bool(has_audio_signal and (has_codec_token or has_unsupported))
+
+
+def _is_stream_options_error(detail: str) -> bool:
+    """True when a sanitized 400 reason blames the stream_options field."""
+    try:
+        text = (detail or "").lower()
+    except Exception:
+        return False
+    return bool(text and "http 400" in text and "stream_options" in text)
+
+
+def _is_encoding_error(detail: str) -> bool:
+    """True when a sanitized 400 reason blames gzip/content-encoding."""
+    try:
+        text = (detail or "").lower()
+    except Exception:
+        return False
+    if not text or "http 400" not in text:
+        return False
+    return bool(
+        "content-encoding" in text
+        or "content encoding" in text
+        or "gzip" in text
+        or "decompress" in text
+        or "invalid json" in text
+    )
+
+
 @contextlib.contextmanager
 def _open_stream(
     request,
@@ -1176,6 +1676,7 @@ def transcribe_and_translate(
     job_id: int = 0,
     on_delta=None,
     need_transcript: bool = True,
+    is_cancelled=None,
 ) -> tuple[str, str, str | None]:
     """Return a faithful transcript, translation, and optional target override.
 
@@ -1195,10 +1696,16 @@ def transcribe_and_translate(
         timeout is the complete HTTP request timeout, including upload and response.
 
     Note:
-        ``pcm16`` is always raw PCM16 mono 16 kHz, but it goes on the wire as
-        Ogg/Opus 24 kbps (``JV_AUDIO_FORMAT=ogg|opus``) or as a 16 kHz mono WAV
-        container (``JV_AUDIO_FORMAT=wav``, also the automatic fallback). See
-        ``_encode_audio`` for the encoder order and the trace line it emits.
+        ``pcm16`` is always raw PCM16 mono 16 kHz, but it goes on the wire by
+        default as Ogg/Opus 24 kbps (proven on BDX: job 1 sess 6508623d 4/5
+        chunks HTTP 200) or, only with ``JV_AUDIO_FORMAT=wav``, as a 16 kHz
+        mono WAV container. A format-indicated HTTP 400 falls back one-shot
+        to WAV; generic 400s never retry. Transient 408/429/5xx + network
+        timeouts retry bounded (max 2) inside the overall ``timeout`` deadline
+        honouring Retry-After (seconds or HTTP-date, never clamped); 404
+        retries only when NOT model_not_found. Cancellation prevents new
+        attempts/metadata even though a blocked read cannot abort. Bodies are
+        classified internally but never logged. See ``_encode_audio``.
     """
     _extra = {"job_id": job_id, "phase": "transcribing"}
     # Phase 2: trim silence to cut wire payload before anything else
@@ -1239,6 +1746,19 @@ def transcribe_and_translate(
         _trimmed_bytes, len(pcm_eff), _orig_bytes - len(pcm_eff),
         extra=_extra,
     )
+    # Silent-input gate: genuinely silent tails / all-silence return empty with
+    # NO network. Conservative evidence only (never skips quiet voiced speech
+    # or short input); fixes job-1 tail wasting a call then failing contract.
+    try:
+        if is_silence_pcm16(pcm_eff):
+            logger.info(
+                "Gemini audio silent-skipped (eff_bytes=%d, duration=%.2fs, no network)",
+                len(pcm_eff), duration_s,
+                extra=_extra,
+            )
+            return "", "", None
+    except Exception:
+        pass
     # Trace: chunk-split preview when audio >12s — counts/sizes only.
     # Logging only: the request path still sends a single payload. The
     # isEnabledFor guard keeps the preview cost out of the hot path when
@@ -1335,9 +1855,71 @@ def transcribe_and_translate(
     )
     attempts = [prompt, repair_prompt]
 
-    # Encode once, outside the retry loop: the opus encode is deterministic, and
-    # a retry must put the exact same bytes on the wire as the first attempt.
+    # Encode once for the first wire attempt; capability fallbacks below may
+    # re-encode to WAV one-shot when the server's 400 reason justifies it.
+    # Non-fallback retries reuse the exact same bytes.
     _audio_b64, _audio_format = _encode_audio(pcm_eff, extra=_extra)
+    _use_gzip = True
+    _use_stream_options = True
+    _did_wav_fallback = (_audio_format == "wav")
+    _did_stream_options_fallback = False
+    _did_gzip_fallback = False
+    _transient_retries = 0
+    _overall_start = time.monotonic()
+    try:
+        _overall_deadline = _overall_start + max(1.0, float(timeout))
+    except Exception:
+        _overall_deadline = _overall_start + NATIVE_AUDIO_TIMEOUT_S
+
+    def _build_request(_text_prompt: str):
+        _body: dict = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": _text_prompt},
+                        {
+                            "type": "input_audio",
+                            "input_audio": {"data": _audio_b64, "format": _audio_format},
+                        },
+                    ],
+                }
+            ],
+            # Phase 6: adaptive cap by duration; translation-only uses smaller cap
+            "max_tokens": max_tokens_eff,
+            "temperature": 0,
+            "stream": True,
+        }
+        if _use_stream_options:
+            # Sibling of "stream", NOT nested inside it. Without this the
+            # terminal SSE chunk carries no usage object, which is exactly
+            # why logs showed usage_keys=0 / prompt=None.
+            _body["stream_options"] = {"include_usage": True}
+        _raw = json.dumps(_body).encode("utf-8")
+        if _use_gzip:
+            _wire = gzip.compress(_raw)
+            _headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Content-Encoding": "gzip",
+            }
+        else:
+            _wire = _raw
+            _headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+        # Explicit Content-Length: http.client would add it for a bytes body,
+        # but setting it here keeps the pooled request byte-identical to the
+        # urllib one.
+        _headers["Content-Length"] = str(len(_wire))
+        _req = urllib.request.Request(
+            f"{api_base}/chat/completions",
+            data=_wire,
+            headers=_headers,
+        )
+        return _raw, _wire, _req, _headers
 
     for attempt_idx, text_prompt in enumerate(attempts):
         t0 = time.monotonic()
@@ -1360,169 +1942,357 @@ def transcribe_and_translate(
             len(_audio_b64), _wav_est, ((_wav_est + 2) // 3) * 4,
             extra=_extra,
         )
-        raw_payload = json.dumps(
-            {
-                "model": model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": text_prompt},
-                            {
-                                "type": "input_audio",
-                                "input_audio": {"data": _audio_b64, "format": _audio_format},
-                            },
-                        ],
-                    }
-                ],
-                # Phase 6: adaptive cap by duration; translation-only uses smaller cap
-                "max_tokens": max_tokens_eff,
-                "temperature": 0,
-                "stream": True,
-                # Sibling of "stream", NOT nested inside it. Without this the
-                # terminal SSE chunk carries no usage object, which is exactly
-                # why logs showed usage_keys=0 / prompt=None.
-                "stream_options": {"include_usage": True},
-            }
-        ).encode("utf-8")
-        payload = gzip.compress(raw_payload)
-        # Trace: payload sizes — raw vs gzipped bytes only, never content/key.
-        try:
-            _raw_n = len(raw_payload)
-            _gzip_n = len(payload)
-            _ratio = (_gzip_n / _raw_n) if _raw_n else 0.0
-        except Exception:
-            _raw_n, _gzip_n, _ratio = -1, -1, 0.0
-        logger.info(
-            "Gemini audio trace payload (attempt=%d, model=%s, raw_bytes=%d, "
-            "gzip_bytes=%d, gzip_ratio=%.3f)",
-            attempt_idx + 1, model, _raw_n, _gzip_n, _ratio,
-            extra=_extra,
-        )
-        request_headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Content-Encoding": "gzip",
-        }
-        # Explicit Content-Length: http.client would add it for a bytes body, but
-        # setting it here keeps the pooled request byte-identical to the urllib one.
-        request_headers["Content-Length"] = str(len(payload))
-        request = urllib.request.Request(
-            f"{api_base}/chat/completions",
-            data=payload,
-            headers=request_headers,
-        )
-
-        content_accum = []
-        finish_reason = None
-        usage_data = {}
-        first_token_latency = None
-        # Trace counters — counts only, never content.
-        _sse_data_lines = 0
-        _sse_json_chunks = 0
-        _sse_delta_chunks = 0
-        _sse_read_calls = 0
-
-        try:
-            with _open_stream(
-                request,
-                timeout=timeout,
-                headers=request_headers,
-                extra=_extra,
-            ) as response:
-                decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-                line_buffer = ""
-                while True:
-                    raw_chunk = response.read(1024)
-                    _sse_read_calls += 1
-                    if not raw_chunk:
-                        break
-                    line_buffer += decoder.decode(raw_chunk, final=False)
-                    while "\n" in line_buffer:
-                        line_str, line_buffer = line_buffer.split("\n", 1)
-                        line_str = line_str.strip()
-                        if not line_str.startswith("data: "):
-                            continue
-                        _sse_data_lines += 1
-                        data_str = line_str[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
-                        _sse_json_chunks += 1
-                        if "usage" in chunk and isinstance(chunk["usage"], dict):
-                            usage_data.update(chunk["usage"])
-                        chunk_choices = chunk.get("choices")
-                        if isinstance(chunk_choices, list) and chunk_choices:
-                            choice = chunk_choices[0]
-                            if choice.get("finish_reason"):
-                                finish_reason = choice.get("finish_reason")
-                            delta = choice.get("delta", {})
-                            delta_text = delta.get("content", "")
-                            if delta_text:
-                                _sse_delta_chunks += 1
-                                if first_token_latency is None:
-                                    first_token_latency = time.monotonic() - t0
-                                content_accum.append(delta_text)
-                                # Phase 3: live preview callback (never blocks, never raises)
-                                if on_delta is not None:
-                                    try:
-                                        on_delta(delta_text)
-                                    except Exception:
-                                        pass
-        except (TimeoutError, socket.timeout) as timeout_exc:
-            logger.error(
-                "Gemini audio request timed out after %.0fs; not retrying: %s",
-                timeout,
-                timeout_exc,
-                extra=_extra,
-            )
-            # Trace: retry-reason classification — timeout class.
-            logger.warning(
-                "Gemini audio trace retry-reason (attempt=%d, class=timeout, "
-                "timeout_s=%.1f, reason_chars=%d)",
-                attempt_idx + 1, timeout, len(str(timeout_exc)),
-                extra=_extra,
-            )
-            raise
-        except urllib.error.HTTPError as http_err:
-            from app.transcription.http_errors import http_error_detail
-            err_detail = http_error_detail(http_err)
-            logger.warning(
-                "Gemini audio HTTP error: %s", err_detail,
-                extra=_extra,
-            )
-            # Trace: retry-reason classification — http class, codes only.
+        # Transport loop: capability fallbacks + bounded transient retries retry
+        # the SAME prompt; contract retries (empty/parse) advance attempt_idx.
+        while True:
+            raw_payload, payload, request, request_headers = _build_request(text_prompt)
+            # Trace: payload sizes — raw vs wire bytes only, never content/key.
             try:
-                _http_code = int(getattr(http_err, "code", -1) or -1)
+                _raw_n = len(raw_payload)
+                _wire_n = len(payload)
+                _ratio = (_wire_n / _raw_n) if _raw_n else 0.0
             except Exception:
-                _http_code = -1
-            logger.warning(
-                "Gemini audio trace retry-reason (attempt=%d, class=http, "
-                "http_code=%d, detail_chars=%d)",
-                attempt_idx + 1, _http_code, len(str(err_detail)),
+                _raw_n, _wire_n, _ratio = -1, -1, 0.0
+            logger.info(
+                "Gemini audio trace payload (attempt=%d, model=%s, raw_bytes=%d, "
+                "gzip_bytes=%d, gzip_ratio=%.3f)",
+                attempt_idx + 1, model, _raw_n, _wire_n, _ratio,
                 extra=_extra,
             )
-            raise
-        except urllib.error.URLError as url_err:
-            if isinstance(url_err.reason, (TimeoutError, socket.timeout)):
-                logger.error(
-                    "Gemini audio request timed out after %.0fs; not retrying: %s",
-                    timeout,
-                    url_err,
+
+            content_accum = []
+            finish_reason = None
+            usage_data = {}
+            first_token_latency = None
+            # Trace counters — counts only, never content.
+            _sse_data_lines = 0
+            _sse_json_chunks = 0
+            _sse_delta_chunks = 0
+            _sse_read_calls = 0
+
+            try:
+                with _open_stream(
+                    request,
+                    timeout=timeout,
+                    headers=request_headers,
+                    extra=_extra,
+                ) as response:
+                    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+                    line_buffer = ""
+                    while True:
+                        raw_chunk = response.read(1024)
+                        _sse_read_calls += 1
+                        if not raw_chunk:
+                            break
+                        line_buffer += decoder.decode(raw_chunk, final=False)
+                        while "\n" in line_buffer:
+                            line_str, line_buffer = line_buffer.split("\n", 1)
+                            line_str = line_str.strip()
+                            if not line_str.startswith("data: "):
+                                continue
+                            _sse_data_lines += 1
+                            data_str = line_str[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+                            _sse_json_chunks += 1
+                            if "usage" in chunk and isinstance(chunk["usage"], dict):
+                                usage_data.update(chunk["usage"])
+                            chunk_choices = chunk.get("choices")
+                            if isinstance(chunk_choices, list) and chunk_choices:
+                                choice = chunk_choices[0]
+                                if choice.get("finish_reason"):
+                                    finish_reason = choice.get("finish_reason")
+                                delta = choice.get("delta", {})
+                                delta_text = delta.get("content", "")
+                                if delta_text:
+                                    _sse_delta_chunks += 1
+                                    if first_token_latency is None:
+                                        first_token_latency = time.monotonic() - t0
+                                    content_accum.append(delta_text)
+                                    # Phase 3: live preview callback (never blocks, never raises)
+                                    if on_delta is not None:
+                                        try:
+                                            on_delta(delta_text)
+                                        except Exception:
+                                            pass
+            except urllib.error.HTTPError as http_err:
+                from app.transcription.http_errors import http_error_detail
+                # Internal-only body sample for fallback classification. NEVER
+                # logged: provider bodies can echo private user text.
+                try:
+                    err_detail = http_error_detail(http_err)
+                except Exception:
+                    err_detail = ""
+                try:
+                    _http_code = int(getattr(http_err, "code", -1) or -1)
+                except Exception:
+                    _http_code = -1
+                _req_id = _public_request_id(http_err)
+                _category = _categorize_http_error(_http_code, err_detail or "")
+                logger.warning(
+                    "Gemini audio HTTP error (status=%d, category=%s, model=%s, "
+                    "request_id=%s)",
+                    _http_code, _category, model, _req_id or "n/a",
                     extra=_extra,
                 )
-            # Trace: retry-reason classification for URL errors.
-            _url_cls = _classify_retry_reason(str(url_err))
-            logger.warning(
-                "Gemini audio trace retry-reason (attempt=%d, class=%s, "
-                "reason_chars=%d)",
-                attempt_idx + 1, _url_cls, len(str(url_err)),
-                extra=_extra,
-            )
-            raise
+                # Trace: retry-reason classification — codes/category only.
+                logger.warning(
+                    "Gemini audio trace retry-reason (attempt=%d, class=http, "
+                    "http_code=%d, category=%s)",
+                    attempt_idx + 1, _http_code, _category,
+                    extra=_extra,
+                )
+                # Cancellation: no new fallback/retry attempts after cancel.
+                try:
+                    if callable(is_cancelled) and is_cancelled():
+                        _close_http_error_quietly(http_err)
+                        raise TimeoutError("cancelled")
+                except TimeoutError:
+                    raise
+                except Exception:
+                    pass
+                # One-shot capability fallbacks: 400 ONLY, reason-indicated ONLY.
+                if _http_code == 400 and not _did_wav_fallback and _audio_format != "wav" and _is_format_error(err_detail or ""):
+                    try:
+                        _audio_b64, _audio_format = _encode_result(
+                            _wav_bytes(pcm_eff), "wav", "wav",
+                            wav_fallback=True, wav_reason="server-400-format",
+                            extra=_extra,
+                        )
+                    except Exception:
+                        _close_http_error_quietly(http_err)
+                        raise
+                    _did_wav_fallback = True
+                    _close_http_error_quietly(http_err)
+                    logger.warning(
+                        "Gemini audio capability fallback (from=%s, to=wav, "
+                        "reason=400-format, model=%s, request_id=%s)",
+                        "ogg", model, _req_id or "n/a",
+                        extra=_extra,
+                    )
+                    continue
+                if _http_code == 400 and _use_stream_options and not _did_stream_options_fallback and _is_stream_options_error(err_detail or ""):
+                    _use_stream_options = False
+                    _did_stream_options_fallback = True
+                    _close_http_error_quietly(http_err)
+                    logger.warning(
+                        "Gemini audio capability fallback (drop=stream_options, "
+                        "reason=400-stream-options, model=%s, request_id=%s)",
+                        model, _req_id or "n/a",
+                        extra=_extra,
+                    )
+                    continue
+                if _http_code == 400 and _use_gzip and not _did_gzip_fallback and _is_encoding_error(err_detail or ""):
+                    _use_gzip = False
+                    _did_gzip_fallback = True
+                    _close_http_error_quietly(http_err)
+                    logger.warning(
+                        "Gemini audio capability fallback (drop=gzip, "
+                        "reason=400-encoding, model=%s, request_id=%s)",
+                        model, _req_id or "n/a",
+                        extra=_extra,
+                    )
+                    continue
+                # Bounded transient retry: 408/429/5xx inside deadline; 404
+                # only when NOT model_not_found (no blind 404 retry).
+                _retryable = _is_retryable_status(_http_code)
+                if _http_code == 404 and _is_model_not_found(err_detail or ""):
+                    _retryable = False
+                if _retryable and _transient_retries < _MAX_TRANSIENT_RETRIES:
+                    _delay = _retry_after_delay(http_err, _transient_retries)
+                    _remaining = _overall_deadline - time.monotonic()
+                    if _remaining > 0 and _delay < _remaining:
+                        _transient_retries += 1
+                        _close_http_error_quietly(http_err)
+                        logger.warning(
+                            "Gemini audio transient retry (attempt=%d, http_code=%d, "
+                            "retry=%d/%d, delay=%.2fs, model=%s, request_id=%s)",
+                            attempt_idx + 1, _http_code,
+                            _transient_retries, _MAX_TRANSIENT_RETRIES,
+                            _delay, model, _req_id or "n/a",
+                            extra=_extra,
+                        )
+                        try:
+                            time.sleep(_delay)
+                        except Exception:
+                            pass
+                        continue
+                    logger.warning(
+                        "Gemini audio transient retry skipped (deadline, "
+                        "http_code=%d, delay=%.2fs, remaining=%.2fs)",
+                        _http_code, _delay, max(0.0, _remaining),
+                        extra=_extra,
+                    )
+                _close_http_error_quietly(http_err)
+                raise
+            except (TimeoutError, socket.timeout) as timeout_exc:
+                # Trace: retry-reason classification — timeout class.
+                logger.warning(
+                    "Gemini audio trace retry-reason (attempt=%d, class=timeout, "
+                    "timeout_s=%.1f, reason_chars=%d)",
+                    attempt_idx + 1, timeout, len(str(timeout_exc)),
+                    extra=_extra,
+                )
+                if _transient_retries < _MAX_TRANSIENT_RETRIES:
+                    _remaining = _overall_deadline - time.monotonic()
+                    _delay = min(
+                        _TRANSIENT_MAX_BACKOFF_S,
+                        _TRANSIENT_BASE_DELAY_S * (2.0 ** _transient_retries),
+                    )
+                    if _remaining > 0 and (_delay + 1.0) < _remaining:
+                        try:
+                            if callable(is_cancelled) and is_cancelled():
+                                raise TimeoutError("cancelled")
+                        except TimeoutError:
+                            raise
+                        except Exception:
+                            pass
+                        _transient_retries += 1
+                        logger.warning(
+                            "Gemini audio transient retry (attempt=%d, class=timeout, "
+                            "retry=%d/%d, delay=%.2fs)",
+                            attempt_idx + 1,
+                            _transient_retries, _MAX_TRANSIENT_RETRIES, _delay,
+                            extra=_extra,
+                        )
+                        try:
+                            time.sleep(_delay)
+                        except Exception:
+                            pass
+                        continue
+                logger.error(
+                    "Gemini audio request timed out after %.0fs: %s",
+                    timeout,
+                    timeout_exc,
+                    extra=_extra,
+                )
+                raise
+            except urllib.error.URLError as url_err:
+                if isinstance(url_err.reason, (TimeoutError, socket.timeout)):
+                    logger.warning(
+                        "Gemini audio trace retry-reason (attempt=%d, class=timeout, "
+                        "reason_chars=%d)",
+                        attempt_idx + 1, len(str(url_err)),
+                        extra=_extra,
+                    )
+                    if _transient_retries < _MAX_TRANSIENT_RETRIES:
+                        _remaining = _overall_deadline - time.monotonic()
+                        _delay = min(
+                            _TRANSIENT_MAX_BACKOFF_S,
+                            _TRANSIENT_BASE_DELAY_S * (2.0 ** _transient_retries),
+                        )
+                        if _remaining > 0 and (_delay + 1.0) < _remaining:
+                            try:
+                                if callable(is_cancelled) and is_cancelled():
+                                    raise TimeoutError("cancelled")
+                            except TimeoutError:
+                                raise
+                            except Exception:
+                                pass
+                            _transient_retries += 1
+                            logger.warning(
+                                "Gemini audio transient retry (attempt=%d, class=url-timeout, "
+                                "retry=%d/%d, delay=%.2fs)",
+                                attempt_idx + 1,
+                                _transient_retries, _MAX_TRANSIENT_RETRIES, _delay,
+                                extra=_extra,
+                            )
+                            try:
+                                time.sleep(_delay)
+                            except Exception:
+                                pass
+                            continue
+                    logger.error(
+                        "Gemini audio request timed out after %.0fs: %s",
+                        timeout,
+                        url_err,
+                        extra=_extra,
+                    )
+                    raise
+                # Trace: retry-reason classification for URL errors.
+                _url_cls = _classify_retry_reason(str(url_err))
+                logger.warning(
+                    "Gemini audio trace retry-reason (attempt=%d, class=%s, "
+                    "reason_chars=%d)",
+                    attempt_idx + 1, _url_cls, len(str(url_err)),
+                    extra=_extra,
+                )
+                # Network-level URLError (DNS, refused, reset) is transient.
+                if _transient_retries < _MAX_TRANSIENT_RETRIES:
+                    _remaining = _overall_deadline - time.monotonic()
+                    _delay = min(
+                        _TRANSIENT_MAX_BACKOFF_S,
+                        _TRANSIENT_BASE_DELAY_S * (2.0 ** _transient_retries),
+                    )
+                    if _remaining > 0 and (_delay + 1.0) < _remaining:
+                        try:
+                            if callable(is_cancelled) and is_cancelled():
+                                raise TimeoutError("cancelled")
+                        except TimeoutError:
+                            raise
+                        except Exception:
+                            pass
+                        _transient_retries += 1
+                        logger.warning(
+                            "Gemini audio transient retry (attempt=%d, class=%s, "
+                            "retry=%d/%d, delay=%.2fs)",
+                            attempt_idx + 1, _url_cls,
+                            _transient_retries, _MAX_TRANSIENT_RETRIES, _delay,
+                            extra=_extra,
+                        )
+                        try:
+                            time.sleep(_delay)
+                        except Exception:
+                            pass
+                        continue
+                raise
+            except _RETRYABLE_TRANSPORT_ERRORS as transport_exc:
+                # Mid-stream break (RemoteDisconnected, IncompleteRead,
+                # BadStatusLine, reset, TLS, session-closed). The pooled
+                # response already discarded the half-read connection via its
+                # `with`-exit, so retrying cannot reuse a broken socket.
+                _reason = _transport_reason(transport_exc)
+                logger.warning(
+                    "Gemini audio trace retry-reason (attempt=%d, class=transport, "
+                    "reason=%s, reason_chars=%d, read_calls=%d)",
+                    attempt_idx + 1, _reason,
+                    len(str(transport_exc)), _sse_read_calls,
+                    extra=_extra,
+                )
+                if _transient_retries < _MAX_TRANSIENT_RETRIES:
+                    _remaining = _overall_deadline - time.monotonic()
+                    _delay = min(
+                        _TRANSIENT_MAX_BACKOFF_S,
+                        _TRANSIENT_BASE_DELAY_S * (2.0 ** _transient_retries),
+                    )
+                    if _remaining > 0 and (_delay + 1.0) < _remaining:
+                        try:
+                            if callable(is_cancelled) and is_cancelled():
+                                raise TimeoutError("cancelled")
+                        except TimeoutError:
+                            raise
+                        except Exception:
+                            pass
+                        _transient_retries += 1
+                        logger.warning(
+                            "Gemini audio transient retry (attempt=%d, class=transport-%s, "
+                            "retry=%d/%d, delay=%.2fs)",
+                            attempt_idx + 1, _reason,
+                            _transient_retries, _MAX_TRANSIENT_RETRIES, _delay,
+                            extra=_extra,
+                        )
+                        try:
+                            time.sleep(_delay)
+                        except Exception:
+                            pass
+                        continue
+                raise
+            # Transport success — leave the retry loop and parse the SSE body.
+            break
 
         full_content = "".join(content_accum).strip()
         latency_s = time.monotonic() - t0
@@ -1626,6 +2396,15 @@ def transcribe_and_translate(
             usage["tokens_estimated"] = True
             tokens_estimated = True
         usage["finish_reason"] = finish_reason
+        # Cancellation: a blocked read cannot abort mid-stream, but a result
+        # that lands after cancel must NOT emit metadata or return as complete.
+        try:
+            if callable(is_cancelled) and is_cancelled():
+                raise TimeoutError("cancelled")
+        except TimeoutError:
+            raise
+        except Exception:
+            pass
         usage_store.append(
             {
                 "kind": "audio",
