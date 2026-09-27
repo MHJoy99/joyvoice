@@ -21,9 +21,19 @@
   lexical and fails closed to `fallback_prompt`. It checks the composed prompt
   against the current request plus ONLY the cited `used_turn_ids` (subset
   semantics preserved) for cross-action target swaps, standalone fabricated
-  completions, pre-verbal / post-verbal / contracted negation flips, mixed
-  polarity around `but` (per-clause verb + polarity + adjacent-target match),
-  and `shut down` / `shutdown` spelling equivalence (normalized).
+  completions (including past-tense forms via explicit verb inflections, e.g.
+  `restarted`), pre-verbal / post-verbal / contracted negation flips, mixed
+  polarity around `but` (per-clause comparison inside per-source-text
+  clauses: the request and each cited turn never share words), and
+  `shut down` / `shutdown` spelling equivalence (normalized). Target
+  agreement is fail-closed clause comparison: every composed content word
+  must appear in the matching source clause's content bag (a shared
+  adjective never excuses a changed core target), the source's own
+  verb-adjacent targets must be kept, and technical identifiers compare
+  ATOMICALLY (`'production_cluster'` vs `'staging_cluster'`, same-affix
+  pairs, and identifiers bound to a different action all fail; pieces never
+  satisfy overlap on their own). Novel filler words fail closed; manner
+  adverbs, be-verbs, and relative time words carry no target meaning.
 - **Partial assembly fix:** `app/transcription/gemini_audio.py`
   (`transcribe_chunks_resilient`) now raises `PartialAudioResult` when EITHER
   transcripts or translations exist — translation-only salvage
@@ -39,25 +49,37 @@
 
 ## Verification
 
-- **Test suite:** 276 passed / 0 failed / 3 skipped (279 collected, ~6 s),
-  run isolated with temp `APPDATA`/`LOCALAPPDATA` and `JV_PROMPT_MEMORY_DB`,
-  Qt offscreen — real settings/history/memory untouched. Includes the new
-  `tests/test_v251_regression.py` (24 tests: guard edge cases with grounded
-  controls, long-audio markers/partial assembly, safety invariants). The
-  full suite passed repeatedly (3 consecutive green runs at release time).
+- **Test suite:** full suite green, run isolated with temp
+  `APPDATA`/`LOCALAPPDATA` and `JV_PROMPT_MEMORY_DB`, Qt offscreen — real
+  settings/history/memory untouched. Includes the new
+  `tests/test_v251_regression.py` (34 tests: guard edge cases with grounded
+  controls, long-audio markers/partial assembly, safety invariants). Raw
+  logs for the three consecutive green full-suite runs at release time are
+  kept under the local Temp `kilo` dir (`jv251-final-run1/2/3.log`); each
+  run's command was `python -I -m pytest tests/ -q` with the isolated env
+  above plus `JV_LIVE_EVIDENCE_PATH` pointing at the sanitized evidence
+  fixture (so the six-marker assertion ran, not skipped): 286 passed /
+  0 failed / 3 skipped each (289 collected), exit 0. Exact counts are
+  repeated in the AI_STATUS closeout.
 - **Transparently documented, not hidden:** two pre-existing environment /
-  test-design warts reproduced during verification (both also seen in prior
-  QA evidence from another checkout, both present with pristine files):
+  test-design warts reproduced during verification (both present with
+  pristine files, so unrelated to this release's code):
   (1) `test_4valid_audible_tail_failure_retries_only_missing` fails when run
   as a single test (`t = 'T1 T0 T2 T3 Ttail'`) but passes in file and full
   suite runs — the test's `_open_side` mock serves canned SSE responses in
   *call* order while the worker fans chunks out concurrently, so a thread
   interleave swaps T0/T1; a test-mock artifact, not production ordering
   (production joins ordered slots; the standalone debug script returns
-  `T0 T1 T2 T3 Ttail`). (2) One full-suite run crashed with a Windows access
-  violation inside the Qt QThread test
-  `test_real_qthread_worker_persists_turn_exactly_once` (offscreen); reruns
-  pass. Neither affects the documented release gate (`pytest tests/ -q`).
+  `T0 T1 T2 T3 Ttail`). This standalone-only pattern is a FRESH finding in
+  this worktree: the saved prior report from another checkout instead
+  recorded a full-suite failure (`AssertionError: 1 != 0`) followed by an
+  isolated rerun pass — the opposite run context — so the two are reported
+  separately, not conflated.
+  (2) One full-suite run (not counted among the three green runs above)
+  crashed with a Windows access violation inside the Qt QThread test
+  `test_real_qthread_worker_persists_turn_exactly_once` (offscreen) plus one
+  transient `F` earlier in that same run; reruns pass. The crash run is
+  reported as-is and excluded from the pass claims.
 - **Isolated import checks:** `Core OK` (sounddevice, numpy,
   speech_recognition, pyperclip, keyboard, typing_extensions) and
   `App imports OK` (`import app.main`), both with `PYTHONPATH`/`PYTHONHOME`

@@ -70,13 +70,24 @@ class TestHighRiskGuard(unittest.TestCase):
         self.assertTrue(any("completion" in e for e in pc.errors))
 
     def test_sourced_completion_passes(self):
-        raw = _ok_json("The deploy already completed per your note.", used=["t1"])
+        raw = _ok_json("The deploy already completed.", used=["t1"])
         pc = parse_model_output(
             raw, allowed_turn_ids=["t1"],
             current_request="Check the deploy.",
             cited_turn_texts={"t1": "The deploy already completed yesterday."},
         )
         self.assertTrue(pc.valid, pc.errors)
+
+    def test_novel_filler_fails_closed(self):
+        # Conservative by design: novel content words ("per your note") with
+        # no cited grounding fail closed even around a grounded completion.
+        raw = _ok_json("The deploy already completed per your note.", used=["t1"])
+        pc = parse_model_output(
+            raw, allowed_turn_ids=["t1"],
+            current_request="Check the deploy.",
+            cited_turn_texts={"t1": "The deploy already completed yesterday."},
+        )
+        self.assertFalse(pc.valid)
 
     def test_preverbal_negation_flip_rejected(self):
         raw = _ok_json("Delete all files now.", used=["t1"])
@@ -170,6 +181,132 @@ class TestHighRiskGuard(unittest.TestCase):
         )
         self.assertFalse(pc.valid)
 
+    def test_review_wrong_target_nearby_word_rejected(self):
+        # Exact review case: unrelated nearby "production" must NOT satisfy
+        # a composed "Restart production" when the source restarts staging.
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Restart production.",
+                "Restart staging, then inspect production.",
+                [],
+            )
+        )
+        # Same via the validator path (fails closed to fallback).
+        raw = _ok_json("Restart production now.", used=["t1"])
+        pc = parse_model_output(
+            raw, allowed_turn_ids=["t1"],
+            current_request="Work through the checklist.",
+            cited_turn_texts={"t1": "Restart staging, then inspect production."},
+        )
+        self.assertFalse(pc.valid)
+
+    def test_review_quoted_identifier_beyond_window_passes(self):
+        # Grounded quoted technical identifier with filler words between the
+        # verb and the identifier must not read as a swap.
+        self.assertEqual(
+            _check_high_risk_drift(
+                "Deploy directly to 'staging_cluster' now.",
+                "Deploy to 'staging_cluster' when ready.",
+                []),
+            [],
+        )
+
+    def test_review_differing_identifiers_rejected_atomically(self):
+        # Exact review case: 'production_cluster' vs 'staging_cluster' share
+        # the piece "cluster" but are DIFFERENT targets -> must fail.
+        # Identifiers compare atomically; piece overlap never counts.
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Deploy to 'production_cluster' now.",
+                "Deploy to 'staging_cluster' when ready.",
+                [],
+            )
+        )
+        raw = _ok_json("Deploy to 'production_cluster' now.", used=["t1"])
+        pc = parse_model_output(
+            raw, allowed_turn_ids=["t1"],
+            current_request="Ship tonight's build.",
+            cited_turn_texts={"t1": "Deploy to 'staging_cluster' when ready."},
+        )
+        self.assertFalse(pc.valid)
+
+    def test_review_shared_adjective_swap_rejected(self):
+        # Exact review case: a shared adjective ("blue") is NOT agreement —
+        # the changed core target must fail closed (subset comparison).
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Restart the blue production server now.",
+                "Restart the blue staging server now.",
+                [],
+            )
+        )
+        raw = _ok_json("Restart the blue production server now.", used=["t1"])
+        pc = parse_model_output(
+            raw, allowed_turn_ids=["t1"],
+            current_request="Work through the checklist.",
+            cited_turn_texts={"t1": "Restart the blue staging server now."},
+        )
+        self.assertFalse(pc.valid)
+
+    def test_review_identifier_bound_to_other_action_rejected(self):
+        # Exact review case: the matching identifier belongs to "inspect",
+        # not "restart" — clause-wide attribution must not bind it to the
+        # wrong action. The source's own verb-adjacent target ("staging")
+        # is dropped, so this fails closed.
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Restart production_cluster.",
+                'Restart staging, then inspect "production_cluster".',
+                [],
+            )
+        )
+
+    def test_review_same_affix_identifiers_rejected(self):
+        # Same-prefix/suffix-only difference must still fail: shared pieces
+        # of recognized atomic IDs never satisfy target overlap on their own.
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Deploy to 'staging_cluster_b' now.",
+                "Deploy to 'staging_cluster_a' when ready.",
+                [],
+            )
+        )
+
+    def test_review_differing_plain_targets_rejected(self):
+        # Differing-target negative control without any identifiers.
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Restart production.", "Restart staging.", [])
+        )
+
+    def test_review_past_tense_completion_rejected(self):
+        # Exact review case: negated command must not resurface as a
+        # past-tense "completion" — inflections are checked as the verb.
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Production was restarted.",
+                "Do not restart production.",
+                [],
+            )
+        )
+        raw = _ok_json("Production was restarted.", used=["t1"])
+        pc = parse_model_output(
+            raw, allowed_turn_ids=["t1"],
+            current_request="Confirm the maintenance plan.",
+            cited_turn_texts={"t1": "Do not restart production."},
+        )
+        self.assertFalse(pc.valid)
+
+    def test_review_grounded_past_tense_passes(self):
+        # Grounded control: the same past-tense claim WITH source support.
+        self.assertEqual(
+            _check_high_risk_drift(
+                "Production was restarted.",
+                "Production was restarted yesterday.",
+                []),
+            [],
+        )
+
     def test_audit_shutdown_spelling_not_contrast(self):
         # Equivalent spellings must NOT read as a swap.
         self.assertEqual(
@@ -229,14 +366,21 @@ class TestHighRiskGuard(unittest.TestCase):
 class TestLongAudioMarkersAndPartials(unittest.TestCase):
     def test_six_marker_evidence_shape(self):
         """Sanitized live evidence contract: 39.9 s clip, six distinct
-        markers, HTTP 200, 406 transcript/translation chars, all markers."""
-        evidence_path = Path(
-            r"C:\Users\Administrator\AppData\Local\Temp\kilo\jv-limit-audio-live.json"
-        )
+        markers, HTTP 200, 406 transcript/translation chars, all markers.
+
+        Privacy-safe opt-in: the evidence file lives OUTSIDE the repo and is
+        located only via ``JV_LIVE_EVIDENCE_PATH``. Skipped when unset — no
+        machine-specific absolute path is embedded in this test.
+        """
+        import json as _json
+        import os as _os
+
+        evidence_raw = _os.environ.get("JV_LIVE_EVIDENCE_PATH", "")
+        if not evidence_raw:
+            self.skipTest("JV_LIVE_EVIDENCE_PATH not set")
+        evidence_path = Path(evidence_raw)
         if not evidence_path.is_file():
             self.skipTest("sanitized live evidence file not present")
-        import json as _json
-
         data = _json.loads(evidence_path.read_text(encoding="utf-8"))
         markers = data.get("expected_markers") or data.get("markers") or []
         self.assertEqual(len(markers), 6, "six distinct markers expected")

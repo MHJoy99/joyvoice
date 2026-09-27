@@ -33,23 +33,31 @@ High-risk provenance guard (deliberately lexical, fail-closed):
 
 :func:`parse_model_output` applies ``_check_high_risk_drift`` to the
 composed prompt against the current request plus ONLY the cited turns
-(``used_turn_ids`` subset semantics preserved). It catches lexical
-cross-action target swaps (e.g. source says "restart", composed says
-"shut down"), standalone fabricated completions (e.g. "deployment
-succeeded" with no source claim), pre-verbal / post-verbal / contracted
-negation flips (e.g. "do not delete" -> "delete", "don't restart" ->
-"restart"), mixed polarity around ``but`` (per-clause verb + polarity +
-adjacent-target match), and ``shut down`` / ``shutdown`` spelling
-equivalence (normalized before comparison). Any hit marks the output
+(``used_turn_ids`` subset semantics preserved, compared per source text so
+the request's words never satisfy a cited turn's clause and vice versa).
+It catches lexical cross-action target swaps (e.g. source says "restart",
+composed says "shut down"), standalone fabricated completions including
+past-tense forms via explicit verb inflections (e.g. "deployment
+succeeded", "production was restarted" with no source claim), pre-verbal /
+post-verbal / contracted negation flips (e.g. "do not delete" -> "delete",
+"don't restart" -> "restart", dropped "won't"), mixed polarity around
+``but`` (per-clause comparison), and ``shut down`` / ``shutdown`` spelling
+equivalence (normalized before comparison). Target agreement inside a
+clause is fail-closed: every composed content word must appear in the
+matching source clause's content bag, the source's own verb-adjacent
+targets must be kept, and technical identifiers compare atomically (a
+shared adjective, shared identifier pieces, or an identifier bound to a
+different action never satisfy the check). Any hit marks the output
 invalid so the integrator falls back to :func:`fallback_prompt`.
 
 NOT a semantic verifier — known limitations requiring human review:
 
 * quoted / untrusted third-party text is treated as data; the guard cannot
   judge quoted intent beyond lexical presence;
-* complex target roles are not role-parsed — targets are a ±4-word window
-  proxy, so a target moved far from its verb (long-distance reference,
-  pronouns like "it") can evade the swap check;
+* complex target roles are not role-parsed — targets are content-word bags
+  plus atomic identifiers, so a target expressed only via long-distance
+  reference or pronouns like "it" can evade the swap check, and novel
+  filler words fail closed (safe false positives by design);
 * semantic paraphrase with no shared lexical verb (e.g. "terminate the
   instance" vs "stop the server") is invisible to this guard.
 """
@@ -397,30 +405,44 @@ def build_compilation_input(
 # ── High-risk provenance guard (deliberately lexical, fail-closed) ──────────
 # Checked verbs: destructive / state-changing actions where a swap or polarity
 # flip causes real damage. Multi-word "shut down" is canonical; "shutdown" /
-# "shut-down" normalize to it before comparison.
-_HIGH_RISK_VERBS = (
-    "delete",
-    "remove",
-    "wipe",
-    "format",
-    "drop",
-    "shut down",
-    "restart",
-    "reboot",
-    "deploy",
-    "rollback",
-    "kill",
-    "stop",
-    "start",
-    "disable",
-    "purge",
-)
+# "shut-down" normalize to it before comparison. Common inflections are
+# covered explicitly so a negated command cannot resurface as a past-tense
+# "completion" (e.g. "Do not restart X" -> "X was restarted").
+_HIGH_RISK_VERB_FORMS: dict[str, tuple[str, ...]] = {
+    "delete": ("delete", "deletes", "deleted", "deleting"),
+    "remove": ("remove", "removes", "removed", "removing"),
+    "wipe": ("wipe", "wipes", "wiped", "wiping"),
+    "format": ("format", "formats", "formatted", "formatting"),
+    "drop": ("drop", "drops", "dropped", "dropping"),
+    "shut down": ("shut down", "shuts down", "shutting down"),
+    "restart": ("restart", "restarts", "restarted", "restarting"),
+    "reboot": ("reboot", "reboots", "rebooted", "rebooting"),
+    "deploy": ("deploy", "deploys", "deployed", "deploying"),
+    "rollback": ("rollback", "rollbacks", "rolled back", "rolling back"),
+    "kill": ("kill", "kills", "killed", "killing"),
+    "stop": ("stop", "stops", "stopped", "stopping"),
+    "start": ("start", "starts", "started", "starting"),
+    "disable": ("disable", "disables", "disabled", "disabling"),
+    "purge": ("purge", "purges", "purged", "purging"),
+}
+_HIGH_RISK_VERBS = tuple(_HIGH_RISK_VERB_FORMS)
 # Standalone completion claims: asserting an outcome the sources never state.
+# ("started"/"stopped" deliberately omitted: too common as adjectives.)
 _COMPLETION_PHRASES = (
     "succeeded",
     "completed",
     "deployed",
     "deleted",
+    "restarted",
+    "rebooted",
+    "removed",
+    "wiped",
+    "formatted",
+    "dropped",
+    "killed",
+    "disabled",
+    "purged",
+    "rolled back",
     "finished",
     "already done",
     "health check passed",
@@ -461,25 +483,33 @@ def _normalize_guard_text(text: str) -> str:
 
 
 def _word_list(text: str) -> list[str]:
-    return re.findall(r"[a-z]+(?:'[a-z]+)?", text or "")
+    # Alphanumeric so technical fragments stay whole ("v2" -> "v2", not "v").
+    return re.findall(r"[a-z0-9]+(?:'[a-z0-9]+)?", (text or "").lower())
 
 
 def _split_but_clauses(text: str) -> list[str]:
     return [c.strip() for c in re.split(r"\bbut\b", text or "") if c.strip()]
 
 
-def _verb_occurrences(words: list[str], verb: str) -> list[int]:
-    parts = verb.split()
-    hits: list[int] = []
-    if len(parts) == 2:
-        for i in range(len(words) - 1):
-            if words[i] == parts[0] and words[i + 1] == parts[1]:
-                hits.append(i)
-    else:
-        for i, word in enumerate(words):
-            if word == verb:
-                hits.append(i)
+def _verb_occurrences(words: list[str], verb: str) -> list[tuple[int, int]]:
+    """Occurrences of any inflected form: (index, form word-length) pairs."""
+    hits: list[tuple[int, int]] = []
+    for form in _HIGH_RISK_VERB_FORMS.get(verb, (verb,)):
+        parts = form.split()
+        if len(parts) == 2:
+            for i in range(len(words) - 1):
+                if words[i] == parts[0] and words[i + 1] == parts[1]:
+                    hits.append((i, 2))
+        else:
+            for i, word in enumerate(words):
+                if word == form:
+                    hits.append((i, 1))
     return hits
+
+
+def _verb_grounded(verb: str, norm_source: str) -> bool:
+    """Any inflected form stated in the sources (substring, normalized)."""
+    return any(form in norm_source for form in _HIGH_RISK_VERB_FORMS.get(verb, (verb,)))
 
 
 def _negated_near(words: list[str], index: int, span: int = 3) -> bool:
@@ -501,29 +531,115 @@ _TARGET_STOPWORDS = frozenset({
     "or", "do", "does", "did", "please", "now", "tonight", "today", "here",
     "there", "it", "this", "that", "my", "your", "our", "their", "its",
     "will", "would", "should", "must", "can", "could", "shall", "let",
+    "then", "than", "also", "just",
+    # Manner adverbs modify the verb, never the target.
+    "directly", "immediately", "carefully", "quickly", "slowly", "simply",
+    # Be-verbs and relative time words carry no target meaning.
+    "am", "is", "are", "was", "were", "be", "been", "being",
+    "yesterday", "tomorrow",
 })
 
 
-def _verb_targets(words: list[str], index: int, verb_len: int = 1) -> set[str]:
-    """Content words adjacent to a verb occurrence (lexical target proxy).
+# Atomic technical identifier: must contain a digit or an identifier
+# separator (_, ., /, :, +, -). Plain words ("cluster", "production") never
+# match — so 'production_cluster' vs 'staging_cluster' share NOTHING, while
+# identical identifiers match as one unit. Pieces are never compared.
+_ATOMIC_ID_RE = re.compile(
+    r"[A-Za-z0-9_./:+-]*\d[A-Za-z0-9_./:+-]*"
+    r"|[A-Za-z0-9_]*[_.:/+-][A-Za-z0-9_./:+-]*"
+)
 
-    ±4-word span so quoted technical identifiers just outside a tight window
-    (e.g. ``'staging_cluster'`` two words after ``deploy``) still count as
-    the same target instead of a false swap.
+
+def _clause_tech_ids(raw_clause: str) -> set[str]:
+    """Atomic technical identifiers from a raw clause (quoted or not).
+
+    Lets ``deploy ... 'staging_cluster'`` match ``deploy ... 'staging_cluster'``
+    as one indivisible unit regardless of filler words. Quoted plain
+    sentences contribute nothing (their words lack identifier characters),
+    and differing identifiers never overlap on shared pieces.
     """
-    lo = max(0, index - 4)
-    hi = min(len(words), index + verb_len + 4)
+    found: set[str] = set()
+    try:
+        text = raw_clause or ""
+        spans = [text]
+        for match in re.finditer(r"'([^']+)'|\"([^\"]+)\"", text):
+            span = match.group(1) or match.group(2)
+            if span:
+                spans.append(span)
+        for span in spans:
+            for candidate in _ATOMIC_ID_RE.findall(span):
+                ident = (candidate or "").lower()
+                if not ident:
+                    continue
+                # Sentence-final punctuation is not part of the identifier:
+                # "production." -> "production" (plain, never atomic).
+                # Digit-bearing cores keep interior dots ("v1.2.3" stays).
+                ident = ident.rstrip(".,;:!?")
+                if not ident:
+                    continue
+                if any(ch.isdigit() for ch in ident) or any(
+                    ch in ident for ch in "_/:-+."
+                ):
+                    found.add(ident)
+    except Exception:
+        pass
+    return found
+
+
+def _atomic_piece_words(raw_clause: str) -> set[str]:
+    """Word pieces belonging to recognized atomic identifiers in a clause."""
+    pieces: set[str] = set()
+    for ident in _clause_tech_ids(raw_clause):
+        pieces.update(_word_list(ident))
+    return pieces
+
+
+def _is_filler(token: str) -> bool:
+    return (
+        not token
+        or token in _NEGATION_TOKENS
+        or token.endswith("n't")
+        or token in _TARGET_STOPWORDS
+    )
+
+
+def _clause_bag(
+    words: list[str], raw_clause: str, verb_forms: set[str]
+) -> set[str]:
+    """Content-word bag of a clause: minus stopwords, negations, the verb's
+    own inflected forms, and pieces of atomic identifiers (compared
+    separately as indivisible units)."""
+    pieces = _atomic_piece_words(raw_clause)
+    return {
+        w for w in words
+        if w and not _is_filler(w) and w not in pieces and w not in verb_forms
+    }
+
+
+def _tight_targets(
+    words: list[str],
+    index: int,
+    verb_len: int,
+    raw_clause: str,
+    verb_forms: set[str],
+) -> set[str]:
+    """The source clause's own verb-adjacent (±2) target words.
+
+    If the cited source guards "staging" right next to its verb, the composed
+    text must keep that word — dropping or changing it fails closed even when
+    every composed word is individually grounded elsewhere.
+    """
+    pieces = _atomic_piece_words(raw_clause)
+    lo = max(0, index - 2)
+    hi = min(len(words), index + verb_len + 2)
     targets: set[str] = set()
     for j in range(lo, hi):
         if index <= j < index + verb_len:
             continue
         token = words[j]
-        if token in _NEGATION_TOKENS or token.endswith("n't"):
+        if _is_filler(token) or token in pieces or token in verb_forms:
             continue
-        if token in _TARGET_STOPWORDS:
-            continue
-        if token:
-            targets.add(token)
+        targets.add(token)
     return targets
 
 
@@ -535,12 +651,18 @@ def _check_high_risk_drift(
     """Lexical high-risk check. Returns error strings (empty = pass).
 
     Both inputs are normalized (case, shutdown equivalence, whitespace);
-    ``extra_sources`` texts (if given) extend the source corpus. Mixed
-    polarity around "but" is handled per clause: a composed clause's
-    verb + polarity + adjacent targets must match some source clause with
-    the same verb and polarity whose adjacent targets overlap — so
-    ``Do not restart staging, but restart production`` cannot become its
-    target-swapped mirror without failing.
+    ``extra_sources`` texts (if given) extend the source corpus. Completion
+    phrases and verb grounding are checked against the WHOLE corpus, but
+    clause comparison is per source TEXT (request and each cited turn stay
+    separate): words from the request can never satisfy a cited turn's
+    clause and vice versa. Mixed polarity around "but" is handled per
+    clause: a composed clause's verb + polarity + targets must match some
+    source clause with the same verb and polarity — so ``Do not restart
+    staging, but restart production`` cannot become its target-swapped
+    mirror without failing. Target agreement is fail-closed: every composed
+    content word must appear in the matching source clause's content bag, the
+    source's own verb-adjacent targets must be kept, and any technical
+    identifier on either side must agree atomically.
     """
     errors: list[str] = []
     parts = [source_corpus or ""]
@@ -556,7 +678,13 @@ def _check_high_risk_drift(
     norm_source = _normalize_guard_text("\n".join(parts))
     if not norm_composed:
         return errors
-    source_clauses = _split_but_clauses(norm_source) or [norm_source]
+    # Per-text clauses: never merge the request with cited turns before
+    # splitting, so one text's words cannot satisfy another text's clause.
+    source_clauses: list[str] = []
+    for part in parts:
+        norm_part = _normalize_guard_text(part)
+        if norm_part:
+            source_clauses.extend(_split_but_clauses(norm_part) or [norm_part])
     source_clause_words = [_word_list(c) for c in source_clauses]
     for clause in _split_but_clauses(norm_composed) or [norm_composed]:
         words = _word_list(clause)
@@ -569,37 +697,53 @@ def _check_high_risk_drift(
                     "not stated in current request or cited turns"
                 )
         # 2./3./4. High-risk verbs: grounded + polarity-matched + target-kept.
+        # Forms cover inflections, so "was restarted" is checked as "restart".
         for verb in _HIGH_RISK_VERBS:
-            verb_len = len(verb.split())
-            for at in _verb_occurrences(words, verb):
-                if verb not in norm_source:
+            for at, form_len in _verb_occurrences(words, verb):
+                if not _verb_grounded(verb, norm_source):
                     errors.append(
                         f"high-risk action {verb!r}: "
                         "not stated in current request or cited turns"
                     )
                     continue
                 composed_neg = _negated_near(words, at)
-                composed_targets = _verb_targets(words, at, verb_len)
+                verb_forms = set(_HIGH_RISK_VERB_FORMS.get(verb, (verb,)))
+                composed_atomic = _clause_tech_ids(clause)
+                bag_c = _clause_bag(words, clause, verb_forms)
                 matched = False
-                for src_words in source_clause_words:
-                    for sat in _verb_occurrences(src_words, verb):
+                for src_clause, src_words in zip(
+                    source_clauses, source_clause_words
+                ):
+                    for sat, sat_len in _verb_occurrences(src_words, verb):
                         if _negated_near(src_words, sat) != composed_neg:
                             continue
-                        if not composed_targets:
-                            matched = True
-                            break
-                        src_targets = _verb_targets(
-                            src_words, sat, len(verb.split()))
-                        if not src_targets or (composed_targets & src_targets):
-                            matched = True
-                            break
+                        src_atomic = _clause_tech_ids(src_clause)
+                        # Fail-closed clause comparison (all must hold):
+                        # 1. any technical identifier on either side agrees;
+                        # 2. every composed content word is grounded in this
+                        #    source clause (a shared adjective is NOT enough
+                        #    for a changed core target);
+                        # 3. the source's own verb-adjacent targets are kept
+                        #    (a guarded target cannot be dropped/changed).
+                        if composed_atomic or src_atomic:
+                            if not (composed_atomic & src_atomic):
+                                continue
+                        bag_s = _clause_bag(src_words, src_clause, verb_forms)
+                        if not bag_c <= bag_s:
+                            continue
+                        tight_s = _tight_targets(
+                            src_words, sat, sat_len, src_clause, verb_forms)
+                        if not tight_s <= bag_c:
+                            continue
+                        matched = True
+                        break
                     if matched:
                         break
                 if not matched:
-                    if composed_targets:
+                    if bag_c or composed_atomic:
                         errors.append(
                             f"high-risk target swap for {verb!r}: "
-                            "adjacent targets differ from cited sources"
+                            "targets differ from cited sources"
                         )
                     else:
                         errors.append(
@@ -754,24 +898,28 @@ def parse_model_output(
                 break  # One witness is enough to force fallback; keep errors short.
 
     # High-risk lexical provenance guard (fail-closed to fallback_prompt).
-    # Uses the cited-ID subset only: current request + used_turn_ids texts.
+    # Uses the cited-ID subset only: current request + used_turn_ids texts,
+    # passed as SEPARATE texts so per-text clause comparison keeps the
+    # request's words out of cited turns' clauses and vice versa.
     if composed:
         try:
-            _guard_corpus_parts = [current_request or ""]
+            _guard_head = current_request or ""
+            _guard_extras: list[str] = []
             _cited_map = cited_turn_texts or {}
             for _tid in used_ids:
                 if _tid in _cited_map:
                     _val = _cited_map[_tid]
                     if isinstance(_val, str):
-                        _guard_corpus_parts.append(_val)
+                        _guard_extras.append(_val)
                     elif hasattr(_val, "text"):
-                        _guard_corpus_parts.append(str(getattr(_val, "text", "")))
+                        _guard_extras.append(str(getattr(_val, "text", "")))
                     elif isinstance(_val, dict):
-                        _guard_corpus_parts.append(str(_val.get("text", "")))
-            _guard_corpus = "\n".join(_guard_corpus_parts)
+                        _guard_extras.append(str(_val.get("text", "")))
         except Exception:
-            _guard_corpus = current_request or ""
-        errors.extend(_check_high_risk_drift(composed, _guard_corpus))
+            _guard_head = current_request or ""
+            _guard_extras = []
+        errors.extend(_check_high_risk_drift(
+            composed, _guard_head, _guard_extras))
 
     valid = not errors
     return ParsedCompilation(
