@@ -55,6 +55,7 @@ def paste_text(
     restore_delay_s: float = 1.5,
     retries: int = 3,
     job_id: int = 0,
+    result: Optional[dict] = None,
 ) -> Optional[str]:
     """Put `text` on the clipboard and (unless copy_only) send Ctrl+V.
 
@@ -66,6 +67,10 @@ def paste_text(
 
     Tracing: logs outcome (copied/pasted/failed) with latency and
     output_chars. Never logs text content, only lengths. QThread-safe.
+
+    If `result` dict is provided, it is populated with `first_paste_s`
+    (seconds from first Ctrl+V to success), `latency_s`, and `attempts`.
+    Otherwise the same values are emitted via logging with job correlation.
     """
     _extra = {"job_id": job_id, "phase": "pasting"}
     t0 = time.monotonic()
@@ -115,17 +120,29 @@ def paste_text(
         _wait_for_keys_released()
 
     # ── paste with retries ──
+    first_paste_t0: Optional[float] = None
     for attempt in range(retries):
         if paste_delay_ms > 0 and attempt > 0:
             time.sleep(paste_delay_ms / 1000.0 * (attempt + 1))
 
+        # First-paste timing hook: monotonic t0 recorded immediately
+        # before the first Ctrl+V so first_paste_s measures time from
+        # first key send to successful paste.
+        if attempt == 0 and first_paste_t0 is None:
+            first_paste_t0 = time.monotonic()
         try:
             keyboard.send("ctrl+v")
         except Exception as exc:
             if attempt == retries - 1:
+                _latency = time.monotonic() - t0
+                if isinstance(result, dict):
+                    result["latency_s"] = _latency
+                    result["attempts"] = attempt + 1
+                    if first_paste_t0 is not None:
+                        result["first_paste_s"] = time.monotonic() - first_paste_t0
                 logger.error(
                     "Paste outcome=failed (latency=%.2fs, attempts=%d, out_chars=%d): %s",
-                    time.monotonic() - t0, attempt + 1, len(text or ""), exc,
+                    _latency, attempt + 1, len(text or ""), exc,
                     extra=_extra,
                 )
                 return f"Paste error: {exc}"
@@ -144,16 +161,34 @@ def paste_text(
             import threading
             threading.Thread(target=_restore, daemon=True).start()
 
+        _latency = time.monotonic() - t0
+        _attempts = attempt + 1
+        _first_paste_s = (
+            time.monotonic() - first_paste_t0
+            if first_paste_t0 is not None
+            else _latency
+        )
+        if isinstance(result, dict):
+            result["first_paste_s"] = _first_paste_s
+            result["latency_s"] = _latency
+            result["attempts"] = _attempts
         logger.info(
-            "Paste outcome=pasted (latency=%.2fs, attempts=%d, out_chars=%d)",
-            time.monotonic() - t0, attempt + 1, len(text or ""),
+            "Paste outcome=pasted (latency=%.2fs, attempts=%d, out_chars=%d, "
+            "first_paste_s=%.2fs)",
+            _latency, _attempts, len(text or ""), _first_paste_s,
             extra=_extra,
         )
         return None
 
+    _latency = time.monotonic() - t0
+    if isinstance(result, dict):
+        result["latency_s"] = _latency
+        result["attempts"] = retries
+        if first_paste_t0 is not None:
+            result["first_paste_s"] = time.monotonic() - first_paste_t0
     logger.error(
         "Paste outcome=failed (latency=%.2fs, attempts=%d, out_chars=%d): retries exhausted",
-        time.monotonic() - t0, retries, len(text or ""),
+        _latency, retries, len(text or ""),
         extra=_extra,
     )
     return "Paste failed after retries"

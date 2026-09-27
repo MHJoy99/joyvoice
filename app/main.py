@@ -42,7 +42,12 @@ from app.transcription.command_override import (
     strip_override_command,
 )
 from app.transcription.gemini_audio import LANGUAGES as GEMINI_LANGUAGES
-from app.transcription.gemini_audio import resolve_audio_model, transcribe_and_translate
+from app.transcription.gemini_audio import (
+    is_gpt_audio_model,
+    resolve_audio_model,
+    split_pcm16_chunks,
+    transcribe_and_translate,
+)
 from app.transcription.text_cleaner import clean_text
 from app.ui.floating_widget import FloatingWidget
 from app.ui.settings_window import SettingsWindow
@@ -423,6 +428,7 @@ class CloudASRWorker(QThread):
     # transcript, translation, model_target_override_or_empty
     done = Signal(str, str, str)
     failed = Signal(str)
+    partial = Signal(str)
 
     def __init__(
         self,
@@ -431,6 +437,8 @@ class CloudASRWorker(QThread):
         target_language: str,
         job_id: int = 0,
         parent=None,
+        settings: dict | None = None,
+        output_mode: str = "translation",
     ):
         super().__init__(parent)
         self._audio = audio_bytes
@@ -438,6 +446,11 @@ class CloudASRWorker(QThread):
         self._target_lang = target_language
         self.job_id = job_id
         self._cancelled = False
+        # Optional settings snapshot to avoid file I/O in worker thread.
+        self._settings_snapshot = dict(settings) if isinstance(settings, dict) else None
+        self._output_mode = output_mode or "translation"
+        # First streaming delta latency (s since ASR start). Set in run().
+        self.first_preview_s: float | None = None
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -462,21 +475,107 @@ class CloudASRWorker(QThread):
                     self._target_lang, AUDIO_MODEL,
                     extra=_extra,
                 )
-                verified_audio_model = resolve_audio_model(
-                    API_BASE,
-                    API_KEY,
-                    AUDIO_MODEL,
-                    job_id=self.job_id,
+                # GPT preference: try GPT audio model first when configured.
+                # transcribe_and_translate falls back to joyvoice-fast-audio on 429.
+                _requested_model = (AUDIO_MODEL or "").strip()
+                if is_gpt_audio_model(_requested_model):
+                    verified_audio_model = _requested_model
+                else:
+                    verified_audio_model = resolve_audio_model(
+                        API_BASE,
+                        API_KEY,
+                        AUDIO_MODEL,
+                        job_id=self.job_id,
+                    )
+                # Streaming preview: thread-safe emit + first-token timing.
+                # Lengths only, never log text.
+                self.first_preview_s = None
+
+                def _on_delta(_delta_text: str) -> None:
+                    try:
+                        if self.first_preview_s is None:
+                            self.first_preview_s = _time.monotonic() - _t0
+                        if _delta_text:
+                            try:
+                                self.partial.emit(_delta_text)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+
+                # Settings for chunk fan-out + translation-only fast path.
+                _settings = self._settings_snapshot
+                if _settings is None:
+                    try:
+                        from app.storage import settings_store as _ss
+
+                        _settings = _ss.load()
+                    except Exception:
+                        _settings = {}
+                _output_mode = self._output_mode or "translation"
+                _translation_only_fast = bool(_settings.get("translation_only_fast", False))
+                _need_transcript = not (
+                    _output_mode == "translation" and _translation_only_fast
                 )
-                transcript, translation, override = transcribe_and_translate(
-                    self._audio,
-                    api_base=API_BASE,
-                    api_key=API_KEY,
-                    model=verified_audio_model,
-                    source_language=self._lang,
-                    target_language=self._target_lang,
-                    job_id=self.job_id,
-                )
+                _use_chunks = bool(_settings.get("cloud_chunking", False)) and _audio_dur > 12.0
+                _chunks: list[bytes] | None = None
+                if _use_chunks:
+                    try:
+                        _chunks = split_pcm16_chunks(self._audio)
+                    except Exception:
+                        _chunks = None
+                    if not _chunks or len(_chunks) <= 1:
+                        _chunks = None
+                        _use_chunks = False
+                if _use_chunks and _chunks:
+                    from concurrent.futures import ThreadPoolExecutor as _TPE
+
+                    logger.info(
+                        "ASR chunked start (chunks=%d, duration=%.2fs, model=%s)",
+                        len(_chunks), _audio_dur, verified_audio_model,
+                        extra=_extra,
+                    )
+
+                    def _one(_c: bytes):
+                        return transcribe_and_translate(
+                            _c,
+                            api_base=API_BASE,
+                            api_key=API_KEY,
+                            model=verified_audio_model,
+                            source_language=self._lang,
+                            target_language=self._target_lang,
+                            job_id=self.job_id,
+                            on_delta=_on_delta,
+                            need_transcript=_need_transcript,
+                        )
+
+                    with _TPE(max_workers=3) as _ex:
+                        _results = list(_ex.map(_one, _chunks))
+                    if self._cancelled:
+                        return
+                    _transcripts = [r[0] for r in _results if r and r[0]]
+                    _translations = [r[1] for r in _results if r and r[1]]
+                    transcript = " ".join(_transcripts).strip()
+                    translation = " ".join(_translations).strip()
+                    # Override detection only on reassembled full + final chunk override.
+                    override = _results[-1][2] if _results else None
+                    if not transcript and not translation:
+                        raise RuntimeError("Empty transcript (chunked)")
+                    if not transcript:
+                        # Preserve history when translation-only fast path drops transcript.
+                        transcript = translation
+                else:
+                    transcript, translation, override = transcribe_and_translate(
+                        self._audio,
+                        api_base=API_BASE,
+                        api_key=API_KEY,
+                        model=verified_audio_model,
+                        source_language=self._lang,
+                        target_language=self._target_lang,
+                        job_id=self.job_id,
+                        on_delta=_on_delta,
+                        need_transcript=_need_transcript,
+                    )
                 if self._cancelled:
                     return
                 logger.info(
@@ -967,11 +1066,19 @@ class AppController:
         output_mode = self.settings.get("output_mode", "translation")
 
         if self._timing is None:
-            self._timing = {"t0": time.monotonic(), "asr_s": None, "llm_s": 0.0}
+            self._timing = {
+                "t0": time.monotonic(),
+                "asr_s": None,
+                "llm_s": 0.0,
+                "t_release": time.monotonic(),
+            }
         else:
             self._timing["asr_s"] = None
             self._timing["llm_s"] = 0.0
             self._timing["asr_t0"] = time.monotonic()
+            # F8 stop (hotkey release) timestamp for end-to-end telemetry.
+            self._timing["t_release"] = time.monotonic()
+            self._timing.pop("first_preview_s", None)
         logger.info(
             "Job %d recording stopped (phase=recording→transcribing, "
             "record_dur=%.2fs, audio_bytes~%d, source=%s, target=%s, engine=%s)",
@@ -999,7 +1106,12 @@ class AppController:
             else:
                 raw_bytes = audio
             self._pending_asr = CloudASRWorker(
-                raw_bytes, language, target_language, job_id=job_id
+                raw_bytes,
+                language,
+                target_language,
+                job_id=job_id,
+                settings=self.settings,
+                output_mode=output_mode,
             )
         self._pending_asr.done.connect(
             lambda transcript, translation, override, jid=job_id: self._on_asr_done(
@@ -1009,6 +1121,13 @@ class AppController:
         self._pending_asr.failed.connect(
             lambda message, jid=job_id: self._on_asr_failed(message, jid)
         )
+        if hasattr(self._pending_asr, "partial"):
+            try:
+                self._pending_asr.partial.connect(
+                    lambda text, jid=job_id: self._on_asr_partial(text, jid)
+                )
+            except Exception:
+                pass
         asr_worker = self._pending_asr
         asr_worker.finished.connect(
             lambda worker=asr_worker: self._release_worker(worker, "asr")
@@ -1073,6 +1192,11 @@ class AppController:
                     worker.failed.disconnect()
                 except Exception:
                     pass
+                try:
+                    if hasattr(worker, "partial"):
+                        worker.partial.disconnect()
+                except Exception:
+                    pass
                 self._retire_worker(worker)
                 self._pending_asr = None
             if self._pending_llm is not None:
@@ -1101,6 +1225,27 @@ class AppController:
             self.widget.set_state("cancelled", "Cancelled")
             QTimer.singleShot(CANCELLED_DISPLAY_MS, lambda: self.widget.set_state("idle"))
 
+    def _on_asr_partial(self, text: str, job_id: int) -> None:
+        # Live streaming preview from CloudASRWorker.on_delta (GUI thread slot).
+        # Stale guard mirrors _on_asr_done. Lengths only, never log text.
+        if job_id != self._active_job_id or self._phase != "transcribing":
+            return
+        if not text or not text.strip():
+            return
+        if self._timing is not None and "first_preview_s" not in self._timing:
+            _t0 = self._timing.get("asr_t0", self._timing.get("t0", time.monotonic()))
+            try:
+                self._timing["first_preview_s"] = round(time.monotonic() - _t0, 3)
+            except Exception:
+                pass
+        try:
+            if hasattr(self.widget, "set_streaming_preview"):
+                self.widget.set_streaming_preview(text)
+            else:
+                self.widget.set_preview(text)
+        except Exception:
+            pass
+
     def _on_asr_done(
         self,
         raw_text: str,
@@ -1121,6 +1266,15 @@ class AppController:
         if self._timing is not None:
             _asr_t0 = self._timing.pop("asr_t0", self._timing["t0"])
             self._timing["asr_s"] = time.monotonic() - _asr_t0
+            # Propagate worker first-token latency (on_delta first call) when
+            # the streaming slot has not already recorded it. Lengths only.
+            try:
+                _w = self._pending_asr
+                _fp = getattr(_w, "first_preview_s", None)
+                if _fp is not None and "first_preview_s" not in self._timing:
+                    self._timing["first_preview_s"] = round(float(_fp), 3)
+            except Exception:
+                pass
             logger.info(
                 "Job %d ASR complete (latency=%.2fs, transcript_chars=%d, "
                 "translation_chars=%d): %s",
@@ -1362,6 +1516,8 @@ class AppController:
                 extra={"job_id": job_id, "phase": "pasting"},
             )
             # Durable end-to-end timing (complements per-request usage.jsonl).
+            # Lengths only, never log text. first_preview_s = on_delta first
+            # call (first-token) latency; t_release = F8 stop timestamp.
             try:
                 from app.storage import usage_store
                 usage_store.append(
@@ -1373,6 +1529,8 @@ class AppController:
                         "llm_s": t.get("llm_s", 0.0),
                         "latency_s": round(total, 3),
                         "output_chars": len(final_text),
+                        "first_preview_s": t.get("first_preview_s"),
+                        "t_release": t.get("t_release"),
                     }
                 )
             except Exception:

@@ -83,6 +83,7 @@ class FloatingWidget(QWidget):
         self._display_level = 0.0
         self._wave_frame = 0  # frame counter for bar phase animation
         self._recording_start: float | None = None  # monotonic timestamp
+        self._waiting_start: float | None = None  # monotonic timestamp for transcribing wait
 
         # ── animation state ──────────────────────────────────────────
         self._accent_color = QColor(STATE_COLORS["idle"])
@@ -202,13 +203,28 @@ class FloatingWidget(QWidget):
             self._hide_preview()  # clear any stale preview
             if self._recording_start is None:
                 self._recording_start = time.monotonic()
+            self._waiting_start = None
             self.timer_label.setVisible(True)
             self._pulse_phase = 0.0
+        elif state == "transcribing":
+            # Keep waiting timer visible: show elapsed waiting time.
+            # Reuses existing _level_anim_timer tick + timer_label.
+            if self._waiting_start is None:
+                self._waiting_start = time.monotonic()
+            if not self._level_anim_timer.isActive():
+                self._level_anim_timer.start()
+            self._level = 0.0
+            self._display_level = 0.0
+            self.timer_label.setVisible(True)
+            # Smoothly reset scale when leaving recording
+            if old_state == "recording":
+                self._animate_scale_to(1.0, 200)
         else:
             self._level_anim_timer.stop()
             self._level = 0.0
             self._display_level = 0.0
             self._recording_start = None
+            self._waiting_start = None
             self.timer_label.setVisible(False)
             # Smoothly reset scale when leaving recording
             if old_state == "recording":
@@ -261,7 +277,26 @@ class FloatingWidget(QWidget):
         truncated = text[:50] + ("..." if len(text) > 50 else "")
         self.preview_label.setText(truncated)
         self.preview_label.show()
-        self._preview_timer.start(2000)  # auto-hide after 2 seconds
+        self._preview_timer.start(6000)  # auto-hide after 6 seconds for readability
+
+    def set_streaming_preview(self, text: str) -> None:
+        """Show a streaming transcription chunk without auto-hide or focus steal.
+
+        Displays the first ~120 chars in ``preview_label``. Never starts
+        ``_preview_timer`` so rapid GUI-thread slot calls keep the text
+        visible until :meth:`set_preview` / :meth:`_hide_preview` / state
+        change clears it. Relies on the widget-level
+        ``WA_ShowWithoutActivating`` / ``WindowDoesNotAcceptFocus`` flags;
+        this method never calls ``activateWindow()``, ``raise_()`` or
+        ``setFocus()``.
+        """
+        if not text or not text.strip():
+            return
+        truncated = text[:120] + ("..." if len(text) > 120 else "")
+        self._preview_timer.stop()  # stay visible during streaming
+        self.preview_label.setText(truncated)
+        if not self.preview_label.isVisible():
+            self.preview_label.show()
 
     def _hide_preview(self) -> None:
         """Hide the preview label and stop any pending auto-hide timer."""
@@ -291,8 +326,13 @@ class FloatingWidget(QWidget):
             self._pulse_phase += 0.12
             self._scale = 1.0 + 0.02 * math.sin(self._pulse_phase)
 
-        # Update recording timer label
-        if self._recording_start is not None:
+        # Update recording / waiting timer label
+        if self._state == "transcribing" and self._waiting_start is not None:
+            elapsed = int(time.monotonic() - self._waiting_start)
+            mins = elapsed // 60
+            secs = elapsed % 60
+            self.timer_label.setText(f"{mins}:{secs:02d}")
+        elif self._recording_start is not None:
             elapsed = int(time.monotonic() - self._recording_start)
             mins = elapsed // 60
             secs = elapsed % 60

@@ -6,6 +6,7 @@ uses. Supports Bengali (bn-BD), English, and 80+ languages.
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import io
 import re
@@ -142,13 +143,23 @@ def transcribe(
     return text
 
 
+_PER_CHUNK_TIMEOUT_S = 6.0
+_CHUNK_MAX_WORKERS = 2
+
+
 def transcribe_chunked(
     audio_bytes: bytes,
     language: str | None = None,
     chunk_seconds: float = 30.0,
     job_id: int = 0,
 ) -> str:
-    """Transcribe PCM audio in sequential chunks of ~30s via Google Web Speech API.
+    """Transcribe PCM audio in parallel chunks of ~30s via Google Web Speech API.
+
+    Chunks are transcribed concurrently with ``ThreadPoolExecutor(max_workers=2)``
+    and joined in input order. Each chunk has a ~6s ``Future.result`` timeout;
+    a per-call total budget also bounds the ordered join. On timeout the chunks
+    completed so far are salvaged (same partial-salvage policy as a mid-loop
+    chunk error) instead of discarding the whole dictation.
 
     Args:
         audio_bytes: Raw PCM int16 mono audio at 16 kHz (never logged, only len).
@@ -161,7 +172,7 @@ def transcribe_chunked(
 
     Raises:
         sr.UnknownValueError: If all chunks are unintelligible.
-        RuntimeError / Exception: If any chunk errors out.
+        RuntimeError / Exception: If any chunk errors out with no prior results.
     """
     _extra = {"job_id": job_id, "phase": "transcribing"}
     chunk_bytes = int(chunk_seconds * 16000 * 2)
@@ -188,45 +199,115 @@ def transcribe_chunked(
     results: list[str] = []
     unknown_val_count = 0
 
-    for idx, chunk in enumerate(chunks):
-        chunk_num = idx + 1
+    # Total fallback budget bounds the ordered join so one hung chunk cannot
+    # stall the whole dictation. Per-chunk timeout stays ~6s; the total budget
+    # scales with chunk count and is enforced via the per-result timeout below.
+    total_budget_s = max(12.0, _PER_CHUNK_TIMEOUT_S * total_chunks)
+    deadline = t0 + total_budget_s
+
+    # Thread-safety: workers only call transcribe() (own Recognizer per call)
+    # plus logger (thread-safe). Ordered join + results list stay on caller.
+    executor = concurrent.futures.ThreadPoolExecutor(
+        max_workers=_CHUNK_MAX_WORKERS
+    )
+    try:
+        futures: list[concurrent.futures.Future[str]] = [
+            executor.submit(transcribe, chunk, language, job_id)
+            for chunk in chunks
+        ]
         logger.info(
-            "Transcribing Google ASR chunk %d/%d (%d bytes)",
-            chunk_num,
-            total_chunks,
-            len(chunk),
+            "Google ASR chunked parallel: workers=%d, per_chunk_timeout=%.1fs, "
+            "total_budget=%.1fs",
+            _CHUNK_MAX_WORKERS, _PER_CHUNK_TIMEOUT_S, total_budget_s,
             extra=_extra,
         )
-        try:
-            text = transcribe(chunk, language=language, job_id=job_id)
-            if text and text.strip():
-                results.append(text.strip())
-        except sr.UnknownValueError:
+
+        for idx, fut in enumerate(futures):
+            chunk_num = idx + 1
             logger.info(
-                "Google ASR chunk %d/%d: unintelligible speech",
-                chunk_num, total_chunks,
+                "Transcribing Google ASR chunk %d/%d (%d bytes)",
+                chunk_num,
+                total_chunks,
+                len(chunks[idx]),
                 extra=_extra,
             )
-            unknown_val_count += 1
-            if total_chunks == 1:
-                raise
-        except Exception as exc:
-            if results:
-                # Partial salvage for long recordings: keep what succeeded
-                # so the dictation is reusable from History instead of lost.
-                logger.warning(
-                    "Google ASR chunk %d/%d error — salvaging %d prior chunk(s): %s",
-                    chunk_num, total_chunks, len(results), exc,
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                exc: BaseException = TimeoutError(
+                    f"total budget {total_budget_s:.1f}s exhausted"
+                )
+                if results:
+                    logger.warning(
+                        "Google ASR chunk %d/%d error — salvaging %d prior "
+                        "chunk(s): %s",
+                        chunk_num, total_chunks, len(results), exc,
+                        extra=_extra,
+                    )
+                    break
+                logger.error(
+                    "Google ASR chunk %d/%d error: %s",
+                    chunk_num, total_chunks, exc,
                     extra=_extra,
                 )
-                break
-            logger.error(
-                "Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc,
-                extra=_extra,
-            )
-            raise RuntimeError(
-                f"Google ASR chunk {chunk_num}/{total_chunks} failed: {exc}"
-            ) from exc
+                raise RuntimeError(
+                    f"Google ASR chunk {chunk_num}/{total_chunks} failed: {exc}"
+                ) from exc
+            timeout = min(_PER_CHUNK_TIMEOUT_S, remaining)
+            try:
+                text = fut.result(timeout=timeout)
+                if text and text.strip():
+                    results.append(text.strip())
+            except sr.UnknownValueError:
+                logger.info(
+                    "Google ASR chunk %d/%d: unintelligible speech",
+                    chunk_num, total_chunks,
+                    extra=_extra,
+                )
+                unknown_val_count += 1
+                if total_chunks == 1:
+                    raise
+            except (concurrent.futures.TimeoutError, TimeoutError) as exc:
+                # Timeout salvage: same policy as a mid-loop chunk error —
+                # keep completed chunks and proceed to return them.
+                if results:
+                    logger.warning(
+                        "Google ASR chunk %d/%d timeout after %.1fs — salvaging "
+                        "%d prior chunk(s): %s",
+                        chunk_num, total_chunks, timeout, len(results), exc,
+                        extra=_extra,
+                    )
+                    break
+                logger.error(
+                    "Google ASR chunk %d/%d timeout after %.1fs: %s",
+                    chunk_num, total_chunks, timeout, exc,
+                    extra=_extra,
+                )
+                raise RuntimeError(
+                    f"Google ASR chunk {chunk_num}/{total_chunks} timed out "
+                    f"after {timeout:.1f}s: {exc}"
+                ) from exc
+            except Exception as exc:
+                if results:
+                    # Partial salvage for long recordings: keep what succeeded
+                    # so the dictation is reusable from History instead of lost.
+                    logger.warning(
+                        "Google ASR chunk %d/%d error — salvaging %d prior chunk(s): %s",
+                        chunk_num, total_chunks, len(results), exc,
+                        extra=_extra,
+                    )
+                    break
+                logger.error(
+                    "Google ASR chunk %d/%d error: %s", chunk_num, total_chunks, exc,
+                    extra=_extra,
+                )
+                raise RuntimeError(
+                    f"Google ASR chunk {chunk_num}/{total_chunks} failed: {exc}"
+                ) from exc
+    finally:
+        # Non-blocking on salvage path: cancel pending, let running network
+        # calls finish in background. On full success all futures are done so
+        # this returns immediately.
+        executor.shutdown(wait=False, cancel_futures=True)
 
     if not results:
         if unknown_val_count > 0:

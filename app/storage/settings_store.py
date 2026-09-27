@@ -42,6 +42,12 @@ DEFAULTS: dict[str, Any] = {
     "replacements": dict(DEFAULT_REPLACEMENTS),
     "widget_pos": None,  # [x, y] or None
     "first_run_complete": False,
+    # Instant-pipeline / UX toggles (all safe OFF except noted ON)
+    "cloud_chunking": False,
+    "translation_only_fast": False,
+    "streaming_preview": True,
+    "waiting_timer": True,
+    "gpt_audio_preferred": True,
 }
 
 

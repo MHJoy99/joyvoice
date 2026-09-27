@@ -43,9 +43,18 @@ def play_stop() -> None:
     pass
 
 
+def play_first_token() -> None:
+    """First-token blip: short 880Hz / 80ms cue, non-blocking.
+
+    Kept deliberately short (<100ms) and daemon-threaded so it never
+    blocks the Qt event loop or bleeds into mic capture.
+    """
+    _beep(880, 80)
+
+
 def play_done() -> None:
-    """Disabled."""
-    pass
+    """Completion pop: short 1320Hz / 90ms cue, non-blocking."""
+    _beep(1320, 90)
 
 
 def play_error() -> None:
