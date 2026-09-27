@@ -4,7 +4,7 @@
 
 - **Scope:** word-boundary completion check, token-based verb grounding, multi-word verb bag exclusion, negation window ±6, chunk unpack first-error preservation (`app/transcription/prompt_compiler.py`, `app/transcription/gemini_audio.py`); regression tests now 38 passed + subtests (`tests/test_v251_regression.py`); version surfaces synced to v2.5.2 (`pyproject.toml`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, new `docs/RELEASE_NOTES_v2.5.2.md`). v2.5.1 public advisory published (completion bypass disclosed, partial-assembly scope corrected, ZIP label de-identified). Live multi-minute failed-tail recovery remains unverified.
 - **Verification:** full suite isolated per AGENTS.md (temp profiles, Qt offscreen, evidence fixture), `git diff --check` clean, `bin/guard.py` pre-commit/pre-push pass. Exact-tag build + GitHub release follow in this session.
-- **Closeout:** PENDING — commit, tag `v2.5.2`, build, publish.
+- **Closeout:** DONE — commit `f6aee9e`, tag `v2.5.2` pushed; exact-tag EXE built (PE/MZ, 202058796 bytes, SHA-256 `3b990e83...1681647bf`); public release https://github.com/MHJoy99/joyvoice/releases/tag/v2.5.2 with EXE + ZIP (SHA-256 `0ff65340...d9582249c7ff9`, digests match GitHub). Smoke test: EXE exits 1 via single-instance guard while dev copy holds lock (expected). Full suite 291 passed / 3 skipped.
 
 ## Session Log — 2026-09-27 — v2.5.1 provenance guard, partial-assembly fix, live-evidence correction
 
