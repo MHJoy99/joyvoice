@@ -30,6 +30,7 @@ GOOGLE_LANGUAGE_TAGS = {
 
 AUTO_LANGUAGE_CODES = ("bn", "en")
 _BENGALI_CHARS = re.compile(r"[\u0980-\u09ff]")
+_DEVANAGARI_CHARS = re.compile(r"[\u0900-\u097f]")
 _LATIN_CHARS = re.compile(r"[A-Za-z]")
 _ENGLISH_HINTS = {
     "a", "am", "and", "are", "can", "do", "for", "get", "give", "hello",
@@ -44,16 +45,27 @@ def _language_likelihood(text: str, language: str) -> int:
     Google Web Speech does not provide language auto-detection.  Auto mode
     therefore recognizes the same audio in Bangla and English and uses the
     script/word evidence in the returned alternatives to choose a result.
+
+    Devanagari (Hindi, U+0900–U+097F) is penalized for both bn/en candidates:
+    Bengali words MUST stay in Bengali script (U+0980–U+09FF) — a bn-BD
+    hypothesis containing Devanagari is a script-drift misrecognition, and an
+    en-US hypothesis containing Devanagari is not English.
     """
     bengali_count = len(_BENGALI_CHARS.findall(text))
+    devanagari_count = len(_DEVANAGARI_CHARS.findall(text))
     latin_count = len(_LATIN_CHARS.findall(text))
     if language == "bn":
-        return (bengali_count * 2) - latin_count
+        return (bengali_count * 2) - latin_count - (devanagari_count * 3)
 
     english_words = {
         word.lower() for word in re.findall(r"[A-Za-z]+", text)
     }
-    return (latin_count * 2) + (len(english_words & _ENGLISH_HINTS) * 4) - bengali_count
+    return (
+        (latin_count * 2)
+        + (len(english_words & _ENGLISH_HINTS) * 4)
+        - bengali_count
+        - (devanagari_count * 2)
+    )
 
 
 def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
@@ -95,6 +107,20 @@ def transcribe_auto(audio_bytes: bytes, job_id: int = 0) -> str:
         candidates,
         key=lambda item: _language_likelihood(item[1], item[0]),
     )
+    # Script-drift telemetry: bn selection with Devanagari and no Bengali script
+    # is a Hindi-drift misrecognition — log distinctly, keep the text (fallback
+    # must never drop dictation; Gemini prompt guard is the primary fix).
+    if selected_code == "bn":
+        _has_bn = bool(_BENGALI_CHARS.search(selected_text))
+        _has_deva = bool(_DEVANAGARI_CHARS.search(selected_text))
+        if _has_deva and not _has_bn:
+            logger.warning(
+                "Google ASR auto script drift: bn candidate contains Devanagari "
+                "without Bengali script (chars=%d): %s",
+                len(selected_text),
+                selected_text[:80],
+                extra=_extra,
+            )
     logger.info(
         "Google ASR auto selected lang=%s, chars=%d: %s",
         GOOGLE_LANGUAGE_TAGS[selected_code],

@@ -47,7 +47,6 @@ DEFAULTS: dict[str, Any] = {
     "translation_only_fast": False,
     "streaming_preview": True,
     "waiting_timer": True,
-    "gpt_audio_preferred": True,
     "sound_enabled": False,  # completion/first-token beeps; False = silent (pre-Phase-8 behavior)
 }
 

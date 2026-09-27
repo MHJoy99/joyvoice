@@ -43,7 +43,6 @@ from app.transcription.command_override import (
 )
 from app.transcription.gemini_audio import LANGUAGES as GEMINI_LANGUAGES
 from app.transcription.gemini_audio import (
-    is_gpt_audio_model,
     resolve_audio_model,
     split_pcm16_chunks,
     transcribe_and_translate,
@@ -475,18 +474,12 @@ class CloudASRWorker(QThread):
                     self._target_lang, AUDIO_MODEL,
                     extra=_extra,
                 )
-                # GPT preference: try GPT audio model first when configured.
-                # transcribe_and_translate falls back to joyvoice-fast-audio on 429.
-                _requested_model = (AUDIO_MODEL or "").strip()
-                if is_gpt_audio_model(_requested_model):
-                    verified_audio_model = _requested_model
-                else:
-                    verified_audio_model = resolve_audio_model(
-                        API_BASE,
-                        API_KEY,
-                        AUDIO_MODEL,
-                        job_id=self.job_id,
-                    )
+                verified_audio_model = resolve_audio_model(
+                    API_BASE,
+                    API_KEY,
+                    AUDIO_MODEL,
+                    job_id=self.job_id,
+                )
                 # Streaming preview: thread-safe emit + first-token timing.
                 # Lengths only, never log text.
                 self.first_preview_s = None
