@@ -78,6 +78,57 @@ class TestHighRiskGuard(unittest.TestCase):
         )
         self.assertTrue(pc.valid, pc.errors)
 
+    def test_completion_substring_in_source_is_not_grounding(self):
+        for claim, source in (
+            ("Task finished.", "Task unfinished business."),
+            ("Task completed.", "Task incompleted business."),
+        ):
+            with self.subTest(claim=claim):
+                errors = _check_high_risk_drift(claim, source)
+                self.assertTrue(any("unverifiable completion" in e for e in errors))
+                pc = parse_model_output(
+                    _ok_json(claim),
+                    allowed_turn_ids=[],
+                    current_request=source,
+                    cited_turn_texts={},
+                )
+                self.assertFalse(pc.valid)
+
+    def test_verb_substring_in_source_is_not_grounding(self):
+        from app.transcription.prompt_compiler import _verb_grounded
+
+        self.assertFalse(_verb_grounded("stop", "stopwatch repaired"))
+        self.assertFalse(_verb_grounded("start", "please restart production now"))
+        self.assertTrue(_verb_grounded("restart", "please restart production now"))
+        self.assertTrue(_verb_grounded("shut down", "please shut down production"))
+
+    def test_multiword_verb_parts_excluded_from_content_bag(self):
+        from app.transcription.prompt_compiler import _clause_bag, _word_list
+
+        bag = _clause_bag(
+            _word_list("shut down production server"),
+            "shut down production server",
+            {"shut down"},
+        )
+        self.assertEqual(bag, {"production", "server"})
+
+    def test_distant_negation_still_polarity_matched(self):
+        self.assertEqual(
+            _check_high_risk_drift(
+                "Do not under any circumstances shut down production",
+                "Do not under any circumstances shut down production",
+                [],
+            ),
+            [],
+        )
+        self.assertTrue(
+            _check_high_risk_drift(
+                "Shut down production now",
+                "Do not under any circumstances shut down production",
+                [],
+            )
+        )
+
     def test_novel_filler_fails_closed(self):
         # Conservative by design: novel content words ("per your note") with
         # no cited grounding fail closed even around a grounded completion.
@@ -413,6 +464,19 @@ class TestLongAudioMarkersAndPartials(unittest.TestCase):
         exc = self._chunks_call(
             ga, [("", "translated prefix", None), ValueError("boom")])
         self.assertIn("translated prefix", exc.partial_translation)
+
+    def test_unpack_failure_preserves_first_error(self):
+        from app.transcription import gemini_audio as ga
+
+        chunks = [b"x" * 3200, b"y" * 3200]
+        with mock.patch.object(
+            ga, "transcribe_and_translate", side_effect=[None, ValueError("boom")]
+        ), mock.patch.object(ga, "is_silence_pcm16", return_value=False):
+            with self.assertRaises(TypeError):
+                ga.transcribe_chunks_resilient(
+                    chunks, api_base="https://example.invalid/v1",
+                    api_key="test-key", model="test-model",
+                )
 
     def test_partial_and_complete_logs_counts_only(self):
         from app.transcription import gemini_audio as ga

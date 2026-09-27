@@ -1,5 +1,11 @@
 # AI Status & Session Ledger — JoyVoice
 
+## Session Log — 2026-09-27 — v2.5.2 guard boundary fixes & audit corrections
+
+- **Scope:** word-boundary completion check, token-based verb grounding, multi-word verb bag exclusion, negation window ±6, chunk unpack first-error preservation (`app/transcription/prompt_compiler.py`, `app/transcription/gemini_audio.py`); regression tests now 38 passed + subtests (`tests/test_v251_regression.py`); version surfaces synced to v2.5.2 (`pyproject.toml`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, new `docs/RELEASE_NOTES_v2.5.2.md`). v2.5.1 public advisory published (completion bypass disclosed, partial-assembly scope corrected, ZIP label de-identified). Live multi-minute failed-tail recovery remains unverified.
+- **Verification:** full suite isolated per AGENTS.md (temp profiles, Qt offscreen, evidence fixture), `git diff --check` clean, `bin/guard.py` pre-commit/pre-push pass. Exact-tag build + GitHub release follow in this session.
+- **Closeout:** PENDING — commit, tag `v2.5.2`, build, publish.
+
 ## Session Log — 2026-09-27 — v2.5.1 provenance guard, partial-assembly fix, live-evidence correction
 
 - **Scope:** lexical high-risk prompt provenance guard (`_check_high_risk_drift` in `app/transcription/prompt_compiler.py`, fail-closed to `fallback_prompt`, cited-subset semantics, verb inflections, tight ±2 target window + atomic technical identifiers), `transcribe_chunks_resilient` partial-when-either-side fix + counts-only partial/completion logs (`app/transcription/gemini_audio.py`), `tests/test_v251_regression.py` (34 tests), correction of the false v2.5.0 "40 s / 85 chars" note (sanitized evidence: 39.9 s, six markers, HTTP 200, 406/406 chars), version surfaces synced to v2.5.1 (`pyproject.toml`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, new `docs/RELEASE_NOTES_v2.5.1.md`, corrected `docs/RELEASE_NOTES_v2.5.0.md`). Live multi-minute failed-tail recovery remains unverified.

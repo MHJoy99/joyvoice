@@ -760,7 +760,9 @@ def transcribe_chunks_resilient(
             continue
         try:
             transcript_part, translation_part, override_part = result
-        except Exception:
+        except Exception as unpack_exc:
+            if first_error is None:
+                first_error = unpack_exc
             failed.append(idx)
             continue
         if (transcript_part or "").strip():

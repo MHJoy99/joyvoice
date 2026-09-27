@@ -3,6 +3,14 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.5.2 — Guard Boundary Fixes & Audit Corrections (2026-09-27)
+
+- **Post-publication audit fix (v2.5.1 bypass closed):** standalone fabricated-completion check now uses word boundaries, so `Task finished.` no longer passes when the source says `Task unfinished business.` (same for `completed`/`incompleted`, `deleted`/`undeleted`). Verb grounding is now token-based instead of substring (`stop` is not grounded by `stopwatch`; `start` is not grounded by `restart`), multi-word verb parts are excluded from content bags (`shut`/`down` no longer leak into target comparison), negation window widened to ±6 tokens (distant `Do not under any circumstances shut down ...` stays negated), and chunk unpack failures preserve the first error instead of dropping it.
+- **Partial-assembly scope correction:** `transcribe_chunks_resilient` remains a tested utility with no production caller; the live dictation path uses the separate ordered slot-join loop in `app/main.py`. v2.5.2 does not rewire the live path — release notes now state this explicitly instead of implying the helper fix ships in live dictations.
+- **Regression coverage (`tests/test_v251_regression.py`, now 38 tests + subtests):** completion-substring grounding, verb-substring grounding, multi-word verb bag exclusion, distant-negation polarity, unpack-first-error preservation.
+- **Verification:** full suite isolated per AGENTS.md (temp `APPDATA`/`LOCALAPPDATA`/`JV_PROMPT_MEMORY_DB`, Qt offscreen, `JV_LIVE_EVIDENCE_PATH` fixture); `git diff --check` clean; `bin/guard.py` pre-commit/pre-push pass.
+- **Known limitations (unchanged):** live multi-minute failed-tail recovery remains unverified (mocked tests only); the guard is lexical, not semantic — quoted/untrusted text, pronouns/long-distance roles, and paraphrase with no shared verb still require human review; atomic-ID detection stays fail-closed on ordinary hyphenated/slashed prose (`well-known`, `a/b`).
+
 ## v2.5.1 — Provenance Guard, Partial-Assembly Fix & Live-Evidence Correction (2026-09-27)
 
 - **Live-evidence correction (supersedes the v2.5.0 "40 s / 85 chars" note):** the sanitized live evidence records a 39.9 s synthetic clip with six distinct markers, HTTP 200, 406 transcript chars and 406 translation chars, all six markers present in both transcript and translation. The old 85-char output was a repeated-phrase artifact of the short control clip, not the long clip. Live multi-minute failed-tail recovery remains unverified — the failed-tail path is still proven by deterministic mocked tests, not by a live multi-minute failure reproduction.

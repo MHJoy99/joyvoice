@@ -508,11 +508,22 @@ def _verb_occurrences(words: list[str], verb: str) -> list[tuple[int, int]]:
 
 
 def _verb_grounded(verb: str, norm_source: str) -> bool:
-    """Any inflected form stated in the sources (substring, normalized)."""
-    return any(form in norm_source for form in _HIGH_RISK_VERB_FORMS.get(verb, (verb,)))
+    """Any inflected form stated in the sources (word-boundary, normalized)."""
+    src_words = _word_list(norm_source or "")
+    for form in _HIGH_RISK_VERB_FORMS.get(verb, (verb,)):
+        parts = form.split()
+        if len(parts) == 2:
+            for i in range(len(src_words) - 1):
+                if src_words[i] == parts[0] and src_words[i + 1] == parts[1]:
+                    return True
+        else:
+            for word in src_words:
+                if word == form:
+                    return True
+    return False
 
 
-def _negated_near(words: list[str], index: int, span: int = 3) -> bool:
+def _negated_near(words: list[str], index: int, span: int = 6) -> bool:
     lo = max(0, index - span)
     hi = min(len(words), index + span + 1)
     for j in range(lo, hi):
@@ -603,6 +614,16 @@ def _is_filler(token: str) -> bool:
     )
 
 
+def _expand_verb_words(verb_forms: set[str]) -> set[str]:
+    """Component words of inflected verb forms (multi-word forms split)."""
+    expanded: set[str] = set()
+    for form in verb_forms or set():
+        for token in _word_list(form):
+            if token:
+                expanded.add(token)
+    return expanded
+
+
 def _clause_bag(
     words: list[str], raw_clause: str, verb_forms: set[str]
 ) -> set[str]:
@@ -610,9 +631,10 @@ def _clause_bag(
     own inflected forms, and pieces of atomic identifiers (compared
     separately as indivisible units)."""
     pieces = _atomic_piece_words(raw_clause)
+    verb_words = _expand_verb_words(verb_forms)
     return {
         w for w in words
-        if w and not _is_filler(w) and w not in pieces and w not in verb_forms
+        if w and not _is_filler(w) and w not in pieces and w not in verb_words
     }
 
 
@@ -630,6 +652,7 @@ def _tight_targets(
     every composed word is individually grounded elsewhere.
     """
     pieces = _atomic_piece_words(raw_clause)
+    verb_words = _expand_verb_words(verb_forms)
     lo = max(0, index - 2)
     hi = min(len(words), index + verb_len + 2)
     targets: set[str] = set()
@@ -637,7 +660,7 @@ def _tight_targets(
         if index <= j < index + verb_len:
             continue
         token = words[j]
-        if _is_filler(token) or token in pieces or token in verb_forms:
+        if _is_filler(token) or token in pieces or token in verb_words:
             continue
         targets.add(token)
     return targets
@@ -691,7 +714,8 @@ def _check_high_risk_drift(
         joined = " ".join(words)
         # 1. Standalone fabricated completion: phrase in composed, absent in sources.
         for phrase in _COMPLETION_PHRASES:
-            if phrase in joined and phrase not in norm_source:
+            pattern = rf"\b{re.escape(phrase)}\b"
+            if re.search(pattern, joined) and not re.search(pattern, norm_source):
                 errors.append(
                     f"high-risk unverifiable completion {phrase!r}: "
                     "not stated in current request or cited turns"
