@@ -28,6 +28,30 @@ Public API for the ``main.py`` integrator and tests:
 * :func:`parse_model_output`
 * :func:`fallback_prompt`
 * :data:`OUTPUT_SCHEMA_HINT`, :data:`DEFAULT_INPUT_BUDGET_CHARS`
+
+High-risk provenance guard (deliberately lexical, fail-closed):
+
+:func:`parse_model_output` applies ``_check_high_risk_drift`` to the
+composed prompt against the current request plus ONLY the cited turns
+(``used_turn_ids`` subset semantics preserved). It catches lexical
+cross-action target swaps (e.g. source says "restart", composed says
+"shut down"), standalone fabricated completions (e.g. "deployment
+succeeded" with no source claim), pre-verbal / post-verbal / contracted
+negation flips (e.g. "do not delete" -> "delete", "don't restart" ->
+"restart"), mixed polarity around ``but`` (per-clause verb + polarity +
+adjacent-target match), and ``shut down`` / ``shutdown`` spelling
+equivalence (normalized before comparison). Any hit marks the output
+invalid so the integrator falls back to :func:`fallback_prompt`.
+
+NOT a semantic verifier — known limitations requiring human review:
+
+* quoted / untrusted third-party text is treated as data; the guard cannot
+  judge quoted intent beyond lexical presence;
+* complex target roles are not role-parsed — targets are a ±4-word window
+  proxy, so a target moved far from its verb (long-distance reference,
+  pronouns like "it") can evade the swap check;
+* semantic paraphrase with no shared lexical verb (e.g. "terminate the
+  instance" vs "stop the server") is invisible to this guard.
 """
 
 from __future__ import annotations
@@ -370,6 +394,227 @@ def build_compilation_input(
     )
 
 
+# ── High-risk provenance guard (deliberately lexical, fail-closed) ──────────
+# Checked verbs: destructive / state-changing actions where a swap or polarity
+# flip causes real damage. Multi-word "shut down" is canonical; "shutdown" /
+# "shut-down" normalize to it before comparison.
+_HIGH_RISK_VERBS = (
+    "delete",
+    "remove",
+    "wipe",
+    "format",
+    "drop",
+    "shut down",
+    "restart",
+    "reboot",
+    "deploy",
+    "rollback",
+    "kill",
+    "stop",
+    "start",
+    "disable",
+    "purge",
+)
+# Standalone completion claims: asserting an outcome the sources never state.
+_COMPLETION_PHRASES = (
+    "succeeded",
+    "completed",
+    "deployed",
+    "deleted",
+    "finished",
+    "already done",
+    "health check passed",
+    "health passed",
+    "all done",
+)
+# Negation tokens: pre-verbal ("do not delete", "never restart"), post-verbal
+# ("delete nothing" is rare; "no" / "without" trailing), and contracted
+# ("don't", "doesn't", "isn't", "can't", "won't", "n't").
+_NEGATION_TOKENS = (
+    "not",
+    "no",
+    "never",
+    "without",
+    "n't",
+    "don't",
+    "doesn't",
+    "didn't",
+    "isn't",
+    "aren't",
+    "wasn't",
+    "weren't",
+    "can't",
+    "cannot",
+    "couldn't",
+    "won't",
+    "wouldn't",
+    "shouldn't",
+    "mustn't",
+)
+
+
+def _normalize_guard_text(text: str) -> str:
+    lowered = (text or "").lower()
+    lowered = re.sub(r"shut[\s\-]*down", "shut down", lowered)
+    lowered = re.sub(r"\s+", " ", lowered)
+    return lowered.strip()
+
+
+def _word_list(text: str) -> list[str]:
+    return re.findall(r"[a-z]+(?:'[a-z]+)?", text or "")
+
+
+def _split_but_clauses(text: str) -> list[str]:
+    return [c.strip() for c in re.split(r"\bbut\b", text or "") if c.strip()]
+
+
+def _verb_occurrences(words: list[str], verb: str) -> list[int]:
+    parts = verb.split()
+    hits: list[int] = []
+    if len(parts) == 2:
+        for i in range(len(words) - 1):
+            if words[i] == parts[0] and words[i + 1] == parts[1]:
+                hits.append(i)
+    else:
+        for i, word in enumerate(words):
+            if word == verb:
+                hits.append(i)
+    return hits
+
+
+def _negated_near(words: list[str], index: int, span: int = 3) -> bool:
+    lo = max(0, index - span)
+    hi = min(len(words), index + span + 1)
+    for j in range(lo, hi):
+        if j == index:
+            continue
+        token = words[j]
+        if token in _NEGATION_TOKENS or token.endswith("n't"):
+            return True
+    return False
+
+
+# Stopwords excluded from the verb-adjacent target window: auxiliaries,
+# articles, prepositions, pronouns, and time adverbs carry no target meaning.
+_TARGET_STOPWORDS = frozenset({
+    "the", "a", "an", "to", "of", "on", "in", "at", "for", "with", "and",
+    "or", "do", "does", "did", "please", "now", "tonight", "today", "here",
+    "there", "it", "this", "that", "my", "your", "our", "their", "its",
+    "will", "would", "should", "must", "can", "could", "shall", "let",
+})
+
+
+def _verb_targets(words: list[str], index: int, verb_len: int = 1) -> set[str]:
+    """Content words adjacent to a verb occurrence (lexical target proxy).
+
+    ±4-word span so quoted technical identifiers just outside a tight window
+    (e.g. ``'staging_cluster'`` two words after ``deploy``) still count as
+    the same target instead of a false swap.
+    """
+    lo = max(0, index - 4)
+    hi = min(len(words), index + verb_len + 4)
+    targets: set[str] = set()
+    for j in range(lo, hi):
+        if index <= j < index + verb_len:
+            continue
+        token = words[j]
+        if token in _NEGATION_TOKENS or token.endswith("n't"):
+            continue
+        if token in _TARGET_STOPWORDS:
+            continue
+        if token:
+            targets.add(token)
+    return targets
+
+
+def _check_high_risk_drift(
+    composed: str,
+    source_corpus: str,
+    extra_sources: list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    """Lexical high-risk check. Returns error strings (empty = pass).
+
+    Both inputs are normalized (case, shutdown equivalence, whitespace);
+    ``extra_sources`` texts (if given) extend the source corpus. Mixed
+    polarity around "but" is handled per clause: a composed clause's
+    verb + polarity + adjacent targets must match some source clause with
+    the same verb and polarity whose adjacent targets overlap — so
+    ``Do not restart staging, but restart production`` cannot become its
+    target-swapped mirror without failing.
+    """
+    errors: list[str] = []
+    parts = [source_corpus or ""]
+    try:
+        for extra in extra_sources or []:
+            if isinstance(extra, str):
+                parts.append(extra)
+            elif extra is not None:
+                parts.append(str(extra))
+    except TypeError:
+        pass
+    norm_composed = _normalize_guard_text(composed)
+    norm_source = _normalize_guard_text("\n".join(parts))
+    if not norm_composed:
+        return errors
+    source_clauses = _split_but_clauses(norm_source) or [norm_source]
+    source_clause_words = [_word_list(c) for c in source_clauses]
+    for clause in _split_but_clauses(norm_composed) or [norm_composed]:
+        words = _word_list(clause)
+        joined = " ".join(words)
+        # 1. Standalone fabricated completion: phrase in composed, absent in sources.
+        for phrase in _COMPLETION_PHRASES:
+            if phrase in joined and phrase not in norm_source:
+                errors.append(
+                    f"high-risk unverifiable completion {phrase!r}: "
+                    "not stated in current request or cited turns"
+                )
+        # 2./3./4. High-risk verbs: grounded + polarity-matched + target-kept.
+        for verb in _HIGH_RISK_VERBS:
+            verb_len = len(verb.split())
+            for at in _verb_occurrences(words, verb):
+                if verb not in norm_source:
+                    errors.append(
+                        f"high-risk action {verb!r}: "
+                        "not stated in current request or cited turns"
+                    )
+                    continue
+                composed_neg = _negated_near(words, at)
+                composed_targets = _verb_targets(words, at, verb_len)
+                matched = False
+                for src_words in source_clause_words:
+                    for sat in _verb_occurrences(src_words, verb):
+                        if _negated_near(src_words, sat) != composed_neg:
+                            continue
+                        if not composed_targets:
+                            matched = True
+                            break
+                        src_targets = _verb_targets(
+                            src_words, sat, len(verb.split()))
+                        if not src_targets or (composed_targets & src_targets):
+                            matched = True
+                            break
+                    if matched:
+                        break
+                if not matched:
+                    if composed_targets:
+                        errors.append(
+                            f"high-risk target swap for {verb!r}: "
+                            "adjacent targets differ from cited sources"
+                        )
+                    else:
+                        errors.append(
+                            f"high-risk polarity mismatch for {verb!r}: "
+                            "negation near the action differs from cited sources"
+                        )
+        if errors:
+            break  # One witness forces fallback; keep errors short.
+    return errors
+
+
+# Backwards-compatible alias (original v2.5.1 name).
+_check_high_risk_provenance = _check_high_risk_drift
+
+
 def _coerce_str_list(value: object) -> tuple[list[str], bool]:
     """Extract strings from a list. Returns (strings, valid).
 
@@ -507,6 +752,26 @@ def parse_model_output(
                     "request or cited turns"
                 )
                 break  # One witness is enough to force fallback; keep errors short.
+
+    # High-risk lexical provenance guard (fail-closed to fallback_prompt).
+    # Uses the cited-ID subset only: current request + used_turn_ids texts.
+    if composed:
+        try:
+            _guard_corpus_parts = [current_request or ""]
+            _cited_map = cited_turn_texts or {}
+            for _tid in used_ids:
+                if _tid in _cited_map:
+                    _val = _cited_map[_tid]
+                    if isinstance(_val, str):
+                        _guard_corpus_parts.append(_val)
+                    elif hasattr(_val, "text"):
+                        _guard_corpus_parts.append(str(getattr(_val, "text", "")))
+                    elif isinstance(_val, dict):
+                        _guard_corpus_parts.append(str(_val.get("text", "")))
+            _guard_corpus = "\n".join(_guard_corpus_parts)
+        except Exception:
+            _guard_corpus = current_request or ""
+        errors.extend(_check_high_risk_drift(composed, _guard_corpus))
 
     valid = not errors
     return ParsedCompilation(

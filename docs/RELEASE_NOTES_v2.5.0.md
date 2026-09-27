@@ -1,5 +1,12 @@
 # JoyVoice v2.5.0
 
+> **Correction (v2.5.1):** the "40 s / 85 chars" observation below was wrong.
+> Sanitized live evidence shows the 39.9 s six-marker clip returned HTTP 200
+> with 406 transcript chars and 406 translation chars (all six markers in
+> both); the 85-char output was a repeated-phrase artifact of the short
+> control clip. See `docs/RELEASE_NOTES_v2.5.1.md`. Live multi-minute
+> failed-tail recovery remains unverified.
+
 ## What changed
 
 ### Reliability
@@ -107,10 +114,12 @@ For someone on v2.4.2:
 
 ## Known limitations
 
-- **40 s live observation:** the 40-second synthetic live call returned only
-  85 characters (single repetition; dedup/truncation observed). Long-audio
-  tail recovery is proven by deterministic unit tests with mocked transports,
-  not by a live multi-minute failure reproduction.
+- **40 s live observation (corrected in v2.5.1):** the original note said the
+  40-second synthetic live call returned only 85 characters — that was the
+  short control clip's repeated-phrase artifact. The 39.9 s six-marker clip
+  returned 406/406 chars with all six markers. Long-audio tail recovery is
+  proven by deterministic unit tests with mocked transports, not by a live
+  multi-minute failure reproduction.
 - **Partial results stay partial:** when chunks fail, JoyVoice keeps what
   succeeded and asks you to review — it does not claim completeness and does
   not write partials into conversation memory.

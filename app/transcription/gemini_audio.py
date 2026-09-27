@@ -781,7 +781,22 @@ def transcribe_chunks_resilient(
             raise
         except Exception:
             pass
-    if failed and transcripts:
+    # Partial when EITHER side has content: translation-only salvage
+    # ("", partial, None) counts as recovery, not total failure.
+    if failed and (transcripts or translations):
+        try:
+            _pt_chars = sum(len(t or "") for t in transcripts)
+            _pl_chars = sum(len(t or "") for t in translations)
+        except Exception:
+            _pt_chars, _pl_chars = -1, -1
+        logger.warning(
+            "Gemini audio partial (chunks=%d, recovered_transcripts=%d, "
+            "recovered_translations=%d, transcript_chars=%d, "
+            "translation_chars=%d, failed=%s, silent_skipped=%d)",
+            total, len(transcripts), len(translations),
+            _pt_chars, _pl_chars, failed, silent_skipped,
+            extra=_extra,
+        )
         raise PartialAudioResult(
             transcripts, translations, failed,
             total_chunks=total, silent_skipped=silent_skipped,
@@ -791,6 +806,18 @@ def transcribe_chunks_resilient(
         if first_error is not None:
             raise first_error
         raise ValueError("Empty transcript (chunked)")
+    try:
+        _ct_chars = sum(len(t or "") for t in transcripts)
+        _cl_chars = sum(len(t or "") for t in translations)
+    except Exception:
+        _ct_chars, _cl_chars = -1, -1
+    logger.info(
+        "Gemini audio complete (chunks=%d, transcripts=%d, translations=%d, "
+        "transcript_chars=%d, translation_chars=%d, silent_skipped=%d)",
+        total, len(transcripts), len(translations),
+        _ct_chars, _cl_chars, silent_skipped,
+        extra=_extra,
+    )
     return (
         _join_chunk_texts(transcripts),
         _join_chunk_texts(translations),

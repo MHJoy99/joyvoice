@@ -1,5 +1,11 @@
 # AI Status & Session Ledger — JoyVoice
 
+## Session Log — 2026-09-27 — v2.5.1 provenance guard, partial-assembly fix, live-evidence correction
+
+- **Scope:** lexical high-risk prompt provenance guard (`_check_high_risk_drift` in `app/transcription/prompt_compiler.py`, fail-closed to `fallback_prompt`, cited-subset semantics), `transcribe_chunks_resilient` partial-when-either-side fix + counts-only partial/completion logs (`app/transcription/gemini_audio.py`), `tests/test_v251_regression.py` (24 tests), correction of the false v2.5.0 "40 s / 85 chars" note (sanitized evidence: 39.9 s, six markers, HTTP 200, 406/406 chars), version surfaces synced to v2.5.1 (`pyproject.toml`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `llms.txt`, `llms-full.txt`, `schema.json`, `index.html`, new `docs/RELEASE_NOTES_v2.5.1.md`, corrected `docs/RELEASE_NOTES_v2.5.0.md`). Live multi-minute failed-tail recovery remains unverified.
+- **Verification:** full suite 276 passed / 0 failed / 3 skipped (`pytest tests/ -q`, isolated temp `APPDATA`/`LOCALAPPDATA`/`JV_PROMPT_MEMORY_DB`, Qt offscreen), core/app imports OK (`python -I`), `git diff --check` clean, `bin/guard.py` gates pass. Prior QA evidence in another checkout showed one order-dependent failure in `test_4valid_audible_tail_failure_retries_only_missing` (rerun passed); freshly rerun here — see closeout.
+- **Closeout:** (filled at release: commit, annotated tag `v2.5.1`, exact-tag `build_exe.bat` build, SHA-256, GitHub release + topics reconciliation.)
+
 ## Session Log — 2026-09-26 — v2.4.2 60% faster latency, wire gzip + SSE streaming
 
 - **Scope:** 60% latency reduction via client-side wire gzip compression (`Content-Encoding: gzip` reducing payload by 92.9%), inverted token generation contract (`translation` first), Server-Sent Events line streaming (`stream: True`), TTFT telemetry logging, and progressive disclosure refactoring of `AGENTS.md`. Version surfaces synced to v2.4.2.
