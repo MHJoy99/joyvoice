@@ -42,6 +42,7 @@ from app.storage import history_store
 from app.system import startup
 from app.system.hotkeys import PRESETS
 from app.system.paste import PASTE_DELAYS_MS
+from app.transcription.gemini_audio import GATEWAY_USER_AGENT
 from app.transcription.text_cleaner import DEFAULT_REPLACEMENTS
 
 logger = logging.getLogger("joyvoice.settings_window")
@@ -437,7 +438,8 @@ class SettingsWindow(QDialog):
             return
         try:
             req = urllib.request.Request(
-                f"{base}/models", headers={"Authorization": f"Bearer {key}"}
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {key}", "User-Agent": GATEWAY_USER_AGENT},
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode())
@@ -495,7 +497,8 @@ class SettingsWindow(QDialog):
             return
         try:
             req = urllib.request.Request(
-                f"{base}/models", headers={"Authorization": f"Bearer {key}"}
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {key}", "User-Agent": GATEWAY_USER_AGENT},
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode())

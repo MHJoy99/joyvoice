@@ -1,7 +1,7 @@
 # AGENTS.md — JoyVoice Architecture & Developer Guide
 
 > **Single Source of Truth** for JoyVoice agentic workflows, architecture, pitfalls, and verification rules.
-> _Last updated: 2026-09-27 (v2.5.4)_
+> _Last updated: 2026-10-08 (v2.5.5)_
 
 ---
 

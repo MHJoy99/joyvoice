@@ -692,6 +692,32 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
         import urllib.error
         mock_llm_rewrite.side_effect = urllib.error.HTTPError("url", 400, "Bad Request", {}, None)
 
+        worker = main_mod.CloudASRWorker(b"audio", "en", "en")
+        done_mock = MagicMock()
+        failed_mock = MagicMock()
+        worker.done.connect(done_mock)
+        worker.failed.connect(failed_mock)
+
+        worker.run()
+
+        # Same-language (English -> English) salvage keeps the transcript usable.
+        done_mock.assert_called_once_with(
+            "Hello world transcript", "Hello world transcript", ""
+        )
+        failed_mock.assert_not_called()
+        self.assertFalse(worker.translation_blocked)
+
+    @patch("app.main.transcribe_and_translate")
+    @patch("app.main.cloud_asr_transcribe_chunked")
+    @patch("app.main.cloud_llm_rewrite")
+    def test_translation_failure_never_emits_bengali_as_english(
+        self, mock_llm_rewrite, mock_asr_chunked, mock_transcribe_translate
+    ):
+        mock_transcribe_translate.side_effect = Exception("Gemini audio failed")
+        mock_asr_chunked.return_value = "আমি আজ অফিসে যাব"
+        import urllib.error
+        mock_llm_rewrite.side_effect = urllib.error.HTTPError("url", 403, "Forbidden", {}, None)
+
         worker = main_mod.CloudASRWorker(b"audio", "bn", "en")
         done_mock = MagicMock()
         failed_mock = MagicMock()
@@ -700,10 +726,15 @@ class TestCloudASRWorkerFallbackAndSignals(unittest.TestCase):
 
         worker.run()
 
-        done_mock.assert_called_once_with(
-            "Hello world transcript", "Hello world transcript", ""
-        )
+        # Bengali transcript is handed off as history-only: no translation slot.
+        done_mock.assert_called_once_with("আমি আজ অফিসে যাব", "", "")
         failed_mock.assert_not_called()
+        self.assertTrue(worker.translation_blocked)
+
+    def test_has_non_latin_letters_detects_bengali_not_english(self):
+        self.assertTrue(main_mod._has_non_latin_letters("আমি আজ অফিসে যাব"))
+        self.assertFalse(main_mod._has_non_latin_letters("Please send the report, café naïve 42."))
+        self.assertFalse(main_mod._has_non_latin_letters(""))
 
     @patch("app.main._single_llm_call")
     def test_llm_chunk_failure_salvages_prior_chunks(self, mock_single_call):
@@ -836,7 +867,7 @@ class TestNativeAudioGatewayContract(unittest.TestCase):
         self.assertEqual(selected, "joyvoice-fast-audio")
 
     def test_unadvertised_fast_alias_falls_back_to_verified_audio_model(self):
-        response = self._models_response(["gemini-3.6-flash"])
+        response = self._models_response(["gemini-2.5-flash"])
         with patch(
             "app.transcription.gemini_audio.urllib.request.urlopen",
             return_value=response,
@@ -846,7 +877,8 @@ class TestNativeAudioGatewayContract(unittest.TestCase):
                 "test-key",
                 "joyvoice-fast-audio",
             )
-        self.assertEqual(selected, "gemini-3.6-flash")
+        self.assertEqual(selected, "gemini-2.5-flash")
+        self.assertEqual(selected, gemini_audio.VERIFIED_AUDIO_FALLBACK_MODEL)
 
     def test_audio_response_rejects_summary_and_requires_exact_fields(self):
         valid = (

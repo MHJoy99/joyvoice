@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 import time
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -41,6 +42,7 @@ from app.transcription.command_override import (
     resolve_effective_target,
     strip_override_command,
 )
+from app.transcription.gemini_audio import GATEWAY_USER_AGENT
 from app.transcription.gemini_audio import LANGUAGES as GEMINI_LANGUAGES
 from app.transcription.gemini_audio import (
     resolve_audio_model,
@@ -485,6 +487,23 @@ def _parse_retry_after_seconds(exc: object) -> float | None:
         return None
 
 
+def _has_non_latin_letters(text: str) -> bool:
+    """True when text holds letters outside the Latin script (e.g. Bengali).
+
+    Guards the English-output promise: untranslated source-language text must
+    never be pasted when English is the target. Never logs the text itself.
+    """
+    for ch in text or "":
+        if ch.isalpha():
+            try:
+                name = unicodedata.name(ch, "")
+            except Exception:
+                name = ""
+            if "LATIN" not in name:
+                return True
+    return False
+
+
 def _safe_text_label(exc: BaseException) -> str:
     """Content-free user-facing label: HTTP code or exception type only."""
     try:
@@ -573,6 +592,7 @@ def _post_chat_json(
             headers={
                 "Authorization": f"Bearer {_api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": GATEWAY_USER_AGENT,
             },
         )
         try:
@@ -1105,6 +1125,10 @@ class CloudASRWorker(QThread):
         self.partial_audio: bool = False
         self.partial_counts: dict = {}
         self.partial_silence_only: bool = False
+        # Set when translation failed and the only text left is untranslated
+        # source-language speech while English is required. Such text goes to
+        # history only; it is never emitted as the translation (never pasted).
+        self.translation_blocked: bool = False
 
     def cancel(self) -> None:
         self._cancelled = True
@@ -1673,10 +1697,8 @@ class CloudASRWorker(QThread):
                 override_out = ""
             if salvaged:
                 # Transcript salvage: ASR heard speech but translation failed
-                # (often internet/gateway issues). Emit the transcript as its
-                # own translation so history-before-paste saves it and the
-                # user can reuse it from Settings → History. Content-free:
-                # type/category only, never provider text/URLs/keys.
+                # (often internet/gateway issues). Content-free: type/category
+                # only, never provider text/URLs/keys.
                 try:
                     _fb_label = _safe_text_label(fallback_exc)
                 except Exception:
@@ -1685,18 +1707,41 @@ class CloudASRWorker(QThread):
                     _fb_cat = _classify_text_error(fallback_exc)
                 except Exception:
                     _fb_cat = "other"
-                logger.warning(
-                    "ASR translate fallback — salvaging transcript "
-                    "(latency=%.2fs, source=%s, target=%s, chars=%d, "
-                    "category=%s, label=%s)",
-                    _time.monotonic() - _t0,
-                    self._lang or "auto",
-                    self._target_lang,
-                    len(salvaged),
-                    _fb_cat, _fb_label,
-                    extra=_extra,
+                _src_lang = (self._lang or "auto").strip().lower()
+                # English is required when the target is English and the speech
+                # is not known to be English (non-English source, or non-Latin
+                # script under auto-detect). Emitting the source text as the
+                # translation pasted Bengali into apps (2026-10-08).
+                _english_required = self._target_lang == "en" and (
+                    _src_lang not in ("auto", "", "en")
+                    or _has_non_latin_letters(salvaged)
                 )
-                self.done.emit(salvaged, salvaged, override_out or "")
+                if _english_required:
+                    self.translation_blocked = True
+                    logger.warning(
+                        "ASR translate fallback — English required, translation "
+                        "unavailable; transcript saved to history, not pasted "
+                        "(latency=%.2fs, source=%s, chars=%d, category=%s, label=%s)",
+                        _time.monotonic() - _t0,
+                        self._lang or "auto",
+                        len(salvaged),
+                        _fb_cat, _fb_label,
+                        extra=_extra,
+                    )
+                    self.done.emit(salvaged, "", "")
+                else:
+                    logger.warning(
+                        "ASR translate fallback — salvaging transcript "
+                        "(latency=%.2fs, source=%s, target=%s, chars=%d, "
+                        "category=%s, label=%s)",
+                        _time.monotonic() - _t0,
+                        self._lang or "auto",
+                        self._target_lang,
+                        len(salvaged),
+                        _fb_cat, _fb_label,
+                        extra=_extra,
+                    )
+                    self.done.emit(salvaged, salvaged, override_out or "")
             else:
                 try:
                     _fb_label = _safe_text_label(fallback_exc)
@@ -3111,6 +3156,19 @@ class AppController:
             )
             return
 
+        # Translation unavailable while English is required: the worker kept
+        # the source-language transcript out of the translation slot. Save it
+        # to history only; nothing is pasted.
+        try:
+            _pw_blocked = bool(getattr(self._pending_asr, "translation_blocked", False))
+        except Exception:
+            _pw_blocked = False
+        if _pw_blocked:
+            self._block_untranslated_output(
+                raw_text, job_id, reason="translation-unavailable",
+            )
+            return
+
         # Partial-audio settlement (audio-writer coordinated, main-owned).
         # Canceled/stale already returned above, so this never salvages into
         # another job. Delegates to the typed _finish_partial_for_review
@@ -3220,6 +3278,12 @@ class AppController:
                 )
 
         translation = translated_text
+
+        # English-only output promise: applies to translated output when the
+        # effective target (including a one-shot override) is English.
+        self._english_output_required = (
+            output_mode == "translation" and effective_target == "en"
+        )
 
         if override:
             # Always strip the spoken command from the source text.
@@ -3423,6 +3487,34 @@ class AppController:
         self._phase = "idle"
         self._show_error(f"AI rewrite failed: {message}")
 
+    def _block_untranslated_output(self, text: str, job_id: int, reason: str) -> None:
+        """Save text to history and show an error; never paste it.
+
+        Used when English output is required but only non-English text is
+        available. History-before-paste keeps the text reusable from History.
+        """
+        try:
+            _lang = self.settings.get("language", "auto")
+            history_store.append(
+                text, datetime.now(timezone.utc).isoformat(),
+                None if _lang == "auto" else _lang,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Job %d could not save blocked output to history (%s)",
+                job_id, type(exc).__name__,
+                extra={"job_id": job_id, "phase": self._phase},
+            )
+        logger.warning(
+            "Job %d English output required — not pasted (reason=%s, chars=%d); "
+            "saved to history",
+            job_id, reason, len(text or ""),
+            extra={"job_id": job_id, "phase": self._phase},
+        )
+        self._timing = None
+        self._phase = "idle"
+        self._show_error("Translation to English failed: saved to History, nothing pasted")
+
     def _finish_paste(self, final_text: str) -> None:
         job_id = self._active_job_id
         if self._phase not in ("transcribing", "pasting"):
@@ -3430,6 +3522,11 @@ class AppController:
                 "Job %d paste skipped — phase is %s", job_id, self._phase,
                 extra={"job_id": job_id, "phase": self._phase},
             )
+            return
+        # Last line of defence for the English-only promise: never paste text
+        # still in a non-Latin script when English output is required.
+        if getattr(self, "_english_output_required", False) and _has_non_latin_letters(final_text):
+            self._block_untranslated_output(final_text, job_id, reason="non-english-output")
             return
         self._phase = "pasting"
         self._push_dev("pasting", out_chars=len(final_text or ""))

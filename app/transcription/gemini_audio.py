@@ -94,7 +94,15 @@ LANGUAGES = {
 
 _VALID_CODES = set(LANGUAGES.keys())
 JOYVOICE_AUDIO_MODEL = "joyvoice-fast-audio"
-VERIFIED_AUDIO_FALLBACK_MODEL = "gemini-3.6-flash"
+# Fallback when the gateway cannot confirm the alias. Must be the alias's own
+# upstream model (joyvoice-fast-audio -> gemini-2.5-flash). gemini-3.6-flash was
+# routed to a gateway account that returns 404 for it (2026-10-08), which broke
+# every dictation during an alias-verification hiccup.
+VERIFIED_AUDIO_FALLBACK_MODEL = "gemini-2.5-flash"
+# Cloudflare in front of the gateway answers urllib's default "Python-urllib/x.y"
+# User-Agent with HTTP 403 "error code: 1010" (seen 2026-10-08 18:19-18:22 and on
+# re-test). Explicit product UA is accepted. Send it on every gateway request.
+GATEWAY_USER_AGENT = "JoyVoice/2.5.5"
 NATIVE_AUDIO_TIMEOUT_S = 180.0
 _MODEL_VERIFY_TTL_S = 300.0
 _MODEL_VERIFY_CACHE: dict[tuple[str, str], tuple[float, str]] = {}
@@ -854,7 +862,10 @@ def resolve_audio_model(
     try:
         request = urllib.request.Request(
             f"{api_base.rstrip('/')}/models",
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": GATEWAY_USER_AGENT,
+            },
         )
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read())
@@ -1932,12 +1943,14 @@ def transcribe_and_translate(
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
                 "Content-Encoding": "gzip",
+                "User-Agent": GATEWAY_USER_AGENT,
             }
         else:
             _wire = _raw
             _headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": GATEWAY_USER_AGENT,
             }
         # Explicit Content-Length: http.client would add it for a bytes body,
         # but setting it here keeps the pooled request byte-identical to the

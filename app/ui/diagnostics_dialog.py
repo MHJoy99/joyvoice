@@ -64,6 +64,7 @@ from PySide6.QtWidgets import (
 
 from app.audio.recorder import Recorder
 from app.storage import paths
+from app.transcription.gemini_audio import GATEWAY_USER_AGENT
 
 logger = logging.getLogger("joyvoice.diagnostics")
 
@@ -325,7 +326,10 @@ def probe_gateway_models(
 
     request = urllib.request.Request(
         f"{base}/models",
-        headers={"Authorization": f"Bearer {key}"} if key else {},
+        headers=(
+            {"Authorization": f"Bearer {key}", "User-Agent": GATEWAY_USER_AGENT}
+            if key else {"User-Agent": GATEWAY_USER_AGENT}
+        ),
     )
     t0 = time.monotonic()
     try:

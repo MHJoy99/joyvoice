@@ -3,7 +3,17 @@
 This documents everything built since the initial MVP: what was added, why,
 the bugs found and fixed along the way, and the current state of the app.
 
+## v2.5.5 - English-Only Output and Gateway Fixes (2026-10-08)
+
+- **Never pastes untranslated text when English is required:** if native-audio translation fails while the target is English, the source-language transcript (for example Bengali) is saved to History and nothing is pasted. A paste-time guard also blocks non-Latin output when English is the effective target, including one-shot overrides. Failure shows "Translation to English failed: saved to History, nothing pasted".
+- **Audio fallback fixed:** the fallback model is now `gemini-2.5-flash`, the upstream of the `joyvoice-fast-audio` alias. The previous fallback `gemini-3.6-flash` returned 404 on the gateway account that served it.
+- **Gateway User-Agent fix:** requests from the app now send `JoyVoice/2.5.5`. Cloudflare in front of the gateway returned HTTP 403 (error 1010) for urllib's default `Python-urllib` User-Agent, which made the alias check fail and the app fall back to a model that was not working.
+- **Settings and diagnostics:** the Settings "test API" and diagnostics `/models` checks send the same User-Agent, so they no longer report a false 403.
+- **Tests:** new `tests/test_english_output_guard.py`; updated the translation-failure salvage test to the English-only contract. Isolated full suite: 303 passed / 4 skipped / 2 subtests passed.
+- **Gateway note (not in the app):** the gateway's model mappings for `gemini-3.6-flash` were corrected on the two affected accounts to `gemini-3.8-flash-medium`; this is server-side configuration and is not part of the app package.
+
 ## v2.5.4 - Safety Patch and Packaged Version Fix (2026-09-27)
+
 
 - **Ships the v2.5.3 source patch:** the clause-level negation guard and direct production-worker recovery tests from the tagged but unpublished v2.5.3 commit. The v2.5.2 public release carries an advisory for its padded-negation bypass.
 - **Fixes packaged version display:** `JoyVoice.spec` includes `pyproject.toml` so the existing runtime version resolvers can find `2.5.4` after one-file extraction. The v2.5.3 tagged EXE reached tray initialization under an isolated profile, but reported `app=unknown`; it was not published.
