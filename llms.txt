@@ -1,0 +1,20 @@
+# JoyVoice
+
+> JoyVoice is a free, open-source (MIT) floating-microphone voice typing and speech translation app for Windows 10/11. Press F8, speak in one of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and clean, optionally translated text is pasted into the app under your cursor. Works in Cloud mode (needs an API key) or Free & Offline mode (local Whisper, no API key). Current version: 2.5.5.
+
+## Project
+- [Website](https://mhjoy99.github.io/joyvoice/): overview, how it works, install, FAQ
+- [Full reference for LLMs](https://mhjoy99.github.io/joyvoice/llms-full.txt): complete plain-text explanation
+- [GitHub repository](https://github.com/MHJoy99/joyvoice): source code, README, issues
+- [Releases](https://github.com/MHJoy99/joyvoice/releases): download JoyVoice.exe for Windows
+- [Changelog](https://github.com/MHJoy99/joyvoice/blob/master/CHANGELOG.md): version history
+
+## Docs
+- [Setup guide](https://github.com/MHJoy99/joyvoice/blob/master/docs/SETUP.md)
+- [API gateway reference](https://github.com/MHJoy99/joyvoice/blob/master/docs/API.md)
+- [Troubleshooting](https://github.com/MHJoy99/joyvoice/blob/master/docs/TROUBLESHOOTING.md)
+- [Bangla guide](https://github.com/MHJoy99/joyvoice/blob/master/docs/bn/README-bn.md)
+
+## Optional
+- [Author: MHJoy99](https://github.com/MHJoy99)
+- [License: MIT](https://github.com/MHJoy99/joyvoice/blob/master/LICENSE)

@@ -1,0 +1,68 @@
+# JoyVoice: full reference
+
+Source of truth: the JoyVoice repository README and CHANGELOG (https://github.com/MHJoy99/joyvoice), version 2.5.5 (released 2026-10-08). Website: https://mhjoy99.github.io/joyvoice/
+
+## What it is
+JoyVoice is a free, open-source (MIT license) floating-microphone voice typing and speech translation app for Windows 10 and Windows 11. You press the global hotkey F8, speak, press F8 again, and JoyVoice pastes cleaned (and optionally translated) text into whatever application has your cursor, using Ctrl+V. It is written in Python 3.11 with a PySide6 (Qt 6) UI. Author: MH Joy (MHJoy99).
+
+It is batch dictation: it records while you speak and processes when you stop. It is Windows-only because global hotkeys, clipboard automation and audio capture depend on Win32 APIs.
+
+## Languages
+10 languages, each usable as the spoken source (or via auto-detect) and as the translation target:
+Bangla (bn), English (en), Russian (ru), Hindi (hi), Spanish (es), Arabic (ar), Chinese (zh), Japanese (ja), French (fr), Portuguese (pt).
+Auto-detect is the default source. Bangladeshi Bengali with English code-switching ("Banglish") is explicitly handled in the transcription prompt. Ctrl+Shift+L cycles the language pair.
+Example from the README: speaking Bangla "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না" pastes "I won't be able to join the meeting tomorrow morning."
+
+## How it works
+1. Record from the microphone (sounddevice, 16 kHz mono float32).
+2. Convert float32 to signed int16 PCM (README: under 50 ms).
+3. Speech to text: Google Web Speech ASR (default cloud path); an optional native-audio route through the gateway alias "joyvoice-fast-audio" can transcribe and translate in one request. In Free & Offline mode a local faster-whisper model is used instead.
+4. Translation and styling: a Gemini text model (default setting "gemini-3.6-flash") translates and applies the selected text style. If cloud translation fails, the transcript is salvaged.
+5. Paste: clipboard-safe Ctrl+V (3 attempts with exponential backoff, default 300 ms delay), then the original clipboard is restored.
+The text is saved to local history before paste is attempted, so a failed paste does not lose it. Total time depends on recording length and network; the README cites roughly 1-2 seconds for short audio on the optional native gateway route.
+
+## Modes
+- Cloud mode (default): needs an API key for an OpenAI-compatible endpoint (Settings > API, or the JV_API_KEY environment variable). Default base URL: https://gpt.bdx.market/v1, configurable. No GPU, CUDA or PyTorch needed.
+- Free & Offline mode: no API key. A local Whisper model (faster-whisper; Tiny, Base or Small, default Small; device Auto or CPU) is downloaded once via "Set up Free Mode" (Settings > Free Mode) into %LOCALAPPDATA%\JoyVoice\models, then works offline. Built-in offline Bangla to English translation via Whisper's translate task. Other translation targets are transcription-only in Free Mode for now; AI text styles require Cloud mode. Planned (not shipped): offline multilingual translation (NLLB) and offline AI styles (Ollama).
+
+## Features
+- Target language: any of the 10; output modes original, translation or both.
+- Text styles (setting text_style): raw, clean_english (default), prompt_for_ai, professional_message, facebook_post. AI styles need Cloud mode.
+- Floating glass widget: live 5-bar waveform, recording timer, language badge (e.g. BN to EN), live preview, confidence bar, state colours (idle gray, recording orange, transcribing blue, pasted green, error red).
+- Hotkeys: F8 toggle (or hold-to-record via hotkey_mode), Ctrl+Shift+L language switch, Esc cancel.
+- Spoken one-shot target override: name another target language at the end of a sentence to switch target for that dictation.
+- Right-click history of the last 5 dictations; phrase replacement table; audio beeps; launch on startup; microphone picker.
+- Robustness: 2-second widget visibility watchdog, 5-second hotkey health check, paste retry x3, history-before-paste, ordered chunk handling for long recordings that keeps earlier chunks if a later one fails.
+- v2.5.5: if English is the required target and translation fails, nothing untranslated is pasted; the source transcript is saved to History and a message is shown.
+- Logging: rotating log at %APPDATA%\JoyVoice\joyvoice.log with secrets scrubbed to [REDACTED], transcripts shown only as 80-character previews, raw audio never logged. Crash reports store the exception type, message length and redacted stack frames.
+
+## Install
+Option A (recommended): download the single JoyVoice.exe (about 173 MB; supports Cloud and Free & Offline) from https://github.com/MHJoy99/joyvoice/releases
+Option B (from source, Windows, Python 3.11):
+  git clone https://github.com/MHJoy99/joyvoice.git
+  cd joyvoice
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+  set JV_API_KEY=your_bdx_market_api_key
+  python app\main.py
+A run.bat launcher is also in the repository.
+
+## Key settings (%APPDATA%\JoyVoice\settings.json)
+language=auto; target_language=en; output_mode=translation; text_style=clean_english; hotkey=F8; hotkey_mode=toggle; paste_delay_ms=300; restore_clipboard=true; engine_mode=cloud (or free); free_asr_model=small; api_base=https://gpt.bdx.market/v1; audio_model=joyvoice-fast-audio; text_model=gemini-3.6-flash.
+
+## Privacy
+In cloud mode, recorded speech goes to Google Web Speech or to the optional native-audio route of the configured gateway, and transcript text goes to the configured text model. Free & Offline mode makes no cloud calls after the one-time model download. The API key is stored locally in settings.json or read from JV_API_KEY.
+
+## Roadmap (planned, not shipped)
+Sentence-stream pipeline, usage dashboard, faster-model bake-off, context-aware style, personal lexicon, macOS/Linux support, plugin outputs, continuous partial results, multi-speaker meeting mode, offline-capable dual path.
+
+## Credits and notices
+Built with PySide6, sounddevice, SpeechRecognition and faster-whisper/ctranslate2. JoyVoice is an independent project and is not affiliated with Google, Microsoft, OpenAI or the makers of Gemini and Whisper.
+
+## Links
+Website: https://mhjoy99.github.io/joyvoice/
+Repository: https://github.com/MHJoy99/joyvoice
+Releases: https://github.com/MHJoy99/joyvoice/releases
+Issues: https://github.com/MHJoy99/joyvoice/issues
+License: MIT

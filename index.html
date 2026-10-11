@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JoyVoice: Windows Voice Typing &amp; Speech Translation</title>
+<meta name="description" content="Free open-source Windows voice typing: press F8, speak Bangla, English or 8 more languages, get clean translated text pasted into any app.">
+<link rel="canonical" href="https://mhjoy99.github.io/joyvoice/">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="author" content="MHJoy99">
+<meta name="keywords" content="Windows voice typing, Bangla voice typing, speech to text Windows, voice dictation translation, Banglish to English, offline Whisper dictation, floating mic">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#faf9ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0919" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="site.css">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="JoyVoice">
+<meta property="og:title" content="JoyVoice: Windows Voice Typing &amp; Speech Translation">
+<meta property="og:description" content="Free open-source Windows voice typing: press F8, speak Bangla, English or 8 more languages, get clean translated text pasted into any app.">
+<meta property="og:url" content="https://mhjoy99.github.io/joyvoice/">
+<meta property="og:image" content="https://mhjoy99.github.io/joyvoice/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="JoyVoice floating microphone widget turning spoken Bangla into pasted English">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="JoyVoice: Windows Voice Typing &amp; Speech Translation">
+<meta name="twitter:description" content="Free open-source Windows voice typing: press F8, speak Bangla, English or 8 more languages, get clean translated text pasted into any app.">
+<meta name="twitter:image" content="https://mhjoy99.github.io/joyvoice/og-image.png">
+<meta name="twitter:image:alt" content="JoyVoice floating microphone widget turning spoken Bangla into pasted English">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "SoftwareApplication",
+ "@id": "https://mhjoy99.github.io/joyvoice/#app",
+ "name": "JoyVoice",
+ "url": "https://mhjoy99.github.io/joyvoice/",
+ "description": "Open-source floating-microphone voice typing and speech translation for Windows. Press F8, speak in one of 10 languages including Bangla, and clean text is pasted into any app. Cloud mode or Free & Offline mode with local Whisper.",
+ "applicationCategory": "UtilitiesApplication",
+ "applicationSubCategory": "Voice typing and speech translation",
+ "operatingSystem": "Windows 10, Windows 11",
+ "softwareVersion": "2.5.5",
+ "softwareRequirements": "Windows 10 or 11 (64-bit); Python 3.11 only when running from source; API key for an OpenAI-compatible endpoint in cloud mode (not needed in Free & Offline mode)",
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ },
+ "license": "https://opensource.org/licenses/MIT",
+ "isAccessibleForFree": true,
+ "codeRepository": "https://github.com/MHJoy99/joyvoice",
+ "downloadUrl": "https://github.com/MHJoy99/joyvoice/releases",
+ "installUrl": "https://github.com/MHJoy99/joyvoice#installation--setup-options",
+ "image": "https://mhjoy99.github.io/joyvoice/og-image.png",
+ "screenshot": "https://mhjoy99.github.io/joyvoice/img/desktop-mockup.jpg",
+ "inLanguage": [
+  "bn",
+  "en",
+  "ru",
+  "hi",
+  "es",
+  "ar",
+  "zh",
+  "ja",
+  "fr",
+  "pt"
+ ],
+ "featureList": [
+  "Voice dictation in 10 languages with auto-detect",
+  "Speech translation into any of the 10 supported languages",
+  "Floating glass widget with live waveform",
+  "Clipboard-safe auto-paste with retry",
+  "History saved before paste",
+  "Free & Offline mode with local Whisper (faster-whisper)",
+  "Spoken one-shot target language override",
+  "Global hotkeys: F8, Ctrl+Shift+L, Esc to cancel",
+  "Configurable OpenAI-compatible API endpoint"
+ ],
+ "author": {
+  "@type": "Person",
+  "name": "MHJoy99",
+  "url": "https://github.com/MHJoy99"
+ }
+}
+</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "@id": "https://mhjoy99.github.io/joyvoice/#faq",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "What is JoyVoice?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "JoyVoice is a free, open-source (MIT) floating-microphone voice typing and speech translation app for Windows 10 and 11. You press F8, speak, press F8 again, and the cleaned, optionally translated text is pasted into whichever app has your cursor. It supports 10 languages: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How do I dictate Bangla or Banglish into English on Windows?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Press F8 and speak naturally in Bengali or mixed Bengali and English. With the default auto-detect source and English target, JoyVoice detects the language, translates, and pastes clean English with Ctrl+V into the app under your cursor. The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, so you do not switch languages manually."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Do I need a GPU or an API key?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "You do not need a GPU. Cloud mode uses cloud services for speech and translation and needs no CUDA or PyTorch. It does need an API key for an OpenAI-compatible endpoint, entered in Settings, API, or set as the JV_API_KEY environment variable. Free and Offline mode needs no API key at all."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Can JoyVoice work offline?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes, in Free and Offline mode. Click Set up Free Mode in Settings, Free Mode once to download a local Whisper model (Tiny, Base or Small; Small is the default) into %LOCALAPPDATA%\\JoyVoice\\models. After that it runs without internet. Bangla to English translation is built in offline through Whisper’s translate task. Other translation targets are transcription-only in Free Mode for now, and the AI text styles need Cloud mode."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Which languages does JoyVoice support?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Ten: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese. Any of the 10 can be the spoken source (or use auto-detect) and any of the 10 can be the translation target. Press Ctrl+Shift+L to switch language pair without opening Settings."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Will JoyVoice lose my words if a paste or a long recording fails?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "It is designed not to. Text is saved to the local history before JoyVoice tries to paste, so it survives a failed paste. For long recordings, if one chunk fails after earlier chunks succeeded, the translated chunks so far are kept instead of dropping the whole dictation, and usable partial speech is preserved in history for review."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does JoyVoice overwrite my clipboard?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. It saves your current clipboard, pastes the result with Ctrl+V (up to 3 attempts with exponential backoff), and then restores your original clipboard. Restoring is on by default through the restore_clipboard setting."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Is my dictated text or API key written to a log file?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Not in the clear. Crash reports store only the exception type, the message length and redacted stack frames. Log lines scrub keys and bearer tokens to [REDACTED], show transcripts only as 80-character previews, and never log raw audio bytes. Your API key lives only in local settings or in the JV_API_KEY environment variable."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What leaves my computer in cloud mode?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "In cloud mode the recorded speech is sent for transcription, to the Google Web Speech service or to the optional native-audio route of your configured gateway, and the transcript text is sent to the configured text model for translation and styling. The default gateway is https://gpt.bdx.market/v1 and you can point JoyVoice at any OpenAI-compatible base URL in Settings, API. Free and Offline mode makes no cloud calls after the one-time model download."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does JoyVoice run on macOS or Linux?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Not today. JoyVoice is Windows-only because global hotkeys, clipboard automation and audio capture are tied to Win32 APIs. macOS and Linux hotkey and paste backends are on the roadmap as planned work, not shipped."
+   }
+  }
+ ]
+}
+</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "BreadcrumbList",
+ "itemListElement": [
+  {
+   "@type": "ListItem",
+   "position": 1,
+   "name": "MHJoy99",
+   "item": "https://github.com/MHJoy99"
+  },
+  {
+   "@type": "ListItem",
+   "position": 2,
+   "name": "JoyVoice",
+   "item": "https://mhjoy99.github.io/joyvoice/"
+  }
+ ]
+}
+</script>
+<script>document.documentElement.className+=' js'</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol><symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></symbol><symbol id="i-wand" viewBox="0 0 24 24"><path d="M5 19L15 9M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3L21 14l-1.3.7L19 16l-.7-1.3L17 14l1.3-.7z"/></symbol><symbol id="i-glass" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="6"/><path d="M8 12h.01M11 10v4M14 9v6M17 11v2"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><rect x="6" y="4.5" width="12" height="16" rx="2"/><path d="M9 4.5h6v3H9zM9 12h6M9 16h4"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 3-6.5M3.5 4v4h4M12 8v4l3 2"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol><symbol id="i-kbd" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol><symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5zM4 5.5v16M8 7.5h8"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol><symbol id="i-txt" viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/></symbol><symbol id="i-conv" viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/></symbol><symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol></defs></svg>
+<a class="skip" href="#main">Skip to content</a>
+<header class="hdr"><div class="wrap">
+  <a class="brand" href="./" aria-label="JoyVoice home"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#7c3aed"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#lg)"/><rect x="25" y="12" width="14" height="26" rx="7" fill="#fff"/><path d="M17 30a15 15 0 0 0 30 0M32 45v7M24 52h16" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/></svg><span>JoyVoice</span></a>
+  <nav class="nav" aria-label="Primary">
+    <a href="#features">Features</a><a href="#how">How it works</a><a href="#languages">Languages</a><a class="keep" href="#install">Install</a><a href="#faq">FAQ</a>
+    <a class="gh" href="https://github.com/MHJoy99/joyvoice"><svg class="ico fill" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gh"/></svg><span>GitHub</span></a>
+  </nav>
+</div></header>
+
+<main id="main">
+<section class="hero" aria-labelledby="h1">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow"><b>v2.5.5</b> Windows 10 &amp; 11 &middot; MIT licensed</span>
+      <h1 id="h1"><span class="grad">Press F8.</span> Speak. It&nbsp;pastes.</h1>
+      <p class="lede"><strong>JoyVoice is a floating-mic voice typing and speech translation app for Windows.</strong> Dictate in 10 languages, including <span class="bn">বাংলা</span> and English, and get clean text pasted into whatever app your cursor is in. No window switching, no copy and paste.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/MHJoy99/joyvoice/releases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download for Windows</a>
+        <a class="btn" href="https://github.com/MHJoy99/joyvoice"><svg class="ico fill" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gh"/></svg>Get it on GitHub</a>
+        <a class="btn link" href="https://github.com/MHJoy99/joyvoice#readme"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>Read the docs</a>
+      </div>
+      <ul class="chips" aria-label="Highlights"><li><b>10</b> languages</li><li>Auto-detect</li><li>No GPU needed</li><li>Free &amp; offline mode</li><li>Clipboard-safe paste</li></ul>
+    </div>
+    <div class="stage" aria-label="Animated demo of JoyVoice recording, transcribing and pasting">
+      <div class="halo" aria-hidden="true"><i></i><i></i><i></i></div>
+      <span class="float f1 bn" aria-hidden="true">বাংলা</span><span class="float f2" aria-hidden="true">हिन्दी</span><span class="float f3" aria-hidden="true">日本語</span><span class="float f4" aria-hidden="true">العربية</span>
+      <div class="pill" role="img" aria-label="JoyVoice floating widget: recording, then transcribing, then pasted">
+        <div class="orb"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mic"/></svg></div>
+        <div class="pill-mid">
+          <div class="state"><span class="st-rec"><i></i>Recording</span><span class="st-trn"><i></i>Transcribing</span><span class="st-ok"><i></i>Pasted</span></div>
+          <div class="timer"><ul><li>0:01</li><li>0:02</li><li>0:03</li><li>0:04</li></ul></div>
+        </div>
+        <span class="badge">BN &rarr; EN</span>
+        <div class="bars5" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <div class="doc">
+        <div class="doc-bar" aria-hidden="true"><i></i><i></i><i></i><span>Any app, at your cursor</span></div>
+        <div class="doc-body">
+          <p class="src" lang="bn"><small lang="en">You say &middot; Bangla</small>আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না</p>
+          <p class="dst"><small>JoyVoice pastes &middot; English</small><span class="l l1">I won&rsquo;t be able to join</span><span class="l l2">the meeting tomorrow morning.<i class="caret"></i></span></p>
+          <p class="pasted"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>Pasted <span>clipboard restored</span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ribbon" aria-hidden="true"><i style="--h:47;--c:rgb(124,58,237);--d:2.19s;--dl:-0.69s"></i><i style="--h:54;--c:rgb(123,59,237);--d:1.92s;--dl:-1.28s"></i><i style="--h:57;--c:rgb(121,61,237);--d:1.95s;--dl:-1.81s"></i><i style="--h:59;--c:rgb(120,62,237);--d:1.86s;--dl:-1.53s"></i><i style="--h:59;--c:rgb(119,63,237);--d:1.24s;--dl:-0.90s"></i><i style="--h:53;--c:rgb(117,64,237);--d:1.88s;--dl:-0.13s"></i><i style="--h:56;--c:rgb(116,66,237);--d:1.56s;--dl:-2.21s"></i><i style="--h:59;--c:rgb(115,67,237);--d:1.07s;--dl:-1.23s"></i><i style="--h:60;--c:rgb(113,68,237);--d:1.86s;--dl:-1.55s"></i><i style="--h:54;--c:rgb(112,70,237);--d:2.18s;--dl:-2.18s"></i><i style="--h:53;--c:rgb(111,71,237);--d:1.37s;--dl:-2.01s"></i><i style="--h:60;--c:rgb(109,72,236);--d:1.11s;--dl:-0.71s"></i><i style="--h:69;--c:rgb(108,73,236);--d:1.31s;--dl:-2.25s"></i><i style="--h:79;--c:rgb(107,75,236);--d:1.92s;--dl:-2.11s"></i><i style="--h:74;--c:rgb(105,76,236);--d:1.28s;--dl:-1.35s"></i><i style="--h:84;--c:rgb(104,77,236);--d:1.49s;--dl:-0.46s"></i><i style="--h:88;--c:rgb(103,79,236);--d:0.98s;--dl:-0.88s"></i><i style="--h:72;--c:rgb(101,80,236);--d:1.83s;--dl:-2.22s"></i><i style="--h:64;--c:rgb(100,81,236);--d:1.13s;--dl:-0.97s"></i><i style="--h:50;--c:rgb(99,82,236);--d:1.41s;--dl:-1.02s"></i><i style="--h:61;--c:rgb(97,84,236);--d:1.64s;--dl:-1.47s"></i><i style="--h:70;--c:rgb(96,85,236);--d:2.17s;--dl:-1.10s"></i><i style="--h:88;--c:rgb(95,86,236);--d:1.79s;--dl:-1.52s"></i><i style="--h:86;--c:rgb(94,88,236);--d:1.61s;--dl:-1.65s"></i><i style="--h:93;--c:rgb(92,89,236);--d:1.46s;--dl:-1.70s"></i><i style="--h:76;--c:rgb(91,90,236);--d:1.72s;--dl:-0.84s"></i><i style="--h:70;--c:rgb(90,92,236);--d:1.45s;--dl:-1.91s"></i><i style="--h:68;--c:rgb(88,93,236);--d:1.06s;--dl:-1.97s"></i><i style="--h:51;--c:rgb(87,94,236);--d:1.47s;--dl:-0.37s"></i><i style="--h:50;--c:rgb(86,95,236);--d:2.29s;--dl:-0.53s"></i><i style="--h:59;--c:rgb(84,97,236);--d:1.10s;--dl:-1.10s"></i><i style="--h:60;--c:rgb(83,98,236);--d:1.09s;--dl:-2.21s"></i><i style="--h:61;--c:rgb(82,99,235);--d:2.15s;--dl:-2.12s"></i><i style="--h:57;--c:rgb(80,101,235);--d:1.97s;--dl:-0.66s"></i><i style="--h:48;--c:rgb(79,102,235);--d:1.25s;--dl:-0.18s"></i><i style="--h:51;--c:rgb(78,103,235);--d:1.76s;--dl:-0.56s"></i><i style="--h:59;--c:rgb(76,104,235);--d:1.59s;--dl:-1.65s"></i><i style="--h:53;--c:rgb(75,106,235);--d:2.13s;--dl:-0.56s"></i><i style="--h:50;--c:rgb(74,107,235);--d:2.15s;--dl:-0.28s"></i><i style="--h:57;--c:rgb(72,108,235);--d:0.90s;--dl:-2.19s"></i><i style="--h:67;--c:rgb(71,110,235);--d:2.19s;--dl:-0.05s"></i><i style="--h:80;--c:rgb(70,111,235);--d:1.16s;--dl:-2.32s"></i><i style="--h:81;--c:rgb(68,112,235);--d:1.85s;--dl:-0.64s"></i><i style="--h:78;--c:rgb(67,113,235);--d:1.19s;--dl:-1.35s"></i><i style="--h:75;--c:rgb(66,115,235);--d:1.98s;--dl:-1.68s"></i><i style="--h:82;--c:rgb(64,116,235);--d:1.60s;--dl:-0.08s"></i><i style="--h:64;--c:rgb(63,117,235);--d:2.19s;--dl:-0.31s"></i><i style="--h:60;--c:rgb(62,119,235);--d:2.15s;--dl:-0.09s"></i><i style="--h:59;--c:rgb(60,120,235);--d:2.11s;--dl:-2.38s"></i><i style="--h:74;--c:rgb(59,121,235);--d:1.97s;--dl:-1.01s"></i><i style="--h:73;--c:rgb(58,122,235);--d:1.92s;--dl:-2.12s"></i><i style="--h:82;--c:rgb(56,124,235);--d:1.23s;--dl:-0.97s"></i><i style="--h:93;--c:rgb(55,125,234);--d:1.68s;--dl:-0.84s"></i><i style="--h:85;--c:rgb(54,126,234);--d:1.93s;--dl:-0.80s"></i><i style="--h:81;--c:rgb(52,128,234);--d:1.49s;--dl:-0.48s"></i><i style="--h:66;--c:rgb(51,129,234);--d:2.28s;--dl:-2.39s"></i><i style="--h:61;--c:rgb(50,130,234);--d:2.12s;--dl:-2.20s"></i><i style="--h:49;--c:rgb(48,131,234);--d:1.80s;--dl:-0.32s"></i><i style="--h:56;--c:rgb(47,133,234);--d:1.68s;--dl:-1.85s"></i><i style="--h:63;--c:rgb(46,134,234);--d:1.57s;--dl:-0.45s"></i><i style="--h:58;--c:rgb(44,135,234);--d:1.13s;--dl:-1.59s"></i><i style="--h:56;--c:rgb(43,137,234);--d:1.69s;--dl:-1.22s"></i><i style="--h:54;--c:rgb(42,138,234);--d:1.41s;--dl:-1.80s"></i><i style="--h:50;--c:rgb(41,139,234);--d:1.32s;--dl:-1.30s"></i><i style="--h:54;--c:rgb(39,141,234);--d:1.91s;--dl:-0.70s"></i><i style="--h:54;--c:rgb(38,142,234);--d:1.82s;--dl:-1.03s"></i><i style="--h:50;--c:rgb(37,143,234);--d:1.98s;--dl:-1.97s"></i><i style="--h:56;--c:rgb(35,144,234);--d:2.17s;--dl:-1.63s"></i><i style="--h:66;--c:rgb(34,146,234);--d:0.94s;--dl:-1.83s"></i><i style="--h:70;--c:rgb(33,147,234);--d:1.91s;--dl:-2.16s"></i><i style="--h:69;--c:rgb(31,148,234);--d:1.09s;--dl:-0.19s"></i><i style="--h:75;--c:rgb(30,150,234);--d:1.02s;--dl:-0.02s"></i><i style="--h:86;--c:rgb(29,151,234);--d:2.22s;--dl:-0.46s"></i><i style="--h:75;--c:rgb(27,152,233);--d:1.18s;--dl:-1.62s"></i><i style="--h:71;--c:rgb(26,153,233);--d:1.54s;--dl:-2.39s"></i><i style="--h:64;--c:rgb(25,155,233);--d:1.84s;--dl:-1.86s"></i><i style="--h:52;--c:rgb(23,156,233);--d:1.48s;--dl:-0.15s"></i><i style="--h:58;--c:rgb(22,157,233);--d:2.03s;--dl:-2.34s"></i><i style="--h:67;--c:rgb(21,159,233);--d:2.20s;--dl:-1.22s"></i><i style="--h:74;--c:rgb(19,160,233);--d:1.19s;--dl:-1.45s"></i><i style="--h:79;--c:rgb(18,161,233);--d:1.01s;--dl:-0.65s"></i><i style="--h:88;--c:rgb(17,162,233);--d:1.68s;--dl:-1.15s"></i><i style="--h:90;--c:rgb(15,164,233);--d:1.01s;--dl:-0.99s"></i><i style="--h:71;--c:rgb(14,165,233);--d:0.91s;--dl:-0.01s"></i></div>
+</section>
+
+<div class="langs" aria-label="Supported languages"><div class="track"><span><span lang="bn">বাংলা</span><span lang="en">English</span><span lang="ru">Русский</span><span lang="hi">हिन्दी</span><span lang="es">Español</span><span lang="ar">العربية</span><span lang="zh">中文</span><span lang="ja">日本語</span><span lang="fr">Français</span><span lang="pt">Português</span></span><span aria-hidden="true"><span lang="bn">বাংলা</span><span lang="en">English</span><span lang="ru">Русский</span><span lang="hi">हिन्दी</span><span lang="es">Español</span><span lang="ar">العربية</span><span lang="zh">中文</span><span lang="ja">日本語</span><span lang="fr">Français</span><span lang="pt">Português</span></span></div></div>
+
+<section id="examples" aria-labelledby="ex-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Speak, don&rsquo;t type</span><h2 id="ex-h">Say it in your language. <span class="grad">Get it in yours.</span></h2><p>Switch from Bangla to Russian to Chinese mid-conversation. Auto-detect means you never touch a language setting, or lock a source language if you prefer.</p></div>
+    <div class="ex-grid"><article class="ex rv"><div class="tag"><b>বাংলা</b> You say</div><p class="say" lang="bn">আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না</p><div class="get"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg><span><small class="tag" style="display:block;margin-bottom:2px">JoyVoice pastes</small>I won't be able to join the meeting tomorrow morning.</span></div></article>
+<article class="ex rv"><div class="tag"><b>Русский</b> You say</div><p class="say" lang="ru">Я не могу присоединиться к встрече завтра утром</p><div class="get"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg><span><small class="tag" style="display:block;margin-bottom:2px">JoyVoice pastes</small>I can't join the meeting tomorrow morning.</span></div></article>
+<article class="ex rv"><div class="tag"><b>中文</b> You say</div><p class="say" lang="zh">我明天早上不能参加会议</p><div class="get"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg><span><small class="tag" style="display:block;margin-bottom:2px">JoyVoice pastes</small>I can't attend the meeting tomorrow morning.</span></div></article>
+<article class="ex rv"><div class="tag"><b>العربية</b> You say</div><p class="say" lang="ar" dir="rtl">لا أستطيع الانضمام إلى الاجتماع صباح الغد</p><div class="get"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg><span><small class="tag" style="display:block;margin-bottom:2px">JoyVoice pastes</small>I can't join the meeting tomorrow morning.</span></div></article></div>
+    <p class="note">Examples are taken from the project README. Output depends on the speech engine, the model you configure and your recording.</p>
+  </div>
+</section>
+
+<section id="how" class="alt" aria-labelledby="how-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">How it works</span><h2 id="how-h">From microphone to pasted text in <span class="grad">five steps</span></h2><p>Press F8, speak, press F8 again. The pipeline runs in the background and pastes where your cursor is.</p></div>
+    <div class="diag rv"><svg class="dw" viewBox="0 0 1000 330" role="img" aria-labelledby="dwt dwd"><title id="dwt">JoyVoice pipeline</title><desc id="dwd">Microphone audio is converted to PCM16, transcribed, translated and styled, then pasted into the focused app. A history store keeps the text before paste, and Free Mode swaps cloud transcription for local Whisper.</desc>
+<defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><path class="wire" d="M160 110H225"/><path class="wire" d="M365 110H430"/><path class="wire" d="M570 110H635"/><path class="wire" d="M775 110H840"/><g class="dn" style="--nd:-6.30s"><rect class="box" x="20" y="40" width="140" height="140" rx="18"/><rect class="glow" x="20" y="40" width="140" height="140" rx="18"/>
+<circle cx="90" cy="74" r="20" fill="url(#gv)"/><g transform="translate(90 74)"><g class="ic" transform="translate(-12 -12)"><use href="#i-mic" width="24" height="24"/></g></g>
+<text class="t" x="90" y="118" text-anchor="middle">Microphone</text>
+<text class="s" x="90" y="138" text-anchor="middle">Any mic, WASAPI</text><text class="s" x="90" y="154" text-anchor="middle">sounddevice capture</text>
+<text class="m" x="90" y="172" text-anchor="middle">16 kHz mono float32</text></g><g class="dn" style="--nd:-4.80s"><rect class="box" x="225" y="40" width="140" height="140" rx="18"/><rect class="glow" x="225" y="40" width="140" height="140" rx="18"/>
+<circle cx="295" cy="74" r="20" fill="url(#gv)"/><g transform="translate(295 74)"><g class="ic" transform="translate(-12 -12)"><use href="#i-conv" width="24" height="24"/></g></g>
+<text class="t" x="295" y="118" text-anchor="middle">Convert</text>
+<text class="s" x="295" y="138" text-anchor="middle">float32 to int16 PCM</text><text class="s" x="295" y="154" text-anchor="middle">ready for the cloud</text>
+<text class="m" x="295" y="172" text-anchor="middle">< 50 ms</text></g><g class="dn" style="--nd:-3.30s"><rect class="box" x="430" y="40" width="140" height="140" rx="18"/><rect class="glow" x="430" y="40" width="140" height="140" rx="18"/>
+<circle cx="500" cy="74" r="20" fill="url(#gv)"/><g transform="translate(500 74)"><g class="ic" transform="translate(-12 -12)"><use href="#i-txt" width="24" height="24"/></g></g>
+<text class="t" x="500" y="118" text-anchor="middle">Speech to text</text>
+<text class="s" x="500" y="138" text-anchor="middle">Google Web Speech ASR</text><text class="s" x="500" y="154" text-anchor="middle">or native audio route</text>
+<text class="m" x="500" y="172" text-anchor="middle">auto-detect</text></g><g class="dn" style="--nd:-1.80s"><rect class="box" x="635" y="40" width="140" height="140" rx="18"/><rect class="glow" x="635" y="40" width="140" height="140" rx="18"/>
+<circle cx="705" cy="74" r="20" fill="url(#gv)"/><g transform="translate(705 74)"><g class="ic" transform="translate(-12 -12)"><use href="#i-wand" width="24" height="24"/></g></g>
+<text class="t" x="705" y="118" text-anchor="middle">Translate + style</text>
+<text class="s" x="705" y="138" text-anchor="middle">Gemini text model</text><text class="s" x="705" y="154" text-anchor="middle">transcript salvage</text>
+<text class="m" x="705" y="172" text-anchor="middle">any of 10 targets</text></g><g class="dn" style="--nd:-0.30s"><rect class="box" x="840" y="40" width="140" height="140" rx="18"/><rect class="glow" x="840" y="40" width="140" height="140" rx="18"/>
+<circle cx="910" cy="74" r="20" fill="url(#gv)"/><g transform="translate(910 74)"><g class="ic" transform="translate(-12 -12)"><use href="#i-clip" width="24" height="24"/></g></g>
+<text class="t" x="910" y="118" text-anchor="middle">Paste</text>
+<text class="s" x="910" y="138" text-anchor="middle">Ctrl+V, retry x3</text><text class="s" x="910" y="154" text-anchor="middle">clipboard restored</text>
+<text class="m" x="910" y="172" text-anchor="middle">~300 ms paste delay</text></g><path class="wire" d="M500 180V228"/><rect class="dbox" x="370" y="228" width="260" height="70" rx="14"/>
+<text class="dlab" x="500" y="254" text-anchor="middle">FREE &amp; OFFLINE MODE</text><text class="s dn" x="500" y="276" text-anchor="middle" style="font:500 12.5px var(--sans);fill:var(--ink2)">local faster-whisper replaces cloud ASR</text><path class="wire" d="M705 180V205H775V228"/><path class="wire" d="M910 180V205H835V228"/><rect class="dbox" x="665" y="228" width="280" height="70" rx="14"/>
+<text class="dlab" x="805" y="254" text-anchor="middle">HISTORY STORE</text><text class="s dn" x="805" y="276" text-anchor="middle" style="font:500 12.5px var(--sans);fill:var(--ink2)">text is saved before paste is attempted</text><circle r="7" cx="0" cy="110" fill="url(#gv)" style="animation:travelx 6s linear infinite"/><style>@keyframes travelx{0%{transform:translateX(90px)}100%{transform:translateX(910px)}}@media (prefers-reduced-motion:reduce){circle{animation:none!important;transform:translateX(90px)}}</style></svg><svg class="dt" viewBox="0 0 340 930" role="img" aria-labelledby="dtt dtd"><title id="dtt">JoyVoice pipeline (vertical)</title><desc id="dtd">Microphone audio is converted to PCM16, transcribed, translated and styled, then pasted into the focused app. A history store keeps the text before paste, and Free Mode swaps cloud transcription for local Whisper.</desc>
+<defs><linearGradient id="gv2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><path class="wire" d="M56 122V156"/><path class="wire" d="M56 268V302"/><path class="wire" d="M56 414V448"/><path class="wire" d="M56 560V594"/><g class="dn" style="--nd:-6.30s"><rect class="box" x="20" y="10" width="300" height="112" rx="18"/><rect class="glow" style="stroke:url(#gv2)" x="20" y="10" width="300" height="112" rx="18"/>
+<circle cx="56" cy="66" r="20" fill="url(#gv2)"/><g transform="translate(56 66)"><g class="ic" transform="translate(-12 -12)"><use href="#i-mic" width="24" height="24"/></g></g>
+<text class="t" x="94" y="46">Microphone</text><text class="s" x="94" y="66">Any mic, WASAPI</text><text class="s" x="94" y="83">sounddevice capture</text><text class="m" x="94" y="106">16 kHz mono float32</text></g><g class="dn" style="--nd:-4.80s"><rect class="box" x="20" y="156" width="300" height="112" rx="18"/><rect class="glow" style="stroke:url(#gv2)" x="20" y="156" width="300" height="112" rx="18"/>
+<circle cx="56" cy="212" r="20" fill="url(#gv2)"/><g transform="translate(56 212)"><g class="ic" transform="translate(-12 -12)"><use href="#i-conv" width="24" height="24"/></g></g>
+<text class="t" x="94" y="192">Convert</text><text class="s" x="94" y="212">float32 to int16 PCM</text><text class="s" x="94" y="229">ready for the cloud</text><text class="m" x="94" y="252">< 50 ms</text></g><g class="dn" style="--nd:-3.30s"><rect class="box" x="20" y="302" width="300" height="112" rx="18"/><rect class="glow" style="stroke:url(#gv2)" x="20" y="302" width="300" height="112" rx="18"/>
+<circle cx="56" cy="358" r="20" fill="url(#gv2)"/><g transform="translate(56 358)"><g class="ic" transform="translate(-12 -12)"><use href="#i-txt" width="24" height="24"/></g></g>
+<text class="t" x="94" y="338">Speech to text</text><text class="s" x="94" y="358">Google Web Speech ASR</text><text class="s" x="94" y="375">or native audio route</text><text class="m" x="94" y="398">auto-detect</text></g><g class="dn" style="--nd:-1.80s"><rect class="box" x="20" y="448" width="300" height="112" rx="18"/><rect class="glow" style="stroke:url(#gv2)" x="20" y="448" width="300" height="112" rx="18"/>
+<circle cx="56" cy="504" r="20" fill="url(#gv2)"/><g transform="translate(56 504)"><g class="ic" transform="translate(-12 -12)"><use href="#i-wand" width="24" height="24"/></g></g>
+<text class="t" x="94" y="484">Translate + style</text><text class="s" x="94" y="504">Gemini text model</text><text class="s" x="94" y="521">transcript salvage</text><text class="m" x="94" y="544">any of 10 targets</text></g><g class="dn" style="--nd:-0.30s"><rect class="box" x="20" y="594" width="300" height="112" rx="18"/><rect class="glow" style="stroke:url(#gv2)" x="20" y="594" width="300" height="112" rx="18"/>
+<circle cx="56" cy="650" r="20" fill="url(#gv2)"/><g transform="translate(56 650)"><g class="ic" transform="translate(-12 -12)"><use href="#i-clip" width="24" height="24"/></g></g>
+<text class="t" x="94" y="630">Paste</text><text class="s" x="94" y="650">Ctrl+V, retry x3</text><text class="s" x="94" y="667">clipboard restored</text><text class="m" x="94" y="690">~300 ms paste delay</text></g><rect class="dbox" x="20" y="734" width="300" height="78" rx="14"/><text class="dlab" x="170" y="764" text-anchor="middle">FREE &amp; OFFLINE MODE</text><text class="s dn" x="170" y="788" text-anchor="middle" style="font:500 12.5px var(--sans);fill:var(--ink2)">local faster-whisper replaces cloud ASR</text><rect class="dbox" x="20" y="828" width="300" height="78" rx="14"/><text class="dlab" x="170" y="858" text-anchor="middle">HISTORY STORE</text><text class="s dn" x="170" y="882" text-anchor="middle" style="font:500 12.5px var(--sans);fill:var(--ink2)">text is saved before paste is attempted</text><circle r="7" cx="56" cy="0" fill="url(#gv2)" style="animation:travely 6s linear infinite"/><style>@keyframes travely{0%{transform:translateY(66px)}100%{transform:translateY(650px)}}@media (prefers-reduced-motion:reduce){circle{animation:none!important;transform:translateY(66px)}}</style></svg></div>
+    <ol class="steps">
+      <li class="rv"><b>Record</b>Your mic, captured at 16 kHz mono float32 through <code>sounddevice</code>.</li>
+      <li class="rv"><b>Convert</b>float32 becomes signed int16 PCM. <em>&lt; 50 ms</em></li>
+      <li class="rv"><b>Transcribe</b>Google Web Speech ASR, or the optional native-audio route that transcribes and translates in one request.</li>
+      <li class="rv"><b>Translate + style</b>A Gemini text model translates and applies your text style. If cloud translation fails, the transcript is salvaged.</li>
+      <li class="rv"><b>Paste</b>Clipboard-safe <kbd>Ctrl</kbd>+<kbd>V</kbd> with retry, then your clipboard is restored. <em>~300 ms</em></li>
+    </ol>
+    <p class="note">Total time varies with recording length and network conditions. The README cites roughly 1&ndash;2 seconds for short audio on the optional native gateway route; longer recordings take longer. JoyVoice is batch dictation: it processes when you stop recording.</p>
+  </div>
+</section>
+
+<section id="features" aria-labelledby="f-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Features</span><h2 id="f-h">Built for people who talk <span class="grad">across languages</span></h2><p>Everything below is in the app today, taken from the JoyVoice README and changelog.</p></div>
+    <div class="feat"><article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>10 languages, auto-detect</h3><p>Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese. Speak naturally and JoyVoice detects the language, or lock a source language if you prefer.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-swap"/></svg></div><h3>Translate to any of the 10</h3><p>Pick any supported language as the target, not only English. Output modes: original only, translation only, or both together. Labels adapt to your language pair.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-wand"/></svg></div><h3>Text styles</h3><p>Clean English, raw transcript, prompt for AI, professional message and Facebook post. The AI styles use a text model and need Cloud mode.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-glass"/></svg></div><h3>Floating glass widget</h3><p>A translucent, always-on-top mic pill with a live 5-bar waveform, recording timer, language badge (like BN to EN), live preview and a confidence bar.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clip"/></svg></div><h3>Clipboard-safe paste</h3><p>Saves your clipboard, pastes the result with Ctrl+V (3 attempts, exponential backoff, 300 ms default delay), then restores what you had copied.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hist"/></svg></div><h3>History before paste</h3><p>Every result is written to local history before paste is attempted, so a failed paste never costs you the text. Right-click the mic to re-copy your last 5 dictations.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chip"/></svg></div><h3>Free &amp; Offline mode</h3><p>No API key, no cloud. A local faster-whisper model (Tiny, Base or Small) downloads once, then works fully offline. Bangla to English translation is built in.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chat"/></svg></div><h3>Spoken language override</h3><p>Name the target at the end of a sentence (for example saying a language name, or a Bangla phrase like “বাংলায় দাও”) to switch the target for that one dictation.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kbd"/></svg></div><h3>Global hotkeys</h3><p><kbd>F8</kbd> toggles recording (or hold-to-record), <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> cycles the language pair, <kbd>Esc</kbd> cancels mid-record or mid-transcribe.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plug"/></svg></div><h3>Bring your own endpoint</h3><p>Set the OpenAI-compatible base URL, API key and audio/text models in Settings, API. Fetch models and Test connection buttons included. No environment variables required.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg></div><h3>Self-healing</h3><p>A 2-second visibility watchdog restores the widget if Windows hides it, and a 5-second hotkey health check re-registers F8 after sleep, wake or UAC changes.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg></div><h3>Safe by default</h3><p>In v2.5.5, if English is required and translation fails, JoyVoice pastes nothing untranslated and saves the transcript to History. Logs redact secrets and keep only short previews.</p></article></div>
+    <div class="also rv"><span>Also:</span><span class="chip">Phrase replacements table</span><span class="chip">Beeps for start, stop, done and error</span><span class="chip">Launch on startup</span><span class="chip">Microphone picker</span><span class="chip">Searchable history list</span><span class="chip">Tray icon</span></div>
+  </div>
+</section>
+
+<section id="modes" class="alt" aria-labelledby="m-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Two engines, one app</span><h2 id="m-h">Cloud when you want it. <span class="grad">Offline when you don&rsquo;t.</span></h2><p>Switch engines in Settings. Cloud mode is the default; the single <code>JoyVoice.exe</code> includes both.</p></div>
+    <div class="modes">
+      <div class="mode cloud rv">
+        <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"/></svg> Cloud mode</h3><p class="sub">Default &middot; needs an API key</p>
+        <ul><li>10 languages with auto-detect and translation to any of 10 targets</li><li>Google Web Speech ASR, plus an optional native-audio route for transcript and translation in one request</li><li>Gemini text model for translation and the AI text styles</li><li>OpenAI-compatible endpoint, configured in Settings, API</li><li>No GPU, no CUDA, no PyTorch</li></ul>
+      </div>
+      <div class="mode free rv">
+        <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chip"/></svg> Free &amp; Offline mode</h3><p class="sub">No API key &middot; no cloud calls after setup</p>
+        <ul><li>Local Whisper (faster-whisper) on your CPU, or GPU if available</li><li>One-click <b>Set up Free Mode</b> downloads the model once; then it works offline</li><li>Choose Tiny, Base or Small (Small is the default)</li><li>Built-in <b>Test</b> button to confirm offline transcription</li><li>Built-in Bangla to English translation via Whisper&rsquo;s translate task</li><li class="no">Other translation targets are transcription-only for now; AI text styles need Cloud mode</li></ul>
+      </div>
+    </div>
+    <p class="callout rv">Planned, not shipped: offline multilingual translation (NLLB) and offline AI text styles (Ollama) for Free Mode.</p>
+  </div>
+</section>
+
+<section id="languages" aria-labelledby="l-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Languages</span><h2 id="l-h"><span class="grad">Ten languages</span>, any direction</h2><p>Each one works as a source (or via auto-detect) and as a translation target. Bangla gets first-class treatment: Bangladeshi Bengali with English code-switching is handled explicitly in the transcription prompt.</p></div>
+    <div class="ltiles"><div class="lt rv" lang="bn"><b>বাংলা</b><span lang="en">Bangla</span><code>bn</code></div><div class="lt rv" lang="en"><b>English</b><span lang="en">English</span><code>en</code></div><div class="lt rv" lang="ru"><b>Русский</b><span lang="en">Russian</span><code>ru</code></div><div class="lt rv" lang="hi"><b>हिन्दी</b><span lang="en">Hindi</span><code>hi</code></div><div class="lt rv" lang="es"><b>Español</b><span lang="en">Spanish</span><code>es</code></div><div class="lt rv" lang="ar"><b>العربية</b><span lang="en">Arabic</span><code>ar</code></div><div class="lt rv" lang="zh"><b>中文</b><span lang="en">Chinese</span><code>zh</code></div><div class="lt rv" lang="ja"><b>日本語</b><span lang="en">Japanese</span><code>ja</code></div><div class="lt rv" lang="fr"><b>Français</b><span lang="en">French</span><code>fr</code></div><div class="lt rv" lang="pt"><b>Português</b><span lang="en">Portuguese</span><code>pt</code></div><div class="lt auto rv"><b>Auto</b><span>Detect language</span><code>auto</code></div></div>
+  </div>
+</section>
+
+<section id="reliable" class="alt" aria-labelledby="r-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Reliability</span><h2 id="r-h">Designed to <span class="grad">never lose your words</span></h2><p>Voice typing is only useful if you can trust it. These safeguards are in the app.</p></div>
+    <div class="rel">
+      <div class="rv">
+        <h3>Widget states</h3>
+        <div class="states" role="img" aria-label="Widget states: idle, recording, transcribing, pasted, error"><span class="sp" style="--c:#8d87b3;--sd:0s"><i></i>Idle</span><span class="arr" aria-hidden="true">&rarr;</span><span class="sp" style="--c:var(--rec);--sd:2.5s"><i></i>Recording</span><span class="arr" aria-hidden="true">&rarr;</span><span class="sp" style="--c:var(--info);--sd:5s"><i></i>Transcribing</span><span class="arr" aria-hidden="true">&rarr;</span><span class="sp" style="--c:var(--ok);--sd:7.5s"><i></i>Pasted</span><span class="sp err" style="--c:var(--err)"><i></i>Error</span></div>
+        <p style="color:var(--ink2)">The floating widget changes colour with each state: gray when idle, an orange pulse while recording, blue while transcribing, a green pop when pasted, and red on error. Audio beeps mark start, stop, success and error, so you don&rsquo;t have to look.</p>
+        <div class="callout" style="margin-top:20px">Long recordings are transcribed as ordered chunks. If a later chunk fails, earlier results are kept and usable partial speech is saved to History for review instead of being dropped.</div>
+      </div>
+      <ul class="relist">
+        <li class="rv"><span class="n">1st</span><div><b>History before paste</b><span>Text is saved to local history first, then paste is attempted.</span></div></li>
+        <li class="rv"><span class="n">&times;3</span><div><b>Paste retry</b><span>Three attempts with exponential backoff handle focus-switch race conditions.</span></div></li>
+        <li class="rv"><span class="n">2 s</span><div><b>Visibility watchdog</b><span>Restores the widget if Windows hides it (virtual desktops, UAC, sleep or wake).</span></div></li>
+        <li class="rv"><span class="n">5 s</span><div><b>Hotkey health check</b><span>Verifies the global hotkey and re-registers it when needed.</span></div></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="preview" aria-labelledby="p-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Preview</span><h2 id="p-h">Always on top, <span class="grad">never in the way</span></h2></div>
+    <div class="gal">
+      <figure class="rv"><img src="img/desktop-mockup.jpg" width="1200" height="800" loading="lazy" alt="Illustration of a code editor with the circular JoyVoice microphone button floating in the bottom-right corner"><figcaption>Illustration from the repo: the floating mic sits over your workspace.</figcaption></figure>
+      <figure class="rv"><img src="img/before-after.png" width="1400" height="800" loading="lazy" alt="Before and after illustration: a raw transcript with filler words and stutters becomes clean pasted English"><figcaption>Illustration from the repo: rule-based cleanup removes fillers and stutters, then the result is pasted.</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="alt" aria-labelledby="i-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Quick start</span><h2 id="i-h">Up and dictating in <span class="grad">minutes</span></h2><p>Windows 10 or 11 only. Grab the prebuilt app or run from source.</p></div>
+    <div class="inst">
+      <div class="pane rv">
+        <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg> Download the EXE <span class="tag">recommended</span></h3>
+        <p>A single <code>JoyVoice.exe</code> (about 173 MB) with no Python or venv. It supports both Cloud and Free &amp; Offline mode.</p>
+        <a class="btn primary" href="https://github.com/MHJoy99/joyvoice/releases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Open GitHub Releases</a>
+        <ol><li>Download and double-click <code>JoyVoice.exe</code>. The floating mic appears.</li><li><b>Cloud:</b> add your key in <b>Settings, API</b> (stored locally) or set <code>JV_API_KEY</code>.</li><li><b>Free &amp; Offline:</b> open <b>Settings, Free Mode</b> and click <b>Set up Free Mode</b> once.</li><li>Focus any app, press <kbd>F8</kbd>, speak, press <kbd>F8</kbd> again.</li></ol>
+      </div>
+      <div class="pane rv">
+        <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kbd"/></svg> Run from source</h3>
+        <p>Windows only. Uses Python 3.11 and the project&rsquo;s <code>requirements.txt</code>.</p>
+        <div class="code"><button class="cp" type="button" aria-label="Copy commands"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span></button><pre><code>git clone https://github.com/MHJoy99/joyvoice.git
+cd joyvoice
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+set JV_API_KEY=your_bdx_market_api_key
+python app\main.py</code></pre></div>
+        <p style="margin-top:14px">Prefer a launcher? Double-click <code>run.bat</code> in the repo, or make a desktop shortcut to it.</p>
+      </div>
+    </div>
+    <p class="warn rv"><b>Heads up:</b> cloud mode sends your recorded speech and transcript text to the services you configure. Use Free &amp; Offline mode if that matters for your use, and respect the terms of the services you connect.</p>
+  </div>
+</section>
+
+<section id="settings" aria-labelledby="s-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Configuration</span><h2 id="s-h">Settings that <span class="grad">matter</span></h2><p>Stored at <code>%APPDATA%\JoyVoice\settings.json</code> and editable from the Settings window (right-click the mic, or use the tray icon).</p></div>
+    <div class="tbl-wrap rv"><table><thead><tr><th>Key</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>language</code></td><td><code>auto</code></td><td>Source language: auto-detect, or lock to bn, ru, zh and so on</td></tr><tr><td><code>target_language</code></td><td><code>en</code></td><td>Translation target: any of the 10 supported codes</td></tr><tr><td><code>output_mode</code></td><td><code>translation</code></td><td>original, translation or both</td></tr><tr><td><code>text_style</code></td><td><code>clean_english</code></td><td>raw, clean_english, prompt_for_ai, professional_message or facebook_post</td></tr><tr><td><code>hotkey</code></td><td><code>F8</code></td><td>Global toggle key (presets or a custom combination)</td></tr><tr><td><code>hotkey_mode</code></td><td><code>toggle</code></td><td>toggle, or hold to record while the key is down</td></tr><tr><td><code>paste_delay_ms</code></td><td><code>300</code></td><td>Delay before Ctrl+V</td></tr><tr><td><code>restore_clipboard</code></td><td><code>true</code></td><td>Restore your original clipboard after pasting</td></tr><tr><td><code>engine_mode</code></td><td><code>cloud</code></td><td>cloud (uses an API key) or free (local models, no API key)</td></tr><tr><td><code>free_asr_model</code></td><td><code>small</code></td><td>Free Mode local Whisper model: tiny, base or small</td></tr></tbody></table></div>
+    <p class="note">Settings tabs: Output, General, API, Free Mode, Hotkey, Audio, Paste, Replacements and History. Config precedence for API values: <code>settings.json</code>, then environment variable, then built-in default.</p>
+  </div>
+</section>
+
+<section id="roadmap" class="alt" aria-labelledby="rm-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">Roadmap</span><h2 id="rm-h">What&rsquo;s <span class="grad">planned</span></h2><p>Everything on this list is future work from the README roadmap. None of it is shipped yet.</p></div>
+    <div class="road">
+      <div class="card rv"><span class="pl">Planned &middot; near term</span><h3>Make it feel instant</h3><ul><li>Faster-model bake-off on real Bangla and English clips</li><li>Sentence-stream pipeline that translates while you speak</li><li>Local usage dashboard</li></ul></div>
+      <div class="card rv"><span class="pl">Planned &middot; medium term</span><h3>Smarter than a dictation box</h3><ul><li>Context-aware style per focused app</li><li>Personal lexicon for names and brands</li><li>macOS and Linux backends</li><li>Plugin outputs</li></ul></div>
+      <div class="card rv"><span class="pl">Planned &middot; long term</span><h3>The hard problems</h3><ul><li>Continuous partial results while you talk</li><li>Multi-speaker meeting mode</li><li>An offline-capable dual path</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="q-h">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">FAQ</span><h2 id="q-h">Questions people <span class="grad">ask</span></h2></div>
+    <div class="faq"><details class="rv"><summary>What is JoyVoice?</summary><p>JoyVoice is a free, open-source (MIT) floating-microphone voice typing and speech translation app for Windows 10 and 11. You press F8, speak, press F8 again, and the cleaned, optionally translated text is pasted into whichever app has your cursor. It supports 10 languages: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese.</p></details>
+<details class="rv"><summary>How do I dictate Bangla or Banglish into English on Windows?</summary><p>Press F8 and speak naturally in Bengali or mixed Bengali and English. With the default auto-detect source and English target, JoyVoice detects the language, translates, and pastes clean English with Ctrl+V into the app under your cursor. The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, so you do not switch languages manually.</p></details>
+<details class="rv"><summary>Do I need a GPU or an API key?</summary><p>You do not need a GPU. Cloud mode uses cloud services for speech and translation and needs no CUDA or PyTorch. It does need an API key for an OpenAI-compatible endpoint, entered in Settings, API, or set as the JV_API_KEY environment variable. Free and Offline mode needs no API key at all.</p></details>
+<details class="rv"><summary>Can JoyVoice work offline?</summary><p>Yes, in Free and Offline mode. Click Set up Free Mode in Settings, Free Mode once to download a local Whisper model (Tiny, Base or Small; Small is the default) into %LOCALAPPDATA%\JoyVoice\models. After that it runs without internet. Bangla to English translation is built in offline through Whisper’s translate task. Other translation targets are transcription-only in Free Mode for now, and the AI text styles need Cloud mode.</p></details>
+<details class="rv"><summary>Which languages does JoyVoice support?</summary><p>Ten: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese. Any of the 10 can be the spoken source (or use auto-detect) and any of the 10 can be the translation target. Press Ctrl+Shift+L to switch language pair without opening Settings.</p></details>
+<details class="rv"><summary>Will JoyVoice lose my words if a paste or a long recording fails?</summary><p>It is designed not to. Text is saved to the local history before JoyVoice tries to paste, so it survives a failed paste. For long recordings, if one chunk fails after earlier chunks succeeded, the translated chunks so far are kept instead of dropping the whole dictation, and usable partial speech is preserved in history for review.</p></details>
+<details class="rv"><summary>Does JoyVoice overwrite my clipboard?</summary><p>No. It saves your current clipboard, pastes the result with Ctrl+V (up to 3 attempts with exponential backoff), and then restores your original clipboard. Restoring is on by default through the restore_clipboard setting.</p></details>
+<details class="rv"><summary>Is my dictated text or API key written to a log file?</summary><p>Not in the clear. Crash reports store only the exception type, the message length and redacted stack frames. Log lines scrub keys and bearer tokens to [REDACTED], show transcripts only as 80-character previews, and never log raw audio bytes. Your API key lives only in local settings or in the JV_API_KEY environment variable.</p></details>
+<details class="rv"><summary>What leaves my computer in cloud mode?</summary><p>In cloud mode the recorded speech is sent for transcription, to the Google Web Speech service or to the optional native-audio route of your configured gateway, and the transcript text is sent to the configured text model for translation and styling. The default gateway is https://gpt.bdx.market/v1 and you can point JoyVoice at any OpenAI-compatible base URL in Settings, API. Free and Offline mode makes no cloud calls after the one-time model download.</p></details>
+<details class="rv"><summary>Does JoyVoice run on macOS or Linux?</summary><p>Not today. JoyVoice is Windows-only because global hotkeys, clipboard automation and audio capture are tied to Win32 APIs. macOS and Linux hotkey and paste backends are on the roadmap as planned work, not shipped.</p></details></div>
+  </div>
+</section>
+
+<section aria-labelledby="mo-h" class="alt">
+  <div class="wrap">
+    <div class="sec-head rv"><span class="kick">More by MHJoy99</span><h2 id="mo-h">Other <span class="grad">projects</span></h2></div>
+    <div class="more"><a class="rv" href="https://mhjoy99.github.io/CCUsageX/"><b>CCUsageX</b><span>Claude Code usage dashboard: tokens, cost per prompt and cache savings.</span><em>mhjoy99.github.io/CCUsageX/</em></a>
+<a class="rv" href="https://mhjoy99.github.io/ZipStream-Hub/"><b>ZipStream-Hub</b><span>Stream video from remote ZIP archives.</span><em>mhjoy99.github.io/ZipStream-Hub/</em></a>
+<a class="rv" href="https://mhjoy99.github.io/bdx-bench/"><b>bdx-bench</b><span>Local LLM benchmark with a leaderboard.</span><em>mhjoy99.github.io/bdx-bench/</em></a>
+<a class="rv" href="https://mhjoy99.github.io/camscanner-mcp-hd-scanner/"><b>camscanner-mcp-hd-scanner</b><span>Local HD document scanner with MCP.</span><em>mhjoy99.github.io/camscanner-mcp-hd-scanner/</em></a></div>
+    <p class="note">See all projects on <a href="https://github.com/MHJoy99">github.com/MHJoy99</a>.</p>
+  </div>
+</section>
+
+<div class="wrap band"><div class="in rv">
+  <h2>Stop typing. Start talking.</h2>
+  <p>Free, open source and MIT licensed. Download JoyVoice and press F8.</p>
+  <div class="cta"><a class="btn" href="https://github.com/MHJoy99/joyvoice/releases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download for Windows</a><a class="btn ghost" href="https://github.com/MHJoy99/joyvoice"><svg class="ico fill" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gh"/></svg>Get it on GitHub</a></div>
+</div></div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="fgrid">
+      <div><a class="brand" href="./"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#7c3aed"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#lg2)"/><rect x="25" y="12" width="14" height="26" rx="7" fill="#fff"/><path d="M17 30a15 15 0 0 0 30 0M32 45v7M24 52h16" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/></svg><span>JoyVoice</span></a><p style="margin-top:12px;max-width:34em">Floating-mic voice typing and speech translation for Windows. Built with PySide6, sounddevice, SpeechRecognition and faster-whisper.</p></div>
+      <div><h4>Project</h4><ul><li><a href="https://github.com/MHJoy99/joyvoice">GitHub repository</a></li><li><a href="https://github.com/MHJoy99/joyvoice/releases">Releases</a></li><li><a href="https://github.com/MHJoy99/joyvoice/issues">Issues</a></li><li><a href="https://github.com/MHJoy99/joyvoice/blob/master/CHANGELOG.md">Changelog</a></li><li><a href="https://github.com/MHJoy99/joyvoice/blob/master/LICENSE">MIT License</a></li></ul></div>
+      <div><h4>Docs</h4><ul><li><a href="https://github.com/MHJoy99/joyvoice/blob/master/docs/SETUP.md">Setup guide</a></li><li><a href="https://github.com/MHJoy99/joyvoice/blob/master/docs/API.md">API gateway</a></li><li><a href="https://github.com/MHJoy99/joyvoice/blob/master/docs/TROUBLESHOOTING.md">Troubleshooting</a></li><li><a href="https://github.com/MHJoy99/joyvoice/blob/master/docs/bn/README-bn.md">বাংলা গাইড</a></li><li><a href="llms.txt">llms.txt</a></li></ul></div>
+    </div>
+    <div class="legal">
+      <p>Built by <a href="https://github.com/MHJoy99">MHJoy99</a>. Released under the MIT License.</p>
+      <p>JoyVoice is an independent open-source project and is not affiliated with or endorsed by Google, Microsoft, OpenAI or the makers of Gemini and Whisper. Product names are trademarks of their respective owners.</p>
+      <p>This website uses cookieless Cloudflare Web Analytics.</p>
+    </div>
+  </div>
+</footer>
+<script src="site.js" defer></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "a2f7f3d589ae4c8688a646d54918b0e7"}'></script>
+</body>
+</html>
