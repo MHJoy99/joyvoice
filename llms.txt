@@ -1,12 +1,15 @@
 # JoyVoice
 
-> JoyVoice is a free, open-source (MIT) floating-microphone voice typing and speech translation app for Windows 10/11. Press F8, speak in one of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and clean, optionally translated text is pasted into the app under your cursor. Works in Cloud mode (needs an API key) or Free & Offline mode (local Whisper, no API key). Current version: 2.5.5.
+> JoyVoice is a free, open-source (MIT) floating-microphone voice typing and speech translation app for Windows 10/11. Press F8, speak in one of 10 languages (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese), and clean, optionally translated text is pasted into the app under your cursor. Three engines: Cloud (default; needs an API key), ElevenLabs instant (opt-in since v2.6.0; streams audio while you speak, pastes English about 0.4 s after you release the hotkey via ElevenLabs Scribe v2 Realtime, and Bangla, Banglish or mixed Bengali-English as complete English in about 1 s via Google Gemini 3.5 Transcribe Live plus a fast translator; needs your own ElevenLabs and Gemini API keys) and Free & Offline (local Whisper, no API key). v2.6.0 also adds a GPU-animated glass widget with a Settings > Appearance tab (themes, transparency, size 50-200%) and accessibility options (high contrast, reduce motion, screen-reader names). Current version: 2.6.0 (released 2026-10-16).
 
 ## Project
 - [Website](https://mhjoy99.github.io/joyvoice/): overview, how it works, install, FAQ
 - [Full reference for LLMs](https://mhjoy99.github.io/joyvoice/llms-full.txt): complete plain-text explanation
 - [GitHub repository](https://github.com/MHJoy99/joyvoice): source code, README, issues
-- [Releases](https://github.com/MHJoy99/joyvoice/releases): download JoyVoice.exe for Windows
+- [Download JoyVoice.exe v2.6.0](https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice.exe): single Windows executable
+- [Download zip v2.6.0](https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice-v2.6.0-Windows-x64.zip) and [SHA256SUMS.txt](https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/SHA256SUMS.txt)
+- [v2.6.0 release notes](https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0)
+- [Releases](https://github.com/MHJoy99/joyvoice/releases): all versions
 - [Changelog](https://github.com/MHJoy99/joyvoice/blob/master/CHANGELOG.md): version history
 
 ## Docs

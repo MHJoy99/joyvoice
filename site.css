@@ -226,6 +226,7 @@ section{padding:88px 0;position:relative}
 .mode{border-radius:22px;padding:30px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);position:relative;overflow:hidden}
 .mode.cloud{border-top:4px solid var(--s)}
 .mode.free{border-top:4px solid var(--v)}
+.mode.instant{grid-column:1/-1;border-top:4px solid var(--i)}
 .mode h3{font-size:1.4rem;display:flex;gap:10px;align-items:center}
 .mode .sub{color:var(--mute);font-size:.92rem;margin:6px 0 16px}
 .mode ul{padding:0;margin:0;list-style:none;display:grid;gap:10px}

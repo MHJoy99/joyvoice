@@ -35,12 +35,14 @@
  "@id": "https://mhjoy99.github.io/joyvoice/#app",
  "name": "JoyVoice",
  "url": "https://mhjoy99.github.io/joyvoice/",
- "description": "Open-source floating-microphone voice typing and speech translation for Windows. Press F8, speak in one of 10 languages including Bangla, and clean text is pasted into any app. Cloud mode or Free & Offline mode with local Whisper.",
+ "description": "Open-source floating-microphone voice typing and speech translation for Windows. Press F8, speak in one of 10 languages including Bangla, and clean text is pasted into any app. Three engines: Cloud (default), the opt-in ElevenLabs instant engine (English about 0.4 s and Bengali or mixed Bengali-English about 1 s after you release the hotkey), and Free & Offline mode with local Whisper.",
  "applicationCategory": "UtilitiesApplication",
  "applicationSubCategory": "Voice typing and speech translation",
  "operatingSystem": "Windows 10, Windows 11",
- "softwareVersion": "2.5.5",
- "softwareRequirements": "Windows 10 or 11 (64-bit); Python 3.11 only when running from source; API key for an OpenAI-compatible endpoint in cloud mode (not needed in Free & Offline mode)",
+ "softwareVersion": "2.6.0",
+ "dateModified": "2026-10-16",
+ "releaseNotes": "https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0",
+ "softwareRequirements": "Windows 10 or 11 (64-bit); Python 3.11 only when running from source; API key for an OpenAI-compatible endpoint in cloud mode (not needed in Free & Offline mode); your own ElevenLabs API key and Gemini API key for the opt-in ElevenLabs instant engine",
  "offers": {
   "@type": "Offer",
   "price": "0",
@@ -49,7 +51,7 @@
  "license": "https://opensource.org/licenses/MIT",
  "isAccessibleForFree": true,
  "codeRepository": "https://github.com/MHJoy99/joyvoice",
- "downloadUrl": "https://github.com/MHJoy99/joyvoice/releases",
+ "downloadUrl": "https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice.exe",
  "installUrl": "https://github.com/MHJoy99/joyvoice#installation--setup-options",
  "image": "https://mhjoy99.github.io/joyvoice/og-image.png",
  "screenshot": "https://mhjoy99.github.io/joyvoice/img/desktop-mockup.jpg",
@@ -68,8 +70,12 @@
  "featureList": [
   "Voice dictation in 10 languages with auto-detect",
   "Speech translation into any of the 10 supported languages",
-  "Floating glass widget with live waveform",
-  "Clipboard-safe auto-paste with retry",
+  "ElevenLabs instant engine (opt-in): English pasted about 0.4 s after hotkey release via ElevenLabs Scribe v2 Realtime",
+  "Bangla, Banglish and mixed Bengali-English pasted as complete, faithful English in about 1 s via Gemini Transcribe Live plus a fast translator",
+  "GPU-animated glass widget (shaders on NVIDIA) with live waveform",
+  "Settings, Appearance tab: themes, transparency, size 50-200%, live preview",
+  "Accessibility: high contrast, reduce motion, screen-reader names",
+  "Direct typing of single-line text; clipboard-safe paste with retry for multi-line text",
   "History saved before paste",
   "Free & Offline mode with local Whisper (faster-whisper)",
   "Spoken one-shot target language override",
@@ -102,7 +108,15 @@
    "name": "How do I dictate Bangla or Banglish into English on Windows?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "Press F8 and speak naturally in Bengali or mixed Bengali and English. With the default auto-detect source and English target, JoyVoice detects the language, translates, and pastes clean English with Ctrl+V into the app under your cursor. The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, so you do not switch languages manually."
+    "text": "Press F8 and speak naturally in Bengali or mixed Bengali and English. With the default auto-detect source and English target, JoyVoice detects the language, translates, and pastes clean English into the app under your cursor. On the opt-in ElevenLabs instant engine (v2.6.0), Google Gemini Transcribe Live hears Bengali and Banglish while you speak and finalizes the complete transcript when you release the key, then a fast translator turns it into English, so the text arrives in about 1 s with complete endings and faithful wording. Romanized Banglish is detected, so mixed speech is not pasted as-is. On the Cloud engine the transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, so you do not switch languages manually."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How fast is JoyVoice?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "With the opt-in ElevenLabs instant engine (v2.6.0), audio streams while you hold the hotkey, so most of the work is done before you let go. On the developer's PC, English was pasted 0.41-0.56 s after release (about 0.4 s), including a 54-second dictation. Bengali or mixed Bengali-English speech was pasted as complete English in about 1 s (0.92-1.2 s) with a fast translator key, or 2.3-3.5 s with the gateway text model alone, down from 3.6-4.3 s on the older Cloud route. Network and recording length change these numbers."
    }
   },
   {
@@ -110,7 +124,7 @@
    "name": "Do I need a GPU or an API key?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "You do not need a GPU. Cloud mode uses cloud services for speech and translation and needs no CUDA or PyTorch. It does need an API key for an OpenAI-compatible endpoint, entered in Settings, API, or set as the JV_API_KEY environment variable. Free and Offline mode needs no API key at all."
+    "text": "You do not need a GPU. Cloud mode uses cloud services for speech and translation and needs no CUDA or PyTorch. It does need an API key for an OpenAI-compatible endpoint, entered in Settings, API, or set as the JV_API_KEY environment variable. The opt-in ElevenLabs instant engine needs your own ElevenLabs API key and a Gemini API key from Google AI Studio, also entered in Settings, API; an OpenAI-compatible fast translator key (for example Groq) is optional and brings Bengali to about 1 s. Free and Offline mode needs no API key at all."
    }
   },
   {
@@ -142,7 +156,7 @@
    "name": "Does JoyVoice overwrite my clipboard?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "No. It saves your current clipboard, pastes the result with Ctrl+V (up to 3 attempts with exponential backoff), and then restores your original clipboard. Restoring is on by default through the restore_clipboard setting."
+    "text": "No. Since v2.6.0, single-line results are typed straight into the focused app with no clipboard at all. Multi-line text uses the clipboard: JoyVoice saves your current clipboard, pastes the result with Ctrl+V (up to 3 attempts with exponential backoff), and then restores your original clipboard. Restoring is on by default through the restore_clipboard setting."
    }
   },
   {
@@ -150,7 +164,7 @@
    "name": "Is my dictated text or API key written to a log file?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "Not in the clear. Crash reports store only the exception type, the message length and redacted stack frames. Log lines scrub keys and bearer tokens to [REDACTED], show transcripts only as 80-character previews, and never log raw audio bytes. Your API key lives only in local settings or in the JV_API_KEY environment variable."
+    "text": "Not in the clear. Crash reports store only the exception type, the message length and redacted stack frames. Log lines scrub keys (including ElevenLabs and Groq keys) and bearer tokens to [REDACTED], show transcripts only as 80-character previews, and never log raw audio bytes. Your API key lives only in local settings or in the JV_API_KEY environment variable."
    }
   },
   {
@@ -158,7 +172,7 @@
    "name": "What leaves my computer in cloud mode?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "In cloud mode the recorded speech is sent for transcription, to the Google Web Speech service or to the optional native-audio route of your configured gateway, and the transcript text is sent to the configured text model for translation and styling. The default gateway is https://gpt.bdx.market/v1 and you can point JoyVoice at any OpenAI-compatible base URL in Settings, API. Free and Offline mode makes no cloud calls after the one-time model download."
+    "text": "In cloud mode the recorded speech is sent for transcription, to the Google Web Speech service or to the optional native-audio route of your configured gateway, and the transcript text is sent to the configured text model for translation and styling. The default gateway is https://gpt.bdx.market/v1 and you can point JoyVoice at any OpenAI-compatible base URL in Settings, API. On the opt-in ElevenLabs instant engine, microphone audio streams to ElevenLabs and Google Gemini while you hold the key, and the transcript goes to the fast translator and the text model you configure. Free and Offline mode makes no cloud calls after the one-time model download."
    }
   },
   {
@@ -195,7 +209,7 @@
 <script>document.documentElement.className+=' js'</script>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol><symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></symbol><symbol id="i-wand" viewBox="0 0 24 24"><path d="M5 19L15 9M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3L21 14l-1.3.7L19 16l-.7-1.3L17 14l1.3-.7z"/></symbol><symbol id="i-glass" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="6"/><path d="M8 12h.01M11 10v4M14 9v6M17 11v2"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><rect x="6" y="4.5" width="12" height="16" rx="2"/><path d="M9 4.5h6v3H9zM9 12h6M9 16h4"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 3-6.5M3.5 4v4h4M12 8v4l3 2"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol><symbol id="i-kbd" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol><symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5zM4 5.5v16M8 7.5h8"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol><symbol id="i-txt" viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/></symbol><symbol id="i-conv" viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/></symbol><symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/></symbol><symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol><symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h13l-3-3M20 16H7l3 3"/></symbol><symbol id="i-wand" viewBox="0 0 24 24"><path d="M5 19L15 9M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3L21 14l-1.3.7L19 16l-.7-1.3L17 14l1.3-.7z"/></symbol><symbol id="i-glass" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="6"/><path d="M8 12h.01M11 10v4M14 9v6M17 11v2"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><rect x="6" y="4.5" width="12" height="16" rx="2"/><path d="M9 4.5h6v3H9zM9 12h6M9 16h4"/></symbol><symbol id="i-hist" viewBox="0 0 24 24"><path d="M3.5 12a8.5 8.5 0 1 0 3-6.5M3.5 4v4h4M12 8v4l3 2"/></symbol><symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol><symbol id="i-kbd" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></symbol><symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol><symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol><symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5zM4 5.5v16M8 7.5h8"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol><symbol id="i-txt" viewBox="0 0 24 24"><path d="M5 6h14M5 11h14M5 16h9"/></symbol><symbol id="i-conv" viewBox="0 0 24 24"><path d="M4 12h3l2-5 4 10 2-5h5"/></symbol><symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2.5L5 13.5h6l-1 8 8-11h-6z"/></symbol><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol></defs></svg>
 <a class="skip" href="#main">Skip to content</a>
 <header class="hdr"><div class="wrap">
   <a class="brand" href="./" aria-label="JoyVoice home"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#7c3aed"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#lg)"/><rect x="25" y="12" width="14" height="26" rx="7" fill="#fff"/><path d="M17 30a15 15 0 0 0 30 0M32 45v7M24 52h16" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/></svg><span>JoyVoice</span></a>
@@ -209,15 +223,15 @@
 <section class="hero" aria-labelledby="h1">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow"><b>v2.5.5</b> Windows 10 &amp; 11 &middot; MIT licensed</span>
+      <span class="eyebrow"><b>v2.6.0</b> Windows 10 &amp; 11 &middot; MIT licensed</span>
       <h1 id="h1"><span class="grad">Press F8.</span> Speak. It&nbsp;pastes.</h1>
-      <p class="lede"><strong>JoyVoice is a floating-mic voice typing and speech translation app for Windows.</strong> Dictate in 10 languages, including <span class="bn">বাংলা</span> and English, and get clean text pasted into whatever app your cursor is in. No window switching, no copy and paste.</p>
+      <p class="lede"><strong>JoyVoice is a floating-mic voice typing and speech translation app for Windows.</strong> Dictate in 10 languages, including <span class="bn">বাংলা</span> and English, and get clean text pasted into whatever app your cursor is in. No window switching, no copy and paste. New in v2.6.0: an instant engine pastes English about 0.4&nbsp;s after you let go, and Bangla or Banglish in about 1&nbsp;s.</p>
       <div class="cta">
-        <a class="btn primary" href="https://github.com/MHJoy99/joyvoice/releases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download for Windows</a>
+        <a class="btn primary" href="https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice.exe"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download for Windows</a>
         <a class="btn" href="https://github.com/MHJoy99/joyvoice"><svg class="ico fill" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gh"/></svg>Get it on GitHub</a>
         <a class="btn link" href="https://github.com/MHJoy99/joyvoice#readme"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-book"/></svg>Read the docs</a>
       </div>
-      <ul class="chips" aria-label="Highlights"><li><b>10</b> languages</li><li>Auto-detect</li><li>No GPU needed</li><li>Free &amp; offline mode</li><li>Clipboard-safe paste</li></ul>
+      <ul class="chips" aria-label="Highlights"><li><b>10</b> languages</li><li>English in <b>~0.4&nbsp;s</b></li><li>Bangla in <b>~1&nbsp;s</b></li><li>Auto-detect</li><li>No GPU needed</li><li>Free &amp; offline mode</li><li>Clipboard-safe paste</li></ul>
     </div>
     <div class="stage" aria-label="Animated demo of JoyVoice recording, transcribing and pasting">
       <div class="halo" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -298,37 +312,44 @@
     <ol class="steps">
       <li class="rv"><b>Record</b>Your mic, captured at 16 kHz mono float32 through <code>sounddevice</code>.</li>
       <li class="rv"><b>Convert</b>float32 becomes signed int16 PCM. <em>&lt; 50 ms</em></li>
-      <li class="rv"><b>Transcribe</b>Google Web Speech ASR, or the optional native-audio route that transcribes and translates in one request.</li>
+      <li class="rv"><b>Transcribe</b>Google Web Speech ASR, or the optional native-audio route. On the instant engine, ElevenLabs and Gemini hear you while you speak.</li>
       <li class="rv"><b>Translate + style</b>A Gemini text model translates and applies your text style. If cloud translation fails, the transcript is salvaged.</li>
-      <li class="rv"><b>Paste</b>Clipboard-safe <kbd>Ctrl</kbd>+<kbd>V</kbd> with retry, then your clipboard is restored. <em>~300 ms</em></li>
+      <li class="rv"><b>Paste</b>Single-line text is typed straight in; multi-line text uses clipboard-safe <kbd>Ctrl</kbd>+<kbd>V</kbd> with retry. <em>~300 ms</em></li>
     </ol>
-    <p class="note">Total time varies with recording length and network conditions. The README cites roughly 1&ndash;2 seconds for short audio on the optional native gateway route; longer recordings take longer. JoyVoice is batch dictation: it processes when you stop recording.</p>
+    <p class="note">On the default Cloud engine JoyVoice is batch dictation: it processes when you stop recording, and total time varies with recording length and network conditions. The README cites roughly 1&ndash;2 seconds for short audio on the optional native gateway route. The opt-in ElevenLabs instant engine (v2.6.0) streams audio while you hold the key instead; see the measured times under <a href="#modes">engines</a>.</p>
   </div>
 </section>
 
 <section id="features" aria-labelledby="f-h">
   <div class="wrap">
     <div class="sec-head rv"><span class="kick">Features</span><h2 id="f-h">Built for people who talk <span class="grad">across languages</span></h2><p>Everything below is in the app today, taken from the JoyVoice README and changelog.</p></div>
-    <div class="feat"><article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>10 languages, auto-detect</h3><p>Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese. Speak naturally and JoyVoice detects the language, or lock a source language if you prefer.</p></article>
+    <div class="feat"><article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bolt"/></svg></div><h3>Instant English</h3><p>With the opt-in ElevenLabs instant engine, audio streams while you talk, so English is pasted about 0.4&nbsp;s after you release the key (0.41&ndash;0.56&nbsp;s measured, even for a 54&nbsp;s dictation).</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-conv"/></svg></div><h3>Bangla &amp; Banglish in about 1&nbsp;s</h3><p>Gemini Transcribe Live hears Bengali and mixed speech; a fast translator returns complete, faithful English in about 1&nbsp;s. Endings are no longer cut off and wording is not paraphrased.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"/></svg></div><h3>10 languages, auto-detect</h3><p>Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese. Speak naturally and JoyVoice detects the language, or lock a source language if you prefer.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-swap"/></svg></div><h3>Translate to any of the 10</h3><p>Pick any supported language as the target, not only English. Output modes: original only, translation only, or both together. Labels adapt to your language pair.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-wand"/></svg></div><h3>Text styles</h3><p>Clean English, raw transcript, prompt for AI, professional message and Facebook post. The AI styles use a text model and need Cloud mode.</p></article>
-<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-glass"/></svg></div><h3>Floating glass widget</h3><p>A translucent, always-on-top mic pill with a live 5-bar waveform, recording timer, language badge (like BN to EN), live preview and a confidence bar.</p></article>
-<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clip"/></svg></div><h3>Clipboard-safe paste</h3><p>Saves your clipboard, pastes the result with Ctrl+V (3 attempts, exponential backoff, 300 ms default delay), then restores what you had copied.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-glass"/></svg></div><h3>GPU glass widget</h3><p>An always-on-top mic pill with real blurred glass, an aurora palette and Dynamic-Island-style state morphs, drawn with shaders on NVIDIA (Ultra to Calm, 30/60/120 fps cap). Live waveform, timer and language badge.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-eye"/></svg></div><h3>Appearance &amp; accessibility</h3><p>Settings, Appearance has a live preview: themes and custom colours, transparency, blur and glow, size 50&ndash;200%, motion and wave style. Accessibility adds high contrast, reduce motion and screen-reader names.</p></article>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-clip"/></svg></div><h3>Direct typing, safe paste</h3><p>Single-line results are typed straight into the focused app with no clipboard. Multi-line text is pasted with Ctrl+V (3 attempts, exponential backoff), then what you had copied is restored.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hist"/></svg></div><h3>History before paste</h3><p>Every result is written to local history before paste is attempted, so a failed paste never costs you the text. Right-click the mic to re-copy your last 5 dictations.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chip"/></svg></div><h3>Free &amp; Offline mode</h3><p>No API key, no cloud. A local faster-whisper model (Tiny, Base or Small) downloads once, then works fully offline. Bangla to English translation is built in.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chat"/></svg></div><h3>Spoken language override</h3><p>Name the target at the end of a sentence (for example saying a language name, or a Bangla phrase like “বাংলায় দাও”) to switch the target for that one dictation.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kbd"/></svg></div><h3>Global hotkeys</h3><p><kbd>F8</kbd> toggles recording (or hold-to-record), <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> cycles the language pair, <kbd>Esc</kbd> cancels mid-record or mid-transcribe.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-plug"/></svg></div><h3>Bring your own endpoint</h3><p>Set the OpenAI-compatible base URL, API key and audio/text models in Settings, API. Fetch models and Test connection buttons included. No environment variables required.</p></article>
 <article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-shield"/></svg></div><h3>Self-healing</h3><p>A 2-second visibility watchdog restores the widget if Windows hides it, and a 5-second hotkey health check re-registers F8 after sleep, wake or UAC changes.</p></article>
-<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg></div><h3>Safe by default</h3><p>In v2.5.5, if English is required and translation fails, JoyVoice pastes nothing untranslated and saves the transcript to History. Logs redact secrets and keep only short previews.</p></article></div>
-    <div class="also rv"><span>Also:</span><span class="chip">Phrase replacements table</span><span class="chip">Beeps for start, stop, done and error</span><span class="chip">Launch on startup</span><span class="chip">Microphone picker</span><span class="chip">Searchable history list</span><span class="chip">Tray icon</span></div>
+<article class="card rv"><div class="ib"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-lock"/></svg></div><h3>Safe by default</h3><p>If English is required and translation fails, JoyVoice pastes nothing untranslated and saves the transcript to History. Logs redact secrets and keep only short previews.</p></article></div>
+    <div class="also rv"><span>Also:</span><span class="chip">Phrase replacements table</span><span class="chip">Words to listen for</span><span class="chip">Enter after paste (opt-in)</span><span class="chip">Beeps for start, stop, done and error</span><span class="chip">Launch on startup</span><span class="chip">Microphone picker</span><span class="chip">Searchable history list</span><span class="chip">Tray icon</span></div>
   </div>
 </section>
 
 <section id="modes" class="alt" aria-labelledby="m-h">
   <div class="wrap">
-    <div class="sec-head rv"><span class="kick">Two engines, one app</span><h2 id="m-h">Cloud when you want it. <span class="grad">Offline when you don&rsquo;t.</span></h2><p>Switch engines in Settings. Cloud mode is the default; the single <code>JoyVoice.exe</code> includes both.</p></div>
+    <div class="sec-head rv"><span class="kick">Three engines, one app</span><h2 id="m-h">Cloud when you want it. <span class="grad">Offline when you don&rsquo;t.</span></h2><p>Switch engines in Settings, Free Mode. Cloud mode is the default; the single <code>JoyVoice.exe</code> includes all three.</p></div>
     <div class="modes">
+      <div class="mode instant rv">
+        <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bolt"/></svg> ElevenLabs instant</h3><p class="sub">New in v2.6.0 &middot; opt-in &middot; your own ElevenLabs and Gemini API keys</p>
+        <ul><li>Audio streams in 100&nbsp;ms chunks while you hold the key, so the text is nearly ready when you stop</li><li>English: ElevenLabs Scribe v2 Realtime, pasted about 0.4&nbsp;s after release</li><li>Bengali, Banglish and mixed speech: Google Gemini Transcribe Live finalizes the complete transcript 0.3&ndash;0.6&nbsp;s after release, and a fast translator turns it into English in about 1&nbsp;s</li><li>Translates the full heard transcript, so last sentences are not dropped and wording is not paraphrased</li><li>Romanized Banglish is detected, so mixed speech is never mistaken for English</li><li>A missing key, service error, timeout or empty result falls back to the Cloud engine, so text is not lost</li><li class="no">The fast translator key (any OpenAI-compatible API, for example Groq) is optional; without it Bengali takes 2.3&ndash;3.5&nbsp;s</li></ul>
+      </div>
       <div class="mode cloud rv">
         <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-globe"/></svg> Cloud mode</h3><p class="sub">Default &middot; needs an API key</p>
         <ul><li>10 languages with auto-detect and translation to any of 10 targets</li><li>Google Web Speech ASR, plus an optional native-audio route for transcript and translation in one request</li><li>Gemini text model for translation and the AI text styles</li><li>OpenAI-compatible endpoint, configured in Settings, API</li><li>No GPU, no CUDA, no PyTorch</li></ul>
@@ -338,6 +359,8 @@
         <ul><li>Local Whisper (faster-whisper) on your CPU, or GPU if available</li><li>One-click <b>Set up Free Mode</b> downloads the model once; then it works offline</li><li>Choose Tiny, Base or Small (Small is the default)</li><li>Built-in <b>Test</b> button to confirm offline transcription</li><li>Built-in Bangla to English translation via Whisper&rsquo;s translate task</li><li class="no">Other translation targets are transcription-only for now; AI text styles need Cloud mode</li></ul>
       </div>
     </div>
+    <div class="tbl-wrap rv" style="margin-top:24px"><table><thead><tr><th>Speech</th><th>Route</th><th>Release to text</th></tr></thead><tbody><tr><td>English</td><td>ElevenLabs Scribe v2 Realtime</td><td>0.41&ndash;0.56&nbsp;s</td></tr><tr><td>Bengali or mixed</td><td>Gemini Transcribe Live + fast translator</td><td>about 1&nbsp;s (0.92&ndash;1.2&nbsp;s)</td></tr><tr><td>Bengali or mixed</td><td>Heard transcript, gateway only (no fast key)</td><td>2.3&ndash;3.5&nbsp;s</td></tr><tr><td>Bengali or mixed</td><td>Previous route (Cloud engine)</td><td>3.6&ndash;4.3&nbsp;s</td></tr><tr><td>Any, &ldquo;paste it in Russian&rdquo;</td><td>Gateway text model translation</td><td>about 2.2&nbsp;s</td></tr></tbody></table></div>
+    <p class="note">Measured on the developer&rsquo;s PC from 2026-10-14 to 2026-10-16 with real dictations and test clips; a 30&nbsp;s fast Bengali clip took 1.44&nbsp;s. Network and recording length change these numbers. ElevenLabs speech-to-text is billed on your ElevenLabs plan.</p>
     <p class="callout rv">Planned, not shipped: offline multilingual translation (NLLB) and offline AI text styles (Ollama) for Free Mode.</p>
   </div>
 </section>
@@ -357,7 +380,7 @@
         <h3>Widget states</h3>
         <div class="states" role="img" aria-label="Widget states: idle, recording, transcribing, pasted, error"><span class="sp" style="--c:#8d87b3;--sd:0s"><i></i>Idle</span><span class="arr" aria-hidden="true">&rarr;</span><span class="sp" style="--c:var(--rec);--sd:2.5s"><i></i>Recording</span><span class="arr" aria-hidden="true">&rarr;</span><span class="sp" style="--c:var(--info);--sd:5s"><i></i>Transcribing</span><span class="arr" aria-hidden="true">&rarr;</span><span class="sp" style="--c:var(--ok);--sd:7.5s"><i></i>Pasted</span><span class="sp err" style="--c:var(--err)"><i></i>Error</span></div>
         <p style="color:var(--ink2)">The floating widget changes colour with each state: gray when idle, an orange pulse while recording, blue while transcribing, a green pop when pasted, and red on error. Audio beeps mark start, stop, success and error, so you don&rsquo;t have to look.</p>
-        <div class="callout" style="margin-top:20px">Long recordings are transcribed as ordered chunks. If a later chunk fails, earlier results are kept and usable partial speech is saved to History for review instead of being dropped.</div>
+        <div class="callout" style="margin-top:20px">Long recordings are transcribed as ordered chunks. If a later chunk fails, earlier results are kept and usable partial speech is saved to History for review instead of being dropped. On the instant engine, any failure runs the Cloud engine instead.</div>
       </div>
       <ul class="relist">
         <li class="rv"><span class="n">1st</span><div><b>History before paste</b><span>Text is saved to local history first, then paste is attempted.</span></div></li>
@@ -385,9 +408,10 @@
     <div class="inst">
       <div class="pane rv">
         <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg> Download the EXE <span class="tag">recommended</span></h3>
-        <p>A single <code>JoyVoice.exe</code> (about 173 MB) with no Python or venv. It supports both Cloud and Free &amp; Offline mode.</p>
-        <a class="btn primary" href="https://github.com/MHJoy99/joyvoice/releases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Open GitHub Releases</a>
-        <ol><li>Download and double-click <code>JoyVoice.exe</code>. The floating mic appears.</li><li><b>Cloud:</b> add your key in <b>Settings, API</b> (stored locally) or set <code>JV_API_KEY</code>.</li><li><b>Free &amp; Offline:</b> open <b>Settings, Free Mode</b> and click <b>Set up Free Mode</b> once.</li><li>Focus any app, press <kbd>F8</kbd>, speak, press <kbd>F8</kbd> again.</li></ol>
+        <p>A single <code>JoyVoice.exe</code> (v2.6.0) with no Python or venv. It supports Cloud, ElevenLabs instant and Free &amp; Offline mode.</p>
+        <a class="btn primary" href="https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice.exe"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download JoyVoice.exe</a>
+        <p style="margin-top:12px;font-size:.88rem">Also: <a href="https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice-v2.6.0-Windows-x64.zip">Windows x64 zip</a> &middot; <a href="https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/SHA256SUMS.txt">SHA256SUMS.txt</a> &middot; <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0">v2.6.0 release notes</a></p>
+        <ol><li>Download and double-click <code>JoyVoice.exe</code>. The floating mic appears.</li><li><b>Cloud:</b> add your key in <b>Settings, API</b> (stored locally) or set <code>JV_API_KEY</code>.</li><li><b>Free &amp; Offline:</b> open <b>Settings, Free Mode</b> and click <b>Set up Free Mode</b> once.</li><li><b>Instant (optional):</b> add your ElevenLabs and Gemini keys in <b>Settings, API</b>, then pick <b>ElevenLabs instant</b> in <b>Settings, Free Mode</b>.</li><li>Focus any app, press <kbd>F8</kbd>, speak, press <kbd>F8</kbd> again.</li></ol>
       </div>
       <div class="pane rv">
         <h3><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kbd"/></svg> Run from source</h3>
@@ -402,15 +426,15 @@ python app\main.py</code></pre></div>
         <p style="margin-top:14px">Prefer a launcher? Double-click <code>run.bat</code> in the repo, or make a desktop shortcut to it.</p>
       </div>
     </div>
-    <p class="warn rv"><b>Heads up:</b> cloud mode sends your recorded speech and transcript text to the services you configure. Use Free &amp; Offline mode if that matters for your use, and respect the terms of the services you connect.</p>
+    <p class="warn rv"><b>Heads up:</b> cloud mode sends your recorded speech and transcript text to the services you configure, and the instant engine streams your speech to ElevenLabs and Google Gemini while you talk. Use Free &amp; Offline mode if that matters for your use, and respect the terms of the services you connect.</p>
   </div>
 </section>
 
 <section id="settings" aria-labelledby="s-h">
   <div class="wrap">
     <div class="sec-head rv"><span class="kick">Configuration</span><h2 id="s-h">Settings that <span class="grad">matter</span></h2><p>Stored at <code>%APPDATA%\JoyVoice\settings.json</code> and editable from the Settings window (right-click the mic, or use the tray icon).</p></div>
-    <div class="tbl-wrap rv"><table><thead><tr><th>Key</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>language</code></td><td><code>auto</code></td><td>Source language: auto-detect, or lock to bn, ru, zh and so on</td></tr><tr><td><code>target_language</code></td><td><code>en</code></td><td>Translation target: any of the 10 supported codes</td></tr><tr><td><code>output_mode</code></td><td><code>translation</code></td><td>original, translation or both</td></tr><tr><td><code>text_style</code></td><td><code>clean_english</code></td><td>raw, clean_english, prompt_for_ai, professional_message or facebook_post</td></tr><tr><td><code>hotkey</code></td><td><code>F8</code></td><td>Global toggle key (presets or a custom combination)</td></tr><tr><td><code>hotkey_mode</code></td><td><code>toggle</code></td><td>toggle, or hold to record while the key is down</td></tr><tr><td><code>paste_delay_ms</code></td><td><code>300</code></td><td>Delay before Ctrl+V</td></tr><tr><td><code>restore_clipboard</code></td><td><code>true</code></td><td>Restore your original clipboard after pasting</td></tr><tr><td><code>engine_mode</code></td><td><code>cloud</code></td><td>cloud (uses an API key) or free (local models, no API key)</td></tr><tr><td><code>free_asr_model</code></td><td><code>small</code></td><td>Free Mode local Whisper model: tiny, base or small</td></tr></tbody></table></div>
-    <p class="note">Settings tabs: Output, General, API, Free Mode, Hotkey, Audio, Paste, Replacements and History. Config precedence for API values: <code>settings.json</code>, then environment variable, then built-in default.</p>
+    <div class="tbl-wrap rv"><table><thead><tr><th>Key</th><th>Default</th><th>What it does</th></tr></thead><tbody><tr><td><code>language</code></td><td><code>auto</code></td><td>Source language: auto-detect, or lock to bn, ru, zh and so on</td></tr><tr><td><code>target_language</code></td><td><code>en</code></td><td>Translation target: any of the 10 supported codes</td></tr><tr><td><code>output_mode</code></td><td><code>translation</code></td><td>original, translation or both</td></tr><tr><td><code>text_style</code></td><td><code>clean_english</code></td><td>raw, clean_english, prompt_for_ai, professional_message or facebook_post</td></tr><tr><td><code>hotkey</code></td><td><code>F8</code></td><td>Global toggle key (presets or a custom combination)</td></tr><tr><td><code>hotkey_mode</code></td><td><code>toggle</code></td><td>toggle, or hold to record while the key is down</td></tr><tr><td><code>paste_delay_ms</code></td><td><code>300</code></td><td>Delay before Ctrl+V</td></tr><tr><td><code>paste_method</code></td><td><code>auto</code></td><td>auto types single-line text directly (no clipboard), or clipboard</td></tr><tr><td><code>restore_clipboard</code></td><td><code>true</code></td><td>Restore your original clipboard after pasting</td></tr><tr><td><code>engine_mode</code></td><td><code>cloud</code></td><td>cloud (uses an API key), free (local models, no API key) or elevenlabs (instant engine, v2.6.0)</td></tr><tr><td><code>free_asr_model</code></td><td><code>small</code></td><td>Free Mode local Whisper model: tiny, base or small</td></tr></tbody></table></div>
+    <p class="note">Settings tabs: Output, General, API, Free Mode, Hotkey, Audio, Paste, Replacements, History and Appearance. Config precedence for API values: <code>settings.json</code>, then environment variable, then built-in default.</p>
   </div>
 </section>
 
@@ -429,14 +453,15 @@ python app\main.py</code></pre></div>
   <div class="wrap">
     <div class="sec-head rv"><span class="kick">FAQ</span><h2 id="q-h">Questions people <span class="grad">ask</span></h2></div>
     <div class="faq"><details class="rv"><summary>What is JoyVoice?</summary><p>JoyVoice is a free, open-source (MIT) floating-microphone voice typing and speech translation app for Windows 10 and 11. You press F8, speak, press F8 again, and the cleaned, optionally translated text is pasted into whichever app has your cursor. It supports 10 languages: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese.</p></details>
-<details class="rv"><summary>How do I dictate Bangla or Banglish into English on Windows?</summary><p>Press F8 and speak naturally in Bengali or mixed Bengali and English. With the default auto-detect source and English target, JoyVoice detects the language, translates, and pastes clean English with Ctrl+V into the app under your cursor. The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, so you do not switch languages manually.</p></details>
-<details class="rv"><summary>Do I need a GPU or an API key?</summary><p>You do not need a GPU. Cloud mode uses cloud services for speech and translation and needs no CUDA or PyTorch. It does need an API key for an OpenAI-compatible endpoint, entered in Settings, API, or set as the JV_API_KEY environment variable. Free and Offline mode needs no API key at all.</p></details>
+<details class="rv"><summary>How do I dictate Bangla or Banglish into English on Windows?</summary><p>Press F8 and speak naturally in Bengali or mixed Bengali and English. With the default auto-detect source and English target, JoyVoice detects the language, translates, and pastes clean English into the app under your cursor. On the opt-in ElevenLabs instant engine (v2.6.0), Google Gemini Transcribe Live hears Bengali and Banglish while you speak and finalizes the complete transcript when you release the key, then a fast translator turns it into English, so the text arrives in about 1 s with complete endings and faithful wording. Romanized Banglish is detected, so mixed speech is not pasted as-is. On the Cloud engine the transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, so you do not switch languages manually.</p></details>
+<details class="rv"><summary>How fast is JoyVoice?</summary><p>With the opt-in ElevenLabs instant engine (v2.6.0), audio streams while you hold the hotkey, so most of the work is done before you let go. On the developer's PC, English was pasted 0.41-0.56 s after release (about 0.4 s), including a 54-second dictation. Bengali or mixed Bengali-English speech was pasted as complete English in about 1 s (0.92-1.2 s) with a fast translator key, or 2.3-3.5 s with the gateway text model alone, down from 3.6-4.3 s on the older Cloud route. Network and recording length change these numbers.</p></details>
+<details class="rv"><summary>Do I need a GPU or an API key?</summary><p>You do not need a GPU. Cloud mode uses cloud services for speech and translation and needs no CUDA or PyTorch. It does need an API key for an OpenAI-compatible endpoint, entered in Settings, API, or set as the JV_API_KEY environment variable. The opt-in ElevenLabs instant engine needs your own ElevenLabs API key and a Gemini API key from Google AI Studio, also entered in Settings, API; an OpenAI-compatible fast translator key (for example Groq) is optional and brings Bengali to about 1 s. Free and Offline mode needs no API key at all.</p></details>
 <details class="rv"><summary>Can JoyVoice work offline?</summary><p>Yes, in Free and Offline mode. Click Set up Free Mode in Settings, Free Mode once to download a local Whisper model (Tiny, Base or Small; Small is the default) into %LOCALAPPDATA%\JoyVoice\models. After that it runs without internet. Bangla to English translation is built in offline through Whisper’s translate task. Other translation targets are transcription-only in Free Mode for now, and the AI text styles need Cloud mode.</p></details>
 <details class="rv"><summary>Which languages does JoyVoice support?</summary><p>Ten: Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French and Portuguese. Any of the 10 can be the spoken source (or use auto-detect) and any of the 10 can be the translation target. Press Ctrl+Shift+L to switch language pair without opening Settings.</p></details>
 <details class="rv"><summary>Will JoyVoice lose my words if a paste or a long recording fails?</summary><p>It is designed not to. Text is saved to the local history before JoyVoice tries to paste, so it survives a failed paste. For long recordings, if one chunk fails after earlier chunks succeeded, the translated chunks so far are kept instead of dropping the whole dictation, and usable partial speech is preserved in history for review.</p></details>
-<details class="rv"><summary>Does JoyVoice overwrite my clipboard?</summary><p>No. It saves your current clipboard, pastes the result with Ctrl+V (up to 3 attempts with exponential backoff), and then restores your original clipboard. Restoring is on by default through the restore_clipboard setting.</p></details>
-<details class="rv"><summary>Is my dictated text or API key written to a log file?</summary><p>Not in the clear. Crash reports store only the exception type, the message length and redacted stack frames. Log lines scrub keys and bearer tokens to [REDACTED], show transcripts only as 80-character previews, and never log raw audio bytes. Your API key lives only in local settings or in the JV_API_KEY environment variable.</p></details>
-<details class="rv"><summary>What leaves my computer in cloud mode?</summary><p>In cloud mode the recorded speech is sent for transcription, to the Google Web Speech service or to the optional native-audio route of your configured gateway, and the transcript text is sent to the configured text model for translation and styling. The default gateway is https://gpt.bdx.market/v1 and you can point JoyVoice at any OpenAI-compatible base URL in Settings, API. Free and Offline mode makes no cloud calls after the one-time model download.</p></details>
+<details class="rv"><summary>Does JoyVoice overwrite my clipboard?</summary><p>No. Since v2.6.0, single-line results are typed straight into the focused app with no clipboard at all. Multi-line text uses the clipboard: JoyVoice saves your current clipboard, pastes the result with Ctrl+V (up to 3 attempts with exponential backoff), and then restores your original clipboard. Restoring is on by default through the restore_clipboard setting.</p></details>
+<details class="rv"><summary>Is my dictated text or API key written to a log file?</summary><p>Not in the clear. Crash reports store only the exception type, the message length and redacted stack frames. Log lines scrub keys (including ElevenLabs and Groq keys) and bearer tokens to [REDACTED], show transcripts only as 80-character previews, and never log raw audio bytes. Your API key lives only in local settings or in the JV_API_KEY environment variable.</p></details>
+<details class="rv"><summary>What leaves my computer in cloud mode?</summary><p>In cloud mode the recorded speech is sent for transcription, to the Google Web Speech service or to the optional native-audio route of your configured gateway, and the transcript text is sent to the configured text model for translation and styling. The default gateway is https://gpt.bdx.market/v1 and you can point JoyVoice at any OpenAI-compatible base URL in Settings, API. On the opt-in ElevenLabs instant engine, microphone audio streams to ElevenLabs and Google Gemini while you hold the key, and the transcript goes to the fast translator and the text model you configure. Free and Offline mode makes no cloud calls after the one-time model download.</p></details>
 <details class="rv"><summary>Does JoyVoice run on macOS or Linux?</summary><p>Not today. JoyVoice is Windows-only because global hotkeys, clipboard automation and audio capture are tied to Win32 APIs. macOS and Linux hotkey and paste backends are on the roadmap as planned work, not shipped.</p></details></div>
   </div>
 </section>
@@ -455,7 +480,7 @@ python app\main.py</code></pre></div>
 <div class="wrap band"><div class="in rv">
   <h2>Stop typing. Start talking.</h2>
   <p>Free, open source and MIT licensed. Download JoyVoice and press F8.</p>
-  <div class="cta"><a class="btn" href="https://github.com/MHJoy99/joyvoice/releases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download for Windows</a><a class="btn ghost" href="https://github.com/MHJoy99/joyvoice"><svg class="ico fill" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gh"/></svg>Get it on GitHub</a></div>
+  <div class="cta"><a class="btn" href="https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice.exe"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-dl"/></svg>Download for Windows</a><a class="btn ghost" href="https://github.com/MHJoy99/joyvoice"><svg class="ico fill" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gh"/></svg>Get it on GitHub</a></div>
 </div></div>
 </main>
 
@@ -468,7 +493,7 @@ python app\main.py</code></pre></div>
     </div>
     <div class="legal">
       <p>Built by <a href="https://github.com/MHJoy99">MHJoy99</a>. Released under the MIT License.</p>
-      <p>JoyVoice is an independent open-source project and is not affiliated with or endorsed by Google, Microsoft, OpenAI or the makers of Gemini and Whisper. Product names are trademarks of their respective owners.</p>
+      <p>JoyVoice is an independent open-source project and is not affiliated with or endorsed by Google, Microsoft, OpenAI, ElevenLabs, Groq or the makers of Gemini and Whisper. Product names are trademarks of their respective owners.</p>
       <p>This website uses cookieless Cloudflare Web Analytics.</p>
     </div>
   </div>

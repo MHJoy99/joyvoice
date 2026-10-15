@@ -1,16 +1,16 @@
 # JoyVoice: full reference
 
-Source of truth: the JoyVoice repository README and CHANGELOG (https://github.com/MHJoy99/joyvoice), version 2.5.5 (released 2026-10-08). Website: https://mhjoy99.github.io/joyvoice/
+Source of truth: the JoyVoice repository README and CHANGELOG (https://github.com/MHJoy99/joyvoice), version 2.6.0 (released 2026-10-16). Website: https://mhjoy99.github.io/joyvoice/
 
 ## What it is
-JoyVoice is a free, open-source (MIT license) floating-microphone voice typing and speech translation app for Windows 10 and Windows 11. You press the global hotkey F8, speak, press F8 again, and JoyVoice pastes cleaned (and optionally translated) text into whatever application has your cursor, using Ctrl+V. It is written in Python 3.11 with a PySide6 (Qt 6) UI. Author: MH Joy (MHJoy99).
+JoyVoice is a free, open-source (MIT license) floating-microphone voice typing and speech translation app for Windows 10 and Windows 11. You press the global hotkey F8, speak, press F8 again, and JoyVoice pastes cleaned (and optionally translated) text into whatever application has your cursor, typing single-line text directly and pasting multi-line text with Ctrl+V. It is written in Python 3.11 with a PySide6 (Qt 6) UI. Author: MH Joy (MHJoy99).
 
-It is batch dictation: it records while you speak and processes when you stop. It is Windows-only because global hotkeys, clipboard automation and audio capture depend on Win32 APIs.
+It has three engines: Cloud (default), ElevenLabs instant (opt-in since v2.6.0) and Free & Offline. On the Cloud and Free & Offline engines it is batch dictation: it records while you speak and processes when you stop. The ElevenLabs instant engine streams audio while you hold the hotkey, so the text is nearly ready when you stop. It is Windows-only because global hotkeys, clipboard automation and audio capture depend on Win32 APIs.
 
 ## Languages
 10 languages, each usable as the spoken source (or via auto-detect) and as the translation target:
 Bangla (bn), English (en), Russian (ru), Hindi (hi), Spanish (es), Arabic (ar), Chinese (zh), Japanese (ja), French (fr), Portuguese (pt).
-Auto-detect is the default source. Bangladeshi Bengali with English code-switching ("Banglish") is explicitly handled in the transcription prompt. Ctrl+Shift+L cycles the language pair.
+Auto-detect is the default source. On the ElevenLabs instant engine, romanized Banglish is detected (peak Bengali-script share plus a Banglish word list), so mixed speech is never mistaken for English. On the Cloud engine, Bangladeshi Bengali with English code-switching ("Banglish") is explicitly handled in the transcription prompt. Ctrl+Shift+L cycles the language pair.
 Example from the README: speaking Bangla "আমি কাল সকালে মিটিং এ যোগ দিতে পারবো না" pastes "I won't be able to join the meeting tomorrow morning."
 
 ## How it works
@@ -18,26 +18,44 @@ Example from the README: speaking Bangla "আমি কাল সকালে �
 2. Convert float32 to signed int16 PCM (README: under 50 ms).
 3. Speech to text: Google Web Speech ASR (default cloud path); an optional native-audio route through the gateway alias "joyvoice-fast-audio" can transcribe and translate in one request. In Free & Offline mode a local faster-whisper model is used instead.
 4. Translation and styling: a Gemini text model (default setting "gemini-3.6-flash") translates and applies the selected text style. If cloud translation fails, the transcript is salvaged.
-5. Paste: clipboard-safe Ctrl+V (3 attempts with exponential backoff, default 300 ms delay), then the original clipboard is restored.
+5. Paste: single-line text is typed into the focused app with SendInput Unicode (no clipboard, no Ctrl; setting paste_method=auto). Multi-line text uses clipboard-safe Ctrl+V (3 attempts with exponential backoff, default 300 ms delay), then the original clipboard is restored. Optional Enter after paste (paste_press_enter, off by default) only in apps listed in paste_enter_apps.
 The text is saved to local history before paste is attempted, so a failed paste does not lose it. Total time depends on recording length and network; the README cites roughly 1-2 seconds for short audio on the optional native gateway route.
 
+## ElevenLabs instant engine (v2.6.0, opt-in)
+Turn it on in Settings > Free Mode > Engine > ElevenLabs instant (setting engine_mode=elevenlabs). While the hotkey is held, microphone audio streams in 100 ms chunks to two services at once:
+- English speech: ElevenLabs Scribe v2 Realtime (WebSocket). Pasted 0.41-0.56 s after hotkey release (about 0.4 s), measured including a 54 s dictation.
+- Bengali, Banglish and mixed Bengali-English speech: Google Gemini 3.5 Transcribe Live (gemini-3.5-transcribe-live, bn-BD, your "Words to listen for" as custom vocabulary) hears the speech. On release it finalizes the complete transcript in 0.3-0.6 s, and a fast translator (any OpenAI-compatible API, default Groq openai/gpt-oss-120b) raced against the gateway text model turns it into English. Pasted in about 1 s (measured 0.92-1.2 s; a 30 s fast clip 1.44 s); 2.3-3.5 s without a fast translator key; the previous Cloud route took 3.6-4.3 s.
+- Complete endings and faithful translation: the full heard transcript is translated, so endings are no longer cut off, the last sentence is not dropped and wording is not paraphrased.
+- Backup chain for non-English speech: translation of Gemini's transcript, then Gemini's live English (only if it covers every sentence), then ElevenLabs transcript translation, then the Cloud engine. Any missing key, service error, timeout or empty result falls back to the Cloud engine, so text is not lost.
+- Spoken override "...paste it in Russian" translates with the gateway text model (about 2.2 s).
+- Keys: your own ElevenLabs API key and a Gemini API key from Google AI Studio, entered in Settings > API; the fast translator key is optional. ElevenLabs speech-to-text is billed on your ElevenLabs plan (keyterms add about 20%, the transcript translation backup about 30%).
+- Times were measured on the developer's PC from 2026-10-14 to 2026-10-16; network and recording length change them.
+- Known limits: about 1 s is the current floor for Bengali; with Google unavailable, mixed speech can be misheard by ElevenLabs; output mode "both" shows the English twice for Bengali speech; no live text preview on the new engine.
+
 ## Modes
-- Cloud mode (default): needs an API key for an OpenAI-compatible endpoint (Settings > API, or the JV_API_KEY environment variable). Default base URL: https://gpt.bdx.market/v1, configurable. No GPU, CUDA or PyTorch needed.
+- Cloud mode (default engine): needs an API key for an OpenAI-compatible endpoint (Settings > API, or the JV_API_KEY environment variable). Default base URL: https://gpt.bdx.market/v1, configurable. No GPU, CUDA or PyTorch needed.
+- ElevenLabs instant (opt-in, v2.6.0): see the section above.
 - Free & Offline mode: no API key. A local Whisper model (faster-whisper; Tiny, Base or Small, default Small; device Auto or CPU) is downloaded once via "Set up Free Mode" (Settings > Free Mode) into %LOCALAPPDATA%\JoyVoice\models, then works offline. Built-in offline Bangla to English translation via Whisper's translate task. Other translation targets are transcription-only in Free Mode for now; AI text styles require Cloud mode. Planned (not shipped): offline multilingual translation (NLLB) and offline AI styles (Ollama).
 
 ## Features
 - Target language: any of the 10; output modes original, translation or both.
 - Text styles (setting text_style): raw, clean_english (default), prompt_for_ai, professional_message, facebook_post. AI styles need Cloud mode.
-- Floating glass widget: live 5-bar waveform, recording timer, language badge (e.g. BN to EN), live preview, confidence bar, state colours (idle gray, recording orange, transcribing blue, pasted green, error red).
+- GPU glass widget (v2.6.0): aurora-palette pill with real blurred glass and Dynamic-Island-style state morphs, drawn with moderngl shaders on NVIDIA (quality Ultra/High/Balanced/Calm/Off, fps cap 30/60/120; falls back to Balanced if OpenGL fails; Ultra uses about 180-200 MB of memory). Default theme "Joy (signature)". Live waveform, recording timer, language badge (e.g. BN to EN) and state colours.
+- Settings > Appearance tab (v2.6.0) with live preview: opacity, tint, blur, glow, shadow, themes and custom colours, motion speed, wave style, sensitivity, scale 50-200%, text size, roundness, timer/badge/cancel chip, idle behaviour, snap and lock, light/dark/auto glass, Reset, Export/Import.
+- Accessibility (v2.6.0): high contrast, bold text, colour-blind palette, reduce motion (follows Windows), state word labels, screen-reader names, 44 px targets, proximity fade.
+- Words to listen for: up to 50 names sent to ElevenLabs as keyterms (Settings > Replacements).
 - Hotkeys: F8 toggle (or hold-to-record via hotkey_mode), Ctrl+Shift+L language switch, Esc cancel.
 - Spoken one-shot target override: name another target language at the end of a sentence to switch target for that dictation.
 - Right-click history of the last 5 dictations; phrase replacement table; audio beeps; launch on startup; microphone picker.
 - Robustness: 2-second widget visibility watchdog, 5-second hotkey health check, paste retry x3, history-before-paste, ordered chunk handling for long recordings that keeps earlier chunks if a later one fails.
-- v2.5.5: if English is the required target and translation fails, nothing untranslated is pasted; the source transcript is saved to History and a message is shown.
-- Logging: rotating log at %APPDATA%\JoyVoice\joyvoice.log with secrets scrubbed to [REDACTED], transcripts shown only as 80-character previews, raw audio never logged. Crash reports store the exception type, message length and redacted stack frames.
+- Safe by default: if English is the required target and translation fails, nothing untranslated is pasted; the source transcript is saved to History and a message is shown.
+- Logging: rotating log at %APPDATA%\JoyVoice\joyvoice.log with secrets (including ElevenLabs and Groq keys) scrubbed to [REDACTED], transcripts shown only as 80-character previews, raw audio never logged. Crash reports store the exception type, message length and redacted stack frames.
 
 ## Install
-Option A (recommended): download the single JoyVoice.exe (about 173 MB; supports Cloud and Free & Offline) from https://github.com/MHJoy99/joyvoice/releases
+Option A (recommended): download the single JoyVoice.exe v2.6.0 (supports all three engines): https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice.exe
+Zip: https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/JoyVoice-v2.6.0-Windows-x64.zip
+Checksums: https://github.com/MHJoy99/joyvoice/releases/download/v2.6.0/SHA256SUMS.txt
+Release notes: https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0
 Option B (from source, Windows, Python 3.11):
   git clone https://github.com/MHJoy99/joyvoice.git
   cd joyvoice
@@ -49,16 +67,16 @@ Option B (from source, Windows, Python 3.11):
 A run.bat launcher is also in the repository.
 
 ## Key settings (%APPDATA%\JoyVoice\settings.json)
-language=auto; target_language=en; output_mode=translation; text_style=clean_english; hotkey=F8; hotkey_mode=toggle; paste_delay_ms=300; restore_clipboard=true; engine_mode=cloud (or free); free_asr_model=small; api_base=https://gpt.bdx.market/v1; audio_model=joyvoice-fast-audio; text_model=gemini-3.6-flash.
+language=auto; target_language=en; output_mode=translation; text_style=clean_english; hotkey=F8; hotkey_mode=toggle; paste_delay_ms=300; restore_clipboard=true; engine_mode=cloud (or free, or elevenlabs); paste_method=auto; paste_press_enter=false; free_asr_model=small; api_base=https://gpt.bdx.market/v1; audio_model=joyvoice-fast-audio; text_model=gemini-3.6-flash.
 
 ## Privacy
-In cloud mode, recorded speech goes to Google Web Speech or to the optional native-audio route of the configured gateway, and transcript text goes to the configured text model. Free & Offline mode makes no cloud calls after the one-time model download. The API key is stored locally in settings.json or read from JV_API_KEY.
+In cloud mode, recorded speech goes to Google Web Speech or to the optional native-audio route of the configured gateway, and transcript text goes to the configured text model. Free & Offline mode makes no cloud calls after the one-time model download. On the ElevenLabs instant engine, microphone audio streams to ElevenLabs and Google Gemini while you hold the hotkey, and the transcript goes to the fast translator and the text model you configure. API keys are stored locally in settings.json or read from environment variables (JV_API_KEY, JV_ELEVENLABS_API_KEY, JV_GEMINI_API_KEY, JV_FAST_TRANSLATE_API_KEY).
 
 ## Roadmap (planned, not shipped)
 Sentence-stream pipeline, usage dashboard, faster-model bake-off, context-aware style, personal lexicon, macOS/Linux support, plugin outputs, continuous partial results, multi-speaker meeting mode, offline-capable dual path.
 
 ## Credits and notices
-Built with PySide6, sounddevice, SpeechRecognition and faster-whisper/ctranslate2. JoyVoice is an independent project and is not affiliated with Google, Microsoft, OpenAI or the makers of Gemini and Whisper.
+Built with PySide6, sounddevice, SpeechRecognition and faster-whisper/ctranslate2. JoyVoice is an independent project and is not affiliated with Google, Microsoft, OpenAI, ElevenLabs, Groq or the makers of Gemini and Whisper.
 
 ## Links
 Website: https://mhjoy99.github.io/joyvoice/
