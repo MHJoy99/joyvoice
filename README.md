@@ -143,7 +143,7 @@ run.bat
 
 | Build            | Best for                                                  | What's inside                                                                                                                               |
 | :--------------- | :-------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ |
-| **JoyVoice.exe** | **All users — Cloud & Free/Offline Mode _(recommended)_** | Single full bundle (~173 MB). Contains cloud mode pipeline and bundled offline libraries (faster-whisper / ctranslate2 / av / onnxruntime). |
+| **JoyVoice.exe** | **All users — Cloud & Free/Offline Mode _(recommended)_** | Single full bundle (~193 MB). Contains cloud mode pipeline and bundled offline libraries (faster-whisper / ctranslate2 / av / onnxruntime). |
 
 ```
 📁 JoyVoice/
