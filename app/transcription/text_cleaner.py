@@ -69,12 +69,24 @@ def _collapse_repeats(text: str) -> str:
 
 
 def _apply_replacements(text: str, replacements: dict[str, str]) -> str:
-    for phrase, replacement in replacements.items():
+    # Longest phrase first, so "cloud code" wins over a shorter "cloud" rule.
+    for phrase, replacement in sorted(
+        replacements.items(), key=lambda kv: len(kv[0] or ""), reverse=True
+    ):
+        if not phrase:
+            continue
         pattern = re.compile(
             r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", flags=re.IGNORECASE
         )
         text = pattern.sub(replacement, text)
     return text
+
+
+def apply_replacements(text: str, replacements: dict[str, str] | None) -> str:
+    """Apply the user's word fixes only (used by the Raw text style too)."""
+    if not text or not isinstance(replacements, dict) or not replacements:
+        return text
+    return _apply_replacements(text, replacements)
 
 
 def _normalize_whitespace(text: str) -> str:

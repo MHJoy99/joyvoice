@@ -1059,6 +1059,7 @@ class _IsolatedEnvMixin:
         self._old_env = {}
         for k, v in {
             "APPDATA": str(appdata),
+            "JV_DATA_DIR": str(appdata / "JoyVoice"),
             "LOCALAPPDATA": str(localappdata),
             "JV_PROMPT_MEMORY_DB": str(base / "prompt_memory.db"),
             "JV_API_KEY": "dummy-isolated-key",
@@ -1244,9 +1245,13 @@ class TestChunkLossRootRegression(_IsolatedEnvMixin, unittest.TestCase):
     def test_4valid_audible_tail_failure_retries_only_missing(self):
         # Audible tail fails transiently once (500) then succeeds: only the
         # missing chunk is retried, good prefix retained verbatim in order.
+        import threading
         import urllib.error
         from io import BytesIO
-        c = [b"\x02" * 3200 for _ in range(5)]
+        # Distinct chunk payloads so the fake can key each HTTP call by chunk
+        # index. The worker runs chunks on a 3-thread pool, so global call
+        # order is NOT chunk order; a call-order counter made this test flaky.
+        c = [bytes([0x02 + i]) * 3200 for i in range(5)]
         valid = [_cm_bytes(_fake_sse_3field(f"T{i}", f"H{i}")) for i in range(4)]
         tail_ok = _cm_bytes(_fake_sse_3field("Ttail", "Htail"))
 
@@ -1254,20 +1259,37 @@ class TestChunkLossRootRegression(_IsolatedEnvMixin, unittest.TestCase):
             return urllib.error.HTTPError(
                 "https://mock.api/v1", 500, "Server Error", {},
                 BytesIO(b'{"error":"upstream"}'))
-        # tail attempt1 500 -> retry -> ok. Total calls: 4 valid + 500 + ok = 6.
-        plan = valid[:4] + ["ERR", tail_ok]
-        # Replace string marker with real side_effect fn via wrapper below.
-        calls = {"n": 0}
+
+        # Chunks 0-3 succeed first time; the tail (chunk 4) returns 500 once,
+        # then succeeds on its bounded retry. Retries run on the same pool
+        # thread as the first attempt, so a thread-local chunk index is exact.
+        _tls = threading.local()
+        _lock = threading.Lock()
+        tail_calls = {"n": 0}
+
+        import app.main as _m
+        _real_tt = _m.transcribe_and_translate
+
+        def _tt_keyed(pcm, *a, **k):
+            _tls.idx = c.index(pcm)
+            try:
+                return _real_tt(pcm, *a, **k)
+            finally:
+                _tls.idx = None
 
         def _open_side(*a, **k):
-            calls["n"] += 1
-            if calls["n"] <= 4:
-                return valid[calls["n"] - 1]
-            if calls["n"] == 5:
+            idx = getattr(_tls, "idx", None)
+            if idx is None:
+                raise AssertionError("_open_stream called outside a chunk")
+            if idx < 4:
+                return valid[idx]
+            with _lock:
+                tail_calls["n"] += 1
+                n = tail_calls["n"]
+            if n == 1:
                 raise _e500()
             return tail_ok
 
-        import app.main as _m
         settings = {"cloud_chunking": True, "translation_only_fast": False}
         audio = b"\x00" * int(40.12 * 32000)
         worker = _m.CloudASRWorker(audio, "bn", "en", job_id=42,
@@ -1278,6 +1300,7 @@ class TestChunkLossRootRegression(_IsolatedEnvMixin, unittest.TestCase):
         worker.failed.connect(failed)
         with patch.object(_m, "NATIVE_AUDIO_ENABLED", True), \
              patch.object(_m, "resolve_audio_model", return_value="joyvoice-fast-audio"), \
+             patch.object(_m, "transcribe_and_translate", side_effect=_tt_keyed), \
              patch("app.main.split_pcm16_chunks", return_value=c), \
              patch("app.transcription.gemini_audio._open_stream", side_effect=_open_side), \
              patch("time.sleep", return_value=None):
@@ -1292,6 +1315,8 @@ class TestChunkLossRootRegression(_IsolatedEnvMixin, unittest.TestCase):
         self.assertEqual(t.split().index("T0"), 0)
         self.assertTrue(t.index("T3") < t.index("Ttail"))
         self.assertEqual(tl.count("Htail"), 1)
+        # Only the failed tail was retried: one 500, one success.
+        self.assertEqual(tail_calls["n"], 2)
 
 
 class TestChunkHelpersBehavior(_IsolatedEnvMixin, unittest.TestCase):

@@ -298,5 +298,9 @@ class LogViewerDialog(QDialog):
 def show_log_viewer(parent=None) -> LogViewerDialog:
     """Create, show modally, and return a LogViewerDialog."""
     dialog = LogViewerDialog(parent)
+    if parent is not None:
+        from app.ui import placement
+        placement.center_on_screen_of(dialog, parent.geometry().center())
     dialog.exec()
+    dialog.deleteLater()          # parent-owned: free it, one per open otherwise leaks
     return dialog

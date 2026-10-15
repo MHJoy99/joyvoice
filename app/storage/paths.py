@@ -7,6 +7,11 @@ Normal install:
 Portable/dev mode (a ``portable.txt`` file next to the app):
     settings/history/log -> <app dir>\\data\\
     whisper models       -> <app dir>\\models\\
+
+Explicit override (wins over both): environment variable ``JV_DATA_DIR``
+    settings/history/log/usage/prompt DB -> %JV_DATA_DIR%\\
+Used by the test suite (tests/conftest.py) so tests never touch the owner's
+real data; also handy for a custom portable data location.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "JoyVoice"
+DATA_DIR_ENV = "JV_DATA_DIR"
 
 
 def app_root() -> Path:
@@ -31,7 +37,10 @@ def is_portable() -> bool:
 
 
 def data_dir() -> Path:
-    if is_portable():
+    override = os.environ.get(DATA_DIR_ENV, "").strip()
+    if override:
+        d = Path(override).expanduser()
+    elif is_portable():
         d = app_root() / "data"
     else:
         d = Path(os.environ.get("APPDATA", str(Path.home()))) / APP_NAME

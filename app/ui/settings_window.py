@@ -14,6 +14,7 @@ from typing import Any, Optional
 import pyperclip
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import (
+    QPlainTextEdit,
     QAbstractItemView,
     QButtonGroup,
     QCheckBox,
@@ -42,6 +43,8 @@ from app.storage import history_store
 from app.system import startup
 from app.system.hotkeys import PRESETS
 from app.system.paste import PASTE_DELAYS_MS
+from app.ui import appearance
+from app.ui.appearance_tab import AppearanceTab
 from app.transcription.gemini_audio import GATEWAY_USER_AGENT
 from app.transcription.text_cleaner import DEFAULT_REPLACEMENTS
 
@@ -158,20 +161,170 @@ def _paste_delay_label(ms: int) -> str:
     return "0ms (fastest)" if ms == 0 else f"{ms}ms"
 
 
+def _check_icon_url() -> str:
+    """Write the white check glyph used by checked boxes once (PNG in the temp dir); '' on failure."""
+    try:
+        import os
+        import tempfile
+
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+
+        path = os.path.join(tempfile.gettempdir(), "joyvoice_ui_check.png")
+        if not os.path.exists(path):
+            pm = QPixmap(36, 36)
+            pm.fill(Qt.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.Antialiasing)
+            pen = QPen(QColor("white"), 3.6)
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
+            p.setPen(pen)
+            p.drawPolyline([QPointF(10, 18.5), QPointF(15.5, 24), QPointF(26, 12)])
+            p.end()
+            pm.save(path, "PNG")
+        return path.replace("\\", "/")
+    except Exception:
+        return ""
+
+
+# Claude Pulse look: pale mint glass background, white rounded cards, green accent.
+_GLASS_QSS = """
+QDialog {
+    background: qlineargradient(x1:0, y1:0, x2:0.55, y2:1,
+        stop:0 #f7fbf9, stop:0.55 #edf6f1, stop:1 #e1efe7);
+    color: #0f2a1b;
+    font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+    font-size: 12px;
+}
+QLabel { color: #0f2a1b; background: transparent; }
+QToolTip { background: #ffffff; color: #0f2a1b; border: 1px solid rgba(15,42,27,40); border-radius: 6px; padding: 4px 8px; }
+
+QTabWidget::pane {
+    border: 1px solid rgba(255,255,255,235); border-radius: 18px;
+    background: rgba(255,255,255,175); top: -1px;
+}
+QTabBar { background: transparent; }
+QTabBar::tab {
+    background: transparent; color: #33493d; padding: 7px 8px; margin: 0 1px 10px 1px;
+    border-radius: 11px; border: 1px solid transparent; font-weight: 600;
+}
+QTabBar::tab:hover:!selected { background: rgba(255,255,255,150); }
+QTabBar::tab:selected { background: #ffffff; color: #0b6a3a; border: 1px solid rgba(15,42,27,28); }
+
+QGroupBox {
+    background: rgba(255,255,255,205); border: 1px solid rgba(255,255,255,240); border-radius: 14px;
+    margin-top: 16px; padding: 16px 10px 8px 10px; font-weight: 650; color: #0f2a1b;
+}
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px; padding: 0 6px; color: #0b6a3a; }
+
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit, QListWidget, QTableWidget {
+    background: #ffffff; color: #0f2a1b; border: 1px solid rgba(15,42,27,34); border-radius: 9px; padding: 5px 8px;
+    selection-background-color: rgba(31,157,90,70); selection-color: #0f2a1b;
+}
+QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QPlainTextEdit:focus,
+QListWidget:focus, QTableWidget:focus { border: 2px solid #1f9d5a; padding: 4px 7px; }
+QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { background: rgba(255,255,255,120); color: #7b8f83; }
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox QAbstractItemView {
+    background: #ffffff; color: #0f2a1b; border: 1px solid rgba(15,42,27,34); border-radius: 8px; outline: 0;
+    selection-background-color: rgba(31,157,90,48); selection-color: #0b3d22;
+}
+QListWidget::item { padding: 5px 6px; border-radius: 6px; }
+QListWidget::item:selected { background: rgba(31,157,90,48); color: #0b3d22; }
+QTableCornerButton::section { background: rgba(255,255,255,220); border: none; border-bottom: 1px solid rgba(15,42,27,30); }
+QTableWidget { gridline-color: rgba(15,42,27,22); alternate-background-color: rgba(31,157,90,10); }
+QHeaderView { background: rgba(255,255,255,220); border: none; }
+QTableCornerButton::section { background: rgba(255,255,255,220); border: none; }
+QHeaderView::section { background: rgba(255,255,255,220); color: #33493d; border: none; border-bottom: 1px solid rgba(15,42,27,30); padding: 6px 8px; font-weight: 650; }
+
+QPushButton {
+    background: rgba(255,255,255,235); color: #0f2a1b; border: 1px solid rgba(15,42,27,34);
+    border-radius: 10px; padding: 6px 16px; font-weight: 600;
+}
+QPushButton:hover { background: #ffffff; border-color: rgba(31,157,90,150); }
+QPushButton:pressed { background: rgba(31,157,90,30); }
+QPushButton:disabled { color: #7b8f83; background: rgba(255,255,255,120); }
+QPushButton:focus { border: 2px solid #1f9d5a; padding: 5px 15px; }
+QTabBar::tab:focus { border: 2px solid #1f9d5a; }
+QDialogButtonBox QPushButton[text="Save"], QDialogButtonBox QPushButton[text="&Save"] {
+    color: #ffffff; border: 1px solid #137a47; padding: 6px 22px;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #2fb36d, stop:1 #137a47);
+}
+QDialogButtonBox QPushButton[text="Save"]:hover, QDialogButtonBox QPushButton[text="&Save"]:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #36c077, stop:1 #168a52);
+}
+
+QCheckBox, QRadioButton { color: #0f2a1b; spacing: 9px; background: transparent; }
+QCheckBox::indicator { width: 15px; height: 15px; border-radius: 6px; border: 1.5px solid rgba(15,42,27,85); background: #ffffff; }
+QCheckBox::indicator:hover { border-color: #1f9d5a; }
+QCheckBox::indicator:checked { background: #1f9d5a; border-color: #1f9d5a; __CHECK__ }
+QCheckBox::indicator:disabled { background: rgba(255,255,255,120); border-color: rgba(15,42,27,35); }
+QCheckBox::indicator:focus { border: 2px solid #1f9d5a; background: #e3f5eb; }
+QCheckBox::indicator:checked:focus { border: 2px solid #0b6a3a; background: #1f9d5a; }
+QCheckBox:disabled, QRadioButton:disabled { color: #7b8f83; }
+QRadioButton::indicator { width: 15px; height: 15px; border-radius: 9px; border: 1.5px solid rgba(15,42,27,85); background: #ffffff; }
+QRadioButton::indicator:hover { border-color: #1f9d5a; }
+QRadioButton::indicator:checked { width: 8px; height: 8px; border: 5px solid #1f9d5a; border-radius: 9px; background: #ffffff; }
+QRadioButton::indicator:focus { border: 2px solid #1f9d5a; }
+QRadioButton::indicator:checked:focus { width: 6px; height: 6px; border: 5px solid #1f9d5a; outline: 2px solid #1f9d5a; }
+
+QSlider::groove:horizontal { height: 6px; border-radius: 3px; background: rgba(15,42,27,34); }
+QSlider::sub-page:horizontal { background: #1f9d5a; border-radius: 3px; }
+QSlider::handle:horizontal { background: #ffffff; border: 2px solid #1f9d5a; width: 12px; height: 12px; margin: -6px 0; border-radius: 8px; }
+QSlider::handle:horizontal:hover { background: #e3f5eb; }
+QSlider::handle:horizontal:focus { border-color: #0b6a3a; background: #e3f5eb; }
+QSlider::groove:horizontal:disabled { background: rgba(15,42,27,18); }
+QSlider::sub-page:horizontal:disabled { background: #b7c9be; }
+QSlider::handle:horizontal:disabled { border-color: #b7c9be; background: rgba(255,255,255,160); }
+
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar::handle:vertical { background: rgba(15,42,27,70); border-radius: 4px; min-height: 28px; }
+QScrollBar::handle:vertical:hover { background: rgba(31,157,90,170); }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
+QScrollBar::handle:horizontal { background: rgba(15,42,27,70); border-radius: 4px; min-width: 28px; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+"""
+
+
+def _style_title_bar(widget: QWidget) -> None:
+    """Cosmetic: light mint caption with dark text on Windows 11 (no-op elsewhere)."""
+    try:
+        import ctypes
+        import sys
+
+        if sys.platform != "win32":
+            return
+        hwnd = int(widget.winId())
+        dwm = ctypes.windll.dwmapi
+        for attr, value in ((20, 0), (35, 0x00F3F7F1), (36, 0x001B2A0F), (34, 0x00E7DFD9)):
+            v = ctypes.c_int(value)
+            dwm.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr, ctypes.byref(v), 4)
+    except Exception:
+        pass
+
+
 class SettingsWindow(QDialog):
     settings_saved = Signal(dict)
+    # Normalised full appearance dict, emitted (debounced ~30 ms) on every
+    # Appearance-tab edit, and with the as-opened values on Cancel / close so the
+    # live pill reverts.
+    appearance_changed = Signal(dict)
 
     def __init__(self, current_settings: dict[str, Any], parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("JoyVoice Settings")
-        self.resize(560, 480)
+        self.resize(*self._default_size())
         self._settings = dict(current_settings)
+        self._initial_appearance = appearance.normalize(self._settings)
 
         tabs = QTabWidget(self)
         tabs.addTab(self._build_output_tab(), "Output")
         tabs.addTab(self._build_api_tab(), "API")
         tabs.addTab(self._build_free_mode_tab(), "Free Mode")
         tabs.addTab(self._build_general_tab(), "General")
+        tabs.addTab(self._build_appearance_tab(), "Appearance")
         tabs.addTab(self._build_hotkey_tab(), "Hotkey")
         tabs.addTab(self._build_audio_tab(), "Audio")
         tabs.addTab(self._build_paste_tab(), "Paste")
@@ -186,8 +339,37 @@ class SettingsWindow(QDialog):
         button_box.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(12)
         layout.addWidget(tabs)
         layout.addWidget(button_box)
+        _check = _check_icon_url()
+        self.setStyleSheet(_GLASS_QSS.replace("__CHECK__", f"image: url({_check});" if _check else ""))
+        self._link_sound_checkboxes()
+        self.appearance_tab.apply_initial_preview()
+        self.appearance_tab.changed.connect(self.appearance_changed)
+        self.tabs = tabs
+
+    @staticmethod
+    def _default_size() -> tuple[int, int]:
+        """Roomy default (Appearance tab has a pinned live preview), clamped to the screen."""
+        w, h = 790, 720
+        try:
+            from PySide6.QtGui import QGuiApplication
+
+            scr = QGuiApplication.primaryScreen()
+            if scr is not None:
+                geo = scr.availableGeometry()
+                w, h = min(w, int(geo.width() * 0.92)), min(h, int(geo.height() * 0.92))
+        except Exception:
+            pass
+        return w, h
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        from PySide6.QtCore import QTimer
+
+        QTimer.singleShot(40, lambda: _style_title_bar(self))  # frame exists only after the first paint
 
     # ------------------------------------------------------------------
     # Output (Source Language + Target Language + Output Mode + Text Style)
@@ -288,7 +470,7 @@ class SettingsWindow(QDialog):
         )
         memory_note.setObjectName("promptMemoryNote")
         memory_note.setWordWrap(True)
-        memory_note.setStyleSheet("color: #6b7280;")
+        memory_note.setStyleSheet("color: #5b6e63;")
         memory_layout.addWidget(memory_note)
         layout.addWidget(memory_group)
         self._on_prompt_memory_toggled(
@@ -301,7 +483,7 @@ class SettingsWindow(QDialog):
             "connection and a valid API key."
         )
         note.setWordWrap(True)
-        note.setStyleSheet("color: #6b7280;")
+        note.setStyleSheet("color: #5b6e63;")
         layout.addWidget(note)
         layout.addStretch(1)
 
@@ -367,6 +549,22 @@ class SettingsWindow(QDialog):
         key_row.addWidget(self.show_key_checkbox)
         form.addRow("API key:", key_row)
 
+        self.elevenlabs_key_edit = QLineEdit()
+        self.elevenlabs_key_edit.setEchoMode(QLineEdit.Password)
+        self.elevenlabs_key_edit.setPlaceholderText(
+            "Only for the ElevenLabs engine; blank uses ELEVENLABS_API_KEY env var"
+        )
+        self.elevenlabs_key_edit.setText(self._settings.get("elevenlabs_api_key", "") or "")
+        form.addRow("ElevenLabs key:", self.elevenlabs_key_edit)
+
+        self.gemini_key_edit = QLineEdit()
+        self.gemini_key_edit.setEchoMode(QLineEdit.Password)
+        self.gemini_key_edit.setPlaceholderText(
+            "Google AI Studio key for Live Translate; blank uses GEMINI_API_KEY env var"
+        )
+        self.gemini_key_edit.setText(self._settings.get("gemini_api_key", "") or "")
+        form.addRow("Gemini key:", self.gemini_key_edit)
+
         self.audio_model_combo = QComboBox()
         self.audio_model_combo.setEditable(True)
         self._populate_model_combo(self.audio_model_combo, self._settings.get("audio_model", ""))
@@ -401,7 +599,7 @@ class SettingsWindow(QDialog):
             "settings.json."
         )
         note.setWordWrap(True)
-        note.setStyleSheet("color: #6b7280;")
+        note.setStyleSheet("color: #5b6e63;")
         layout.addWidget(note)
         layout.addStretch(1)
 
@@ -417,7 +615,10 @@ class SettingsWindow(QDialog):
         combo.setEditText(current or KNOWN_MODELS[0])
 
     def _on_toggle_show_key(self, checked: bool) -> None:
-        self.api_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
+        mode = QLineEdit.Normal if checked else QLineEdit.Password
+        self.api_key_edit.setEchoMode(mode)
+        self.elevenlabs_key_edit.setEchoMode(mode)
+        self.gemini_key_edit.setEchoMode(mode)
 
     def _effective_api_base(self) -> str:
         return (self.api_base_edit.text().strip() or DEFAULT_API_BASE).rstrip("/")
@@ -434,7 +635,7 @@ class SettingsWindow(QDialog):
         key = self._effective_api_key()
         if not key:
             self.api_test_label.setText("\u2717 Enter an API key first (or set JV_API_KEY).")
-            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            self.api_test_label.setStyleSheet("color: #b42318;")
             return
         try:
             req = urllib.request.Request(
@@ -445,7 +646,7 @@ class SettingsWindow(QDialog):
                 data = json.loads(resp.read().decode())
         except Exception as exc:
             self.api_test_label.setText(f"\u2717 Could not fetch models: {exc}")
-            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            self.api_test_label.setStyleSheet("color: #b42318;")
             return
 
         ids = []
@@ -456,7 +657,7 @@ class SettingsWindow(QDialog):
         ids = sorted(set(ids))
         if not ids:
             self.api_test_label.setText("\u2713 Connected, but no models were listed.")
-            self.api_test_label.setStyleSheet("color: #f1c40f;")
+            self.api_test_label.setStyleSheet("color: #92400e;")
             return
 
         current_audio = self.audio_model_combo.currentText().strip()
@@ -480,10 +681,10 @@ class SettingsWindow(QDialog):
                 f"\u26a0 Fetched {len(ids)} model(s), but joyvoice-fast-audio is not advertised yet. "
                 "JoyVoice will use its verified fallback until the alias is live."
             )
-            self.api_test_label.setStyleSheet("color: #f1c40f;")
+            self.api_test_label.setStyleSheet("color: #92400e;")
         else:
             self.api_test_label.setText(f"\u2713 Fetched {len(ids)} model(s) from {base}.")
-            self.api_test_label.setStyleSheet("color: #2ecc71;")
+            self.api_test_label.setStyleSheet("color: #15803d;")
 
     def _test_api_connection(self) -> None:
         import json
@@ -493,7 +694,7 @@ class SettingsWindow(QDialog):
         key = self._effective_api_key()
         if not key:
             self.api_test_label.setText("\u2717 No API key \u2014 enter one or set JV_API_KEY.")
-            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            self.api_test_label.setStyleSheet("color: #b42318;")
             return
         try:
             req = urllib.request.Request(
@@ -504,7 +705,7 @@ class SettingsWindow(QDialog):
                 data = json.loads(resp.read().decode())
         except Exception as exc:
             self.api_test_label.setText(f"\u2717 Connection failed: {exc}")
-            self.api_test_label.setStyleSheet("color: #e74c3c;")
+            self.api_test_label.setStyleSheet("color: #b42318;")
             return
 
         count = 0
@@ -514,7 +715,7 @@ class SettingsWindow(QDialog):
             self.api_test_label.setText(f"\u2713 Connected to {base} ({count} model(s) available).")
         else:
             self.api_test_label.setText(f"\u2713 Connected to {base}.")
-        self.api_test_label.setStyleSheet("color: #2ecc71;")
+        self.api_test_label.setStyleSheet("color: #15803d;")
 
     # ------------------------------------------------------------------
     # Free Mode (local models, no API key)
@@ -528,14 +729,38 @@ class SettingsWindow(QDialog):
 
         self.engine_cloud_radio = QRadioButton("Cloud — uses your API key (best quality)")
         self.engine_free_radio = QRadioButton("Free & Offline — local models, no API key needed")
+        self.engine_elevenlabs_radio = QRadioButton(
+            "ElevenLabs instant — English speech, text ready as you stop talking "
+            "(other languages fall back to Cloud)"
+        )
         self.engine_group = QButtonGroup(widget)
         self.engine_group.addButton(self.engine_cloud_radio)
         self.engine_group.addButton(self.engine_free_radio)
-        if self._settings.get("engine_mode", "cloud") == "free":
+        self.engine_group.addButton(self.engine_elevenlabs_radio)
+        _engine = self._settings.get("engine_mode", "cloud")
+        if _engine == "free":
             self.engine_free_radio.setChecked(True)
+        elif _engine == "elevenlabs":
+            self.engine_elevenlabs_radio.setChecked(True)
         else:
             self.engine_cloud_radio.setChecked(True)
         layout.addWidget(self.engine_cloud_radio)
+        layout.addWidget(self.engine_elevenlabs_radio)
+        bengali_row = QHBoxLayout()
+        bengali_row.addSpacing(24)
+        bengali_row.addWidget(QLabel("Bengali speech:"))
+        self.elevenlabs_bengali_combo = QComboBox()
+        self.elevenlabs_bengali_combo.addItem(
+            "English — Google Live Translate first, ElevenLabs backup (~1.5–1.9 s, best for mixed speech)", "live")
+        self.elevenlabs_bengali_combo.addItem(
+            "English — ElevenLabs translate only (~1.5 s, uses only your ElevenLabs plan)", "elevenlabs")
+        self.elevenlabs_bengali_combo.addItem("Banglish — instant, Roman letters (ami ajke...)", "banglish")
+        self.elevenlabs_bengali_combo.addItem("English translation — via Cloud, ~4 s", "translate")
+        self._set_combo_by_data(
+            self.elevenlabs_bengali_combo, self._settings.get("elevenlabs_bengali", "live")
+        )
+        bengali_row.addWidget(self.elevenlabs_bengali_combo, 1)
+        layout.addLayout(bengali_row)
         layout.addWidget(self.engine_free_radio)
 
         form = QFormLayout()
@@ -570,7 +795,7 @@ class SettingsWindow(QDialog):
 
         self.free_status_label = QLabel("Status: not checked yet.")
         self.free_status_label.setWordWrap(True)
-        self.free_status_label.setStyleSheet("color: #8b949e;")
+        self.free_status_label.setStyleSheet("color: #5b6e63;")
         layout.addWidget(self.free_status_label)
 
         note = QLabel(
@@ -581,7 +806,7 @@ class SettingsWindow(QDialog):
             "transcription only in Free Mode. AI text styles require Cloud mode."
         )
         note.setWordWrap(True)
-        note.setStyleSheet("color: #6b7280;")
+        note.setStyleSheet("color: #5b6e63;")
         layout.addWidget(note)
         layout.addStretch(1)
 
@@ -592,7 +817,7 @@ class SettingsWindow(QDialog):
         self.free_setup_button.setEnabled(False)
         self.free_test_button.setEnabled(False)
         self.free_status_label.setText("Working…")
-        self.free_status_label.setStyleSheet("color: #8b949e;")
+        self.free_status_label.setStyleSheet("color: #5b6e63;")
         self._free_worker = FreeModelWorker(
             self.free_asr_combo.currentData(),
             self.free_device_combo.currentData(),
@@ -608,13 +833,13 @@ class SettingsWindow(QDialog):
 
     def _on_free_ok(self, message: str) -> None:
         self.free_status_label.setText(message)
-        self.free_status_label.setStyleSheet("color: #2ecc71;")
+        self.free_status_label.setStyleSheet("color: #15803d;")
         self.free_setup_button.setEnabled(True)
         self.free_test_button.setEnabled(True)
 
     def _on_free_failed(self, message: str) -> None:
         self.free_status_label.setText(message)
-        self.free_status_label.setStyleSheet("color: #e74c3c;")
+        self.free_status_label.setStyleSheet("color: #b42318;")
         self.free_setup_button.setEnabled(True)
         self.free_test_button.setEnabled(True)
 
@@ -648,11 +873,44 @@ class SettingsWindow(QDialog):
             "Cloud API endpoint, key, and models are configured in the API tab."
         )
         note.setWordWrap(True)
-        note.setStyleSheet("color: #6b7280;")
+        note.setStyleSheet("color: #5b6e63;")
         layout.addWidget(note)
         layout.addStretch(1)
 
         return widget
+
+    # ------------------------------------------------------------------
+    # Appearance (floating pill look: live preview + grouped controls)
+    # ------------------------------------------------------------------
+    def _build_appearance_tab(self) -> QWidget:
+        self.appearance_tab = AppearanceTab(self._settings)
+        return self.appearance_tab
+
+    def current_appearance(self) -> dict[str, Any]:
+        """Normalised full appearance dict as currently shown in the Appearance tab."""
+        return self.appearance_tab.values()
+
+    def _link_sound_checkboxes(self) -> None:
+        """``sound_enabled`` lives in two places (Developer + Appearance > Accessibility): keep them in sync."""
+        a, b = self.dev_sound_enabled_checkbox, self.appearance_tab.sound_checkbox
+
+        def mirror(src: QCheckBox, dst: QCheckBox):
+            def _f(on: bool) -> None:
+                if dst.isChecked() != on:
+                    dst.blockSignals(True)
+                    dst.setChecked(on)
+                    dst.blockSignals(False)
+            src.toggled.connect(_f)
+
+        mirror(a, b)
+        mirror(b, a)
+        b.setChecked(a.isChecked())
+
+    def reject(self) -> None:  # noqa: D401 - Cancel / Esc / close without saving
+        """Revert the live pill to the appearance the dialog was opened with."""
+        self.appearance_tab.cancel_pending()
+        self.appearance_changed.emit(dict(self._initial_appearance))
+        super().reject()
 
     # ------------------------------------------------------------------
     # Hotkey
@@ -669,7 +927,7 @@ class SettingsWindow(QDialog):
             self.hotkey_preset_combo.setCurrentText(current_hotkey)
 
         self.hotkey_conflict_label = QLabel(CTRL_SPACE_WARNING)
-        self.hotkey_conflict_label.setStyleSheet("color: #b45309;")
+        self.hotkey_conflict_label.setStyleSheet("color: #9a4207;")
         self.hotkey_conflict_label.setVisible(current_hotkey == "Ctrl+Space")
         self.hotkey_preset_combo.currentTextChanged.connect(self._on_hotkey_preset_changed)
 
@@ -740,7 +998,7 @@ class SettingsWindow(QDialog):
 
         self.mute_help_label = QLabel("")
         self.mute_help_label.setWordWrap(True)
-        self.mute_help_label.setStyleSheet("color: #6b7280;")
+        self.mute_help_label.setStyleSheet("color: #5b6e63;")
         form.addRow(self.mute_help_label)
 
         layout.addLayout(form)
@@ -835,6 +1093,11 @@ class SettingsWindow(QDialog):
         self.restore_clipboard_checkbox.setChecked(bool(self._settings.get("restore_clipboard", True)))
         layout.addWidget(self.restore_clipboard_checkbox)
 
+        apps = ", ".join(self._settings.get("paste_enter_apps") or []) or "none"
+        self.press_enter_checkbox = QCheckBox(f"Press Enter after pasting (only in: {apps})")
+        self.press_enter_checkbox.setChecked(bool(self._settings.get("paste_press_enter", False)))
+        layout.addWidget(self.press_enter_checkbox)
+
         self.wait_for_release_checkbox = QCheckBox("Wait for hotkey release before pasting")
         self.wait_for_release_checkbox.setChecked(bool(self._settings.get("wait_for_hotkey_release", True)))
         layout.addWidget(self.wait_for_release_checkbox)
@@ -871,6 +1134,22 @@ class SettingsWindow(QDialog):
         button_row.addStretch(1)
         layout.addLayout(button_row)
 
+        note = QLabel(
+            "Replacements fix words after transcription (also in Raw style). "
+            "Use multi-word phrases for common words, e.g. \"cloud code\" -> "
+            "\"Claude Code\", so \"Google Cloud\" stays untouched."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #5b6e63;")
+        layout.addWidget(note)
+
+        layout.addWidget(QLabel("Words to listen for (ElevenLabs engine, one per line, max 50, up to 20 letters each):"))
+        self.keyterms_edit = QPlainTextEdit()
+        self.keyterms_edit.setPlaceholderText("Claude\nChatwoot\nRackNerd")
+        self.keyterms_edit.setPlainText("\n".join(self._settings.get("vocabulary_keyterms") or []))
+        self.keyterms_edit.setMaximumHeight(120)
+        layout.addWidget(self.keyterms_edit)
+
         return widget
 
     def _append_replacement_row(self, phrase: str, replacement: str) -> None:
@@ -898,7 +1177,7 @@ class SettingsWindow(QDialog):
             _history_path = "history.json"
         path_label = QLabel(f"Saved transcripts: {_history_path}")
         path_label.setWordWrap(True)
-        path_label.setStyleSheet("color: #6b7280; font-size: 10px;")
+        path_label.setStyleSheet("color: #5b6e63; font-size: 10px;")
         path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(path_label)
 
@@ -926,7 +1205,7 @@ class SettingsWindow(QDialog):
 
         hint = QLabel("Every dictation is saved here before pasting — including salvaged transcripts when translation fails.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #6b7280; font-size: 10px;")
+        hint.setStyleSheet("color: #5b6e63; font-size: 10px;")
         layout.addWidget(hint)
 
         return widget
@@ -1127,7 +1406,15 @@ class SettingsWindow(QDialog):
         updated["api_key"] = self.api_key_edit.text().strip()
         updated["audio_model"] = self.audio_model_combo.currentText().strip()
         updated["text_model"] = self.text_model_combo.currentText().strip()
-        updated["engine_mode"] = "free" if self.engine_free_radio.isChecked() else "cloud"
+        updated["elevenlabs_api_key"] = self.elevenlabs_key_edit.text().strip()
+        updated["elevenlabs_bengali"] = self.elevenlabs_bengali_combo.currentData()
+        updated["gemini_api_key"] = self.gemini_key_edit.text().strip()
+        if self.engine_free_radio.isChecked():
+            updated["engine_mode"] = "free"
+        elif self.engine_elevenlabs_radio.isChecked():
+            updated["engine_mode"] = "elevenlabs"
+        else:
+            updated["engine_mode"] = "cloud"
         updated["free_asr_model"] = self.free_asr_combo.currentData()
         updated["free_device"] = self.free_device_combo.currentData()
         updated["free_translate_engine"] = self.free_translate_combo.currentData()
@@ -1149,6 +1436,7 @@ class SettingsWindow(QDialog):
         updated["paste_mode"] = "copy_only" if self.paste_mode_copy_radio.isChecked() else "paste"
         updated["paste_delay_ms"] = self.paste_delay_combo.currentData()
         updated["restore_clipboard"] = self.restore_clipboard_checkbox.isChecked()
+        updated["paste_press_enter"] = self.press_enter_checkbox.isChecked()
         updated["wait_for_hotkey_release"] = self.wait_for_release_checkbox.isChecked()
 
         updated["prompt_memory_enabled"] = self.prompt_memory_enabled_checkbox.isChecked()
@@ -1166,6 +1454,10 @@ class SettingsWindow(QDialog):
         # emit it so the live session can use it (store filters unknown keys).
         updated["dev_overlay"] = self.dev_overlay_checkbox.isChecked()
 
+        # Appearance: validated through appearance.normalize (all widget_* keys).
+        # sound_enabled stays a single key (both checkboxes are kept in sync).
+        updated.update(self.appearance_tab.values())
+
         replacements: dict[str, str] = {}
         for row in range(self.replacements_table.rowCount()):
             phrase_item = self.replacements_table.item(row, 0)
@@ -1175,6 +1467,9 @@ class SettingsWindow(QDialog):
             if phrase:
                 replacements[phrase] = replacement
         updated["replacements"] = replacements
+        updated["vocabulary_keyterms"] = [
+            line.strip() for line in self.keyterms_edit.toPlainText().splitlines() if line.strip()
+        ]
 
         self.settings_saved.emit(updated)
         self.accept()

@@ -208,8 +208,12 @@ class StatsDialog(QDialog):
 def show_stats(parent: Optional[QWidget] = None) -> StatsDialog:
     """Open the estimated usage-stats dashboard. Never raises."""
     dlg = StatsDialog(parent)
+    if parent is not None:
+        from app.ui import placement
+        placement.center_on_screen_of(dlg, parent.geometry().center())
     try:
         dlg.exec()
     except Exception as exc:
         logger.debug("show_stats exec failed: %s", exc)
+    dlg.deleteLater()             # parent-owned: free it, one per open otherwise leaks
     return dlg

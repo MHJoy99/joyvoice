@@ -13,7 +13,7 @@ import tempfile
 import threading
 import wave
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 import sounddevice as sd
@@ -34,6 +34,13 @@ class Recorder:
         self._frames_captured = 0
         self._level_lock = threading.Lock()
         self._level = 0.0
+        # Optional live consumer of each audio block (e.g. a streaming ASR
+        # session). Called on the PortAudio thread; must only enqueue.
+        self._listener: Optional[Callable[[np.ndarray], None]] = None
+
+    def set_listener(self, listener: Optional[Callable[[np.ndarray], None]]) -> None:
+        """Attach (or with None, detach) a live consumer of audio blocks."""
+        self._listener = listener
 
     def set_device(self, device: Optional[int | str]) -> None:
         """device=None means system default input device."""
@@ -66,8 +73,15 @@ class Recorder:
             try:
                 if self._frames_captured >= SAMPLE_RATE * MAX_SECONDS:
                     return
-                self._chunks.append(indata.copy())
+                block = indata.copy()
+                self._chunks.append(block)
                 self._frames_captured += frames
+                listener = self._listener
+                if listener is not None:
+                    try:
+                        listener(block)
+                    except Exception:
+                        pass
                 peak = float(np.abs(indata).max()) if indata.size else 0.0
                 with self._level_lock:
                     self._level = peak

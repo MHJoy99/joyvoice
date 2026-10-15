@@ -102,7 +102,23 @@ VERIFIED_AUDIO_FALLBACK_MODEL = "gemini-2.5-flash"
 # Cloudflare in front of the gateway answers urllib's default "Python-urllib/x.y"
 # User-Agent with HTTP 403 "error code: 1010" (seen 2026-10-08 18:19-18:22 and on
 # re-test). Explicit product UA is accepted. Send it on every gateway request.
-GATEWAY_USER_AGENT = "JoyVoice/2.5.5"
+GATEWAY_USER_AGENT_FALLBACK = "JoyVoice/2.6.0"
+
+
+def _gateway_user_agent() -> str:
+    """``JoyVoice/<app version>`` from the startup version resolver; safe fallback."""
+    try:
+        from app.logging_setup import APP_VERSION_FALLBACK, _resolve_app_version
+
+        ver = (_resolve_app_version() or "").strip()
+        if ver and ver != APP_VERSION_FALLBACK:
+            return f"JoyVoice/{ver}"
+    except Exception:
+        pass
+    return GATEWAY_USER_AGENT_FALLBACK
+
+
+GATEWAY_USER_AGENT = _gateway_user_agent()
 NATIVE_AUDIO_TIMEOUT_S = 180.0
 _MODEL_VERIFY_TTL_S = 300.0
 _MODEL_VERIFY_CACHE: dict[tuple[str, str], tuple[float, str]] = {}

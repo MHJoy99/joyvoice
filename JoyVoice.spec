@@ -9,7 +9,7 @@ blocklist = ['torch', 'torchvision', 'torchaudio', 'transformers']
 
 datas = []
 binaries = []
-hiddenimports = ['sounddevice', 'speech_recognition', 'numpy', 'pyperclip', 'keyboard', 'pycaw', 'comtypes', 'psutil']
+hiddenimports = ['sounddevice', 'speech_recognition', 'numpy', 'pyperclip', 'keyboard', 'pycaw', 'comtypes', 'psutil', 'websockets.sync.client', 'moderngl', 'glcontext']
 
 for pkg in ['faster_whisper', 'ctranslate2', 'av', 'onnxruntime']:
     d, b, h = collect_all(pkg)

@@ -59,6 +59,7 @@ def test_store_module_and_db_path_contract():
 
 def test_db_path_lives_under_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("JV_PROMPT_MEMORY_DB", raising=False)
+    monkeypatch.delenv("JV_DATA_DIR", raising=False)
     fake_appdata = tmp_path / "APPDATA"
     monkeypatch.setenv("APPDATA", str(fake_appdata))
     monkeypatch.setattr(paths, "is_portable", lambda: False)
@@ -70,6 +71,7 @@ def test_db_path_lives_under_data_dir(tmp_path: Path, monkeypatch: pytest.Monkey
 
 def test_db_path_respects_portable_mode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("JV_PROMPT_MEMORY_DB", raising=False)
+    monkeypatch.delenv("JV_DATA_DIR", raising=False)
     monkeypatch.setattr(paths, "is_portable", lambda: True)
     monkeypatch.setattr(paths, "app_root", lambda: tmp_path)
     resolved = Path(paths.prompt_memory_db_path())

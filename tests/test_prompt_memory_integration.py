@@ -958,6 +958,7 @@ class _IsolatedFullEnv(unittest.TestCase):
         self._old = {}
         for k, v in {
             "APPDATA": str(base / "appdata"),
+            "JV_DATA_DIR": str(base / "appdata" / "JoyVoice"),
             "LOCALAPPDATA": str(base / "localappdata"),
             "JV_PROMPT_MEMORY_DB": str(base / "prompt_memory.db"),
             "JV_API_KEY": "dummy-isolated-key",

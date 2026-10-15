@@ -76,6 +76,12 @@ _BN_ALT = "|".join(_BN_CMDS)
 
 _TAIL_CHARS = 120
 
+# Words that make "in <language>" an instruction rather than a description.
+_COMMAND_WORDS = (
+    r"(?:paste|translate|translation|write|type|output|provide|give|send|reply|"
+    r"convert|say it|put it)|ট্রান্সলেট|অনুবাদ|লিখে|দাও|দিন"
+)
+
 
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())
@@ -117,9 +123,18 @@ def detect_target_override(text: str) -> Optional[str]:
             # "по-русски"
             rf"(?:по-){alias_re}[.!?…]*$",
         ]
-        for pat in strong:
-            if re.search(pat, tail, re.IGNORECASE | re.DOTALL):
-                return code
+        for i, pat in enumerate(strong):
+            m = re.search(pat, tail, re.IGNORECASE | re.DOTALL)
+            if not m:
+                continue
+            # A bare "... in Bengali." also ends ordinary sentences ("I am
+            # speaking in Bengali"). Only treat it as a command when "please"
+            # is there or the tail contains a command word.
+            if i == 2 and "please" not in m.group(0).lower() and not re.search(
+                _COMMAND_WORDS, tail, re.IGNORECASE
+            ):
+                continue
+            return code
 
     return None
 

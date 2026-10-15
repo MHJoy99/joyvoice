@@ -225,8 +225,9 @@ _RE_BEARER = re.compile(
     r"(Bearer\s+)(?!%|\{)[A-Za-z0-9\-._~+/=]{4,}", re.IGNORECASE
 )
 
-# OpenAI-style keys: sk-..., sk-proj-... (also catches most gateway keys).
-_RE_SK_KEY = re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9\-_]{4,}\b")
+# OpenAI-style keys: sk-..., sk-proj-... (also catches most gateway keys),
+# ElevenLabs keys: sk_..., and Groq keys: gsk_...
+_RE_SK_KEY = re.compile(r"\bg?sk[-_](?:proj-)?[A-Za-z0-9\-_]{4,}\b")
 
 # api_key assignments: api_key=VAL, "api_key": "VAL", JV_API_KEY: VAL, ...
 # The value must not start with % (logging placeholder) or { (format field).
