@@ -6,14 +6,16 @@
 
 - **Name:** JoyVoice
 - **Repository URL:** `https://github.com/MHJoy99/joyvoice`
-- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.5.5`
+- **Latest Release:** `https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0`
 - **License:** MIT License
 - **Target Platform:** Windows 10 / Windows 11 (64-bit)
 - **Primary Language:** Python 3.11
 - **UI Architecture:** PySide6 (Qt 6.7) floating glass-morphism widget
 - **Audio Capture:** WASAPI via `sounddevice` (16,000 Hz, mono float32)
-- **Cloud Models:** `joyvoice-fast-audio` native audio alias (optional), Google Web Speech fallback, `gemini-3.6-flash` (text translation & styles)
-- **Settings Path:** `%APPDATA%\JoyVoice\settings.json`
+- **Cloud Models:** `joyvoice-fast-audio` native audio alias (optional, `JV_NATIVE_AUDIO=true`), Google Web Speech, `gemini-3.6-flash` (text translation & styles)
+- **Instant Engine (v2.6.0, opt-in):** ElevenLabs Scribe v2 Realtime (`scribe_v2_realtime`, WebSocket) plus Google Gemini 3.5 Transcribe Live (`gemini-3.5-transcribe-live`, Live API WebSocket, `bn-BD`, custom vocabulary; `JV_BENGALI_EAR=translate` selects the older `gemini-3.5-live-translate-preview`) plus an optional fast translator (any OpenAI-compatible API, default Groq `openai/gpt-oss-120b`); needs the user's own ElevenLabs and Gemini API keys. Bengali or mixed speech: about 1 s after release with a fast translator key (0.92-1.2 s; a 30 s fast clip 1.44 s), 2.3-3.5 s gateway only; English 0.41-0.56 s
+- **Widget (v2.6.0):** aurora-palette glass pill rendered with moderngl shaders on NVIDIA (Ultra/High/Balanced/Calm/Off, fps cap 30/60/120, Balanced fallback if OpenGL fails), Settings → Appearance tab with live preview and accessibility options; Ultra memory about 180-200 MB
+- **Settings Path:** `%APPDATA%\JoyVoice\settings.json` (env `JV_DATA_DIR` moves all user data)
 - **History Path:** `%APPDATA%\JoyVoice\history.json`
 - **Log File Path:** `%APPDATA%\JoyVoice\joyvoice.log`
 
@@ -44,6 +46,11 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 - `app/transcription/cloud_asr.py` - Primary cloud ASR using Google Web Speech API.
 - `app/transcription/gemini_audio.py` - Native `input_audio` integration through the verified `joyvoice-fast-audio` gateway alias.
 - `app/transcription/free_asr.py` - Opt-in local faster-whisper Free & Offline ASR worker.
+- `app/transcription/elevenlabs_realtime.py` - ElevenLabs Scribe v2 Realtime WebSocket session: streams 100 ms PCM chunks while the hotkey is held, manual commits every 25 s, optional keyterms and transcript translation (`edited_transcript`).
+- `app/transcription/gemini_transcribe_live.py` - Default Bengali ear: Google Gemini 3.5 Transcribe Live WebSocket session (`gemini-3.5-transcribe-live`, `languageCodes ["bn-BD"]`, `customVocabulary` from the vocabulary keyterms, up to 100). On release `audioStreamEnd` makes it finalize; the complete transcript plus `generationComplete` arrive 0.3-0.6 s later (the settled signal). Detects romanized Banglish (peak Bengali-script share plus a Banglish word list) so mixed speech is never taken for English.
+- `app/transcription/gemini_live_translate.py` - Older ear (`JV_BENGALI_EAR=translate`): Google Gemini Live Translate WebSocket session that runs alongside ElevenLabs for Bengali and mixed speech. It collects Gemini's heard transcript (`inputTranscription`) and live English; `heard_state()` decides when the transcript is complete and `live_covers_heard()` checks whether the live English can be a fallback.
+- `app/transcription/fast_translate.py` - Fast translator: any OpenAI-compatible API (default Groq `openai/gpt-oss-120b`, `reasoning_effort=low`), raced against the gateway text model; the first valid English wins.
+- `app/transcription/banglish.py` - Optional local Bengali-script to Banglish (Roman letters) converter.
 - `app/transcription/text_cleaner.py` - Deterministic text cleanup rules: filler word removal, stutter collapse, custom word replacement table, whitespace normalization.
 
 ### Storage & Persistence (`app/storage/`)
@@ -52,7 +59,10 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 - `app/storage/history_store.py` - Rolling 500-entry JSON dictation history file.
 
 ### User Interface Subsystem (`app/ui/`)
-- `app/ui/floating_widget.py` - Glass-morphism translucent frameless widget (200x80px) with 5 visual state animations (idle, recording, transcribing, pasted, error), 5 live waveform bars, confidence color bar, live preview label, and context menu.
+- `app/ui/floating_widget.py` - Glass-morphism translucent frameless widget with aurora state morphs (idle, recording, transcribing, pasted, error), live waveform, confidence color bar, live preview label, and context menu.
+- `app/ui/widget_gpu.py` - moderngl shader renderer for the widget (Ultra/High quality on NVIDIA; Balanced QPainter fallback).
+- `app/ui/appearance.py`, `app/ui/appearance_tab.py` - Look settings (themes incl. default "Joy (signature)", quality, fps cap, scale 50-200%, glass, accessibility) and the Settings → Appearance tab with live preview, Reset, Export/Import.
+- `app/ui/placement.py` - Keeps menus, toasts, popups and Settings on one screen across monitors.
 - `app/ui/settings_window.py` - 7-tabbed configuration dialog for Output, General, Hotkey, Audio Device, Paste behavior, Replacements, and History.
 - `app/ui/tray.py` - Windows system tray icon and menu integration.
 
@@ -71,10 +81,10 @@ JoyVoice is designed for professionals, developers, and multilingual creators wh
 3. **Audio Capture:** `Recorder.start()` captures 16,000 Hz float32 mono stream from selected microphone. A 40ms Qt timer updates live audio levels on `FloatingWidget`.
 4. **User Deactivation:** Press `F8` again. `Recorder.stop()` returns float32 numpy array.
 5. **PCM Conversion:** `AppController` converts float32 audio to signed 16-bit PCM (`int16`) bytes.
-6. **Cloud ASR & LLM Dispatch:** Native mode sends one WAV request to `joyvoice-fast-audio` for transcript + translation; if native mode is unavailable, the cloud fallback uses Google Web Speech and the separate text model.
+6. **Cloud ASR & LLM Dispatch:** With the ElevenLabs instant engine, audio was already streamed during recording; `ElevenLabsASRWorker` pastes the ElevenLabs text for English speech. For Bengali or mixed speech (engine `gemini-heard`) it pastes the translation of Gemini's complete transcript (Transcribe Live settles 0.3-0.6 s after release), made by the fast translator and the gateway text model in a race, about 1 s after release; Gemini's live English is never pasted directly, only as a fallback when it covers every sentence, then ElevenLabs translation. Any failure falls back to the Cloud path. On the Cloud path, native mode (`JV_NATIVE_AUDIO=true`) sends one WAV request to `joyvoice-fast-audio` for transcript + translation; otherwise Google Web Speech and the separate text model are used.
 7. **Text Formatting & Cleanup:** `text_cleaner.clean_text()` applies rule-based fixes and user replacement tables.
 8. **History Save:** Result is committed to `%APPDATA%\JoyVoice\history.json` before clipboard interaction (ensuring 0% data loss).
-9. **Auto-Paste:** `app.system.paste.paste_text()` backs up existing clipboard, copies cleaned text, fires `Ctrl+V` with up to 3 retries, and restores original clipboard.
+9. **Auto-Paste:** `app.system.paste.paste_text()` types single-line text directly with SendInput Unicode (no clipboard). Multi-line text: backs up the clipboard, copies the cleaned text, fires `Ctrl+V` with up to 3 retries, and restores the original clipboard. Optional Enter after paste only in apps listed in `paste_enter_apps`.
 10. **UI Feedback:** Floating widget displays green `pasted` state with scale-pop animation for 1.2s and plays completion chime `play_done()`.
 
 ---

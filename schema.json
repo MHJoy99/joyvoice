@@ -6,10 +6,10 @@
       "@id": "https://github.com/MHJoy99/joyvoice#software",
       "name": "JoyVoice",
       "alternateName": ["JoyVoice AI Floating Mic", "JoyVoice Dictation"],
-      "description": "Ultra-low latency AI floating microphone dictation and real-time speech translation tool for Windows 10/11 with optional native audio through the joyvoice-fast-audio gateway route.",
+      "description": "Open-source instant voice dictation and real-time speech translation for Windows 10/11. Press F8, speak, and English (or another target language) is typed into the focused app. The ElevenLabs instant engine streams audio while you speak: English speech pastes 0.41-0.56 s after you release the hotkey (ElevenLabs Scribe v2 Realtime), and Bangla/Bengali or mixed Bengali-English (Banglish) speech pastes as complete English in about 1 s after release with a fast translator key (Gemini 3.5 Transcribe Live finalizes the transcript, then a fast translator turns it into English). The ElevenLabs instant engine is opt-in; the default engine is Cloud.",
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Windows 10, Windows 11",
-      "softwareVersion": "2.5.5",
+      "softwareVersion": "2.6.0",
       "license": "https://opensource.org/licenses/MIT",
       "programmingLanguage": "Python 3.11",
       "author": {
@@ -25,11 +25,16 @@
       "featureList": [
         "10-Language Dictation & Speech Translation (Bangla, English, Russian, Hindi, Spanish, Arabic, Chinese, Japanese, French, Portuguese)",
         "Automatic Speech Language Detection",
-        "Cloud Speech Recognition fallback plus optional joyvoice-fast-audio native transcript and translation route",
+        "Instant voice dictation engine (ElevenLabs instant): live streaming speech-to-text with ElevenLabs Scribe v2 Realtime, English text 0.41-0.56 s after hotkey release",
+        "Real-time Bangla/Bengali to English speech translation: Gemini 3.5 Transcribe Live (gemini-3.5-transcribe-live, bn-BD, custom vocabulary) hears the speech and finalizes the full transcript 0.3-0.6 s after hotkey release; a fast OpenAI-compatible translator raced against the gateway text model returns complete English in about 1 s, with romanized Banglish detected and ElevenLabs transcript translation as a backup",
+        "Mixed Bengali-English (Banglish) dictation, with an optional local Bengali-script to Banglish (Roman Bengali) converter",
+        "Spoken one-shot language command (for example \"paste it in Russian\") translates the dictation into that language",
+        "Automatic fallback to the Cloud engine (Google Web Speech plus gateway text translation) on any error, so text is never lost",
+        "Cloud engine: Google Web Speech plus a Gemini text model, with optional native gateway audio (JV_NATIVE_AUDIO=true)",
         "Glass-Morphism Floating Microphone Pill Widget with Live Waveform Animation",
-        "Automatic Clipboard-Safe Paste into Any Focused Windows Application (Slack, Notion, VS Code, Word, Chrome)",
-        "Zero Local GPU Requirement (in default cloud mode)",
-        "Optional Native Gateway Audio or Local Faster-Whisper ASR"
+        "Direct typing of single-line results into the focused Windows application (SendInput Unicode, no clipboard); clipboard-safe paste for multi-line text",
+        "Zero Local GPU Requirement (in cloud engines)",
+        "Optional Free and Offline Mode with local faster-whisper ASR"
       ]
     },
     {
@@ -41,7 +46,7 @@
         {
           "@type": "HowToStep",
           "name": "Open Terminal in Repository Directory",
-          "text": "Open Command Prompt or PowerShell and navigate to C:\\Users\\Administrator\\VoiceFloat\\joyvoice."
+          "text": "Open Command Prompt or PowerShell and navigate to the folder where you cloned the joyvoice repository."
         },
         {
           "@type": "HowToStep",
@@ -82,7 +87,7 @@
           "name": "Is JoyVoice free?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. JoyVoice is free and open-source under the MIT license. Cloud dictation uses your own API gateway key at roughly $0.001 per dictation, the Google Web Speech fallback needs no key, and the opt-in Free and Offline Mode runs fully on-device with no API key after a one-time speech-model download."
+            "text": "Yes. JoyVoice is free and open-source under the MIT license. Cloud dictation uses your own API gateway key at roughly $0.001 per dictation, the Google Web Speech fallback needs no key, and the opt-in Free and Offline Mode runs fully on-device with no API key after a one-time speech-model download. The optional ElevenLabs instant engine uses your own ElevenLabs key (speech-to-text is billed on your ElevenLabs plan; listening for custom words adds about 20% and the transcript translation backup adds about 30%) and a Gemini API key from Google AI Studio for Gemini Transcribe Live."
           }
         },
         {
@@ -99,6 +104,30 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Windows voice typing (Win+H) covers a limited language set, needs manual language switching, and offers a single output mode with no translation targets. JoyVoice auto-detects speech across 10 languages, translates into any of the 10 target languages, pastes clipboard-safely with retry into any focused app, and adds 5 text styles, searchable history, a floating glass-morphism widget, and F8 plus Ctrl+Shift+L hotkeys."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How fast is JoyVoice voice dictation?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "With the ElevenLabs instant engine (v2.6.0), audio streams while you hold the hotkey, so most of the work is done before you let go. In testing, English speech was pasted 0.41-0.56 s after release, including a 54-second dictation. Bengali or mixed Bengali-English speech was pasted as complete English in about 1 s (0.92-1.2 s; a 30-second fast clip took 1.44 s) with a fast translator key (2.3-3.5 s with the gateway text model alone), down from 3.6-4.3 s on the older route."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does JoyVoice translate Bangla (Bengali) speech to English in real time?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "While you speak, JoyVoice streams the microphone to two services at once: ElevenLabs Scribe v2 Realtime (speech-to-text) and Google Gemini 3.5 Transcribe Live (which writes down Bengali and English as spoken). For English speech the ElevenLabs text is used. If Gemini heard Bengali script, or romanized Banglish words, the speech is treated as Bengali or mixed Bengali-English (Banglish). When you release the hotkey Gemini finalizes the complete transcript within 0.3-0.6 s, and a fast translator turns it into English, so the text is pasted in about 1 s and never cut off."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What happens if ElevenLabs or Gemini fails?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "For non-English speech the order is the translation of Gemini's transcript, then (on the older Live Translate ear) Gemini's live English only if it covers every sentence, then ElevenLabs' own transcript translation, then the Cloud engine. Any other failure (no key, no internet, a service error or a timeout) also falls back to the Cloud engine: Google Web Speech plus translation by the gateway text model, or gateway Gemini audio when JV_NATIVE_AUDIO=true. History saves every dictation before pasting, so text is not lost."
           }
         },
         {

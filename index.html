@@ -7,8 +7,8 @@
     <!-- Primary SEO Meta Tags -->
     <title>JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows</title>
     <meta name="title" content="JoyVoice — Floating AI Voice Dictation & Real-Time Translation for Windows">
-    <meta name="description" content="JoyVoice is an open-source Windows floating mic for Bangla and multilingual dictation. Use the optional joyvoice-fast-audio gateway route for fast transcript plus translation, then auto-paste clean text into any app.">
-    <meta name="keywords" content="Bangla voice typing, JoyVoice, Gemini voice dictation, speech translation Windows 11, floating mic app, voice to text auto paste, speech to text bangla english, open source voice typing, zero gpu dictation">
+    <meta name="description" content="JoyVoice is an open-source instant voice dictation app for Windows. Press F8 and speak: English is typed into any app about 0.5 s after you stop (ElevenLabs Scribe realtime), and Bangla/Bengali or Banglish speech becomes complete English in about 1 s with a fast translator key (Gemini 3.5 Transcribe Live, then a fast translator).">
+    <meta name="keywords" content="instant voice dictation, Bangla voice typing, Bengali to English real-time translation, Banglish dictation, mixed Bengali English speech to text, ElevenLabs Scribe realtime, Gemini Transcribe Live, JoyVoice, speech translation Windows 11, floating mic app, voice to text auto paste, open source voice typing, zero gpu dictation">
     <meta name="author" content="MH Joy">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="https://github.com/MHJoy99/joyvoice">
@@ -53,8 +53,8 @@
       "sameAs": ["https://github.com/MHJoy99/joyvoice"],
       "applicationCategory": "ProductivityApplication",
       "operatingSystem": "Windows 10, Windows 11",
-      "softwareVersion": "2.5.5",
-      "description": "Open-source Windows floating microphone dictation and real-time speech translation with optional native audio through the joyvoice-fast-audio gateway route.",
+      "softwareVersion": "2.6.0",
+      "description": "Open-source instant voice dictation and real-time speech translation for Windows. The ElevenLabs instant engine streams audio while you speak: English pastes 0.41-0.56 s after hotkey release (ElevenLabs Scribe v2 Realtime); Bangla/Bengali and mixed Bengali-English (Banglish) speech pastes as complete English in about 1 s after release with a fast translator key (Gemini 3.5 Transcribe Live finalizes the transcript, then a fast translator turns it into English). The instant engine is opt-in; any failure falls back to the Cloud engine.",
       "license": "https://opensource.org/licenses/MIT",
       "offers": {
         "@type": "Offer",
@@ -103,6 +103,22 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Windows voice typing (Win+H) covers fewer languages, needs manual language switching, and has no translation targets. JoyVoice auto-detects 10 languages, translates into any of the 10 target languages, pastes clipboard-safely with retry, and adds text styles, history, and global hotkeys."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How fast is JoyVoice?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "With the ElevenLabs instant engine (v2.6.0), audio streams while you hold the hotkey. In testing, English speech was pasted 0.41-0.56 s after release, and Bengali or mixed Bengali-English speech was pasted as complete English in about 1 s (0.92-1.2 s; a 30-second fast clip 1.44 s) with a fast translator key (2.3-3.5 s with the gateway alone; previously 3.6-4.3 s)."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does JoyVoice translate Bangla speech to English in real time?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "JoyVoice streams your voice to ElevenLabs Scribe v2 Realtime and Google Gemini 3.5 Transcribe Live at the same time. English speech uses the ElevenLabs text. For Bengali or Banglish speech (romanized Banglish is recognised too), Gemini finalizes the complete transcript right after you release the hotkey and a fast translator turns it into English in about 1 s. If that fails, ElevenLabs' own translation is used; if that fails too, JoyVoice falls back to the Cloud engine."
           }
         },
         {
@@ -466,12 +482,12 @@
 
     <main>
         <section class="hero">
-            <div class="badge-pill">⚡ Powered by Gemini 3.6 Flash · Zero GPU Burden</div>
+            <div class="badge-pill">⚡ New in v2.6.0: ElevenLabs instant engine · Zero GPU Burden</div>
             <h1>Speak Any Language.<br><span>Get Clean Translations Instantly.</span></h1>
             <p>JoyVoice is an open-source Windows floating microphone dictation app. Press <code>F8</code>, speak in any of 10 languages (Bangla, Hindi, Russian, Arabic, etc.), and clean translated text appears directly wherever your cursor is.</p>
             <div class="cta-group">
                 <button class="btn btn-primary" id="run-local-cta" onclick="location.href='#install'">⚡ Run Directly From Folder</button>
-                <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.5.5" class="btn btn-secondary" id="download-exe-cta">🪟 Download Windows EXE</a>
+                <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0" class="btn btn-secondary" id="download-exe-cta">🪟 Download Windows EXE</a>
             </div>
         </section>
 
@@ -522,23 +538,23 @@
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🪟</div>
-                <h3>Glass-Morphism Pill</h3>
-                <p>Sleek 200×80px translucent floating microphone widget with live 5-bar waveform pulse and state animations.</p>
+                <h3>Glass Aurora Pill</h3>
+                <p>Floating glass microphone pill with an aurora palette and animated states, drawn with GPU shaders on NVIDIA (Ultra, High, Balanced, Calm or Off; 30/60/120 fps cap). Settings → Appearance has a live preview for colours, themes, motion, size and glass, plus accessibility options: high contrast, colour-blind palette, reduce motion, screen-reader names and 44 px targets.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">📋</div>
                 <h3>Clipboard-Safe Paste</h3>
-                <p>Saves your clipboard, sends <code>Ctrl+V</code> with exponential backoff retry, and restores original clipboard contents intact.</p>
+                <p>Single-line results are typed straight into the focused app (no clipboard). Multi-line text saves your clipboard, sends <code>Ctrl+V</code> with retry, and restores the original clipboard contents.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">⚡</div>
                 <h3>Zero GPU Overhead</h3>
-                <p>Pure cloud pipeline running on integrated graphics. No heavy local model downloads, no VRAM consumption in cloud mode.</p>
+                <p>Speech runs in the cloud and works on integrated graphics. No heavy local model downloads in cloud mode; the GPU is only used, if present, to draw the widget.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🛡️</div>
-                <h3>Opt-in Modes</h3>
-                <p>Support for opt-in Free/Offline local Whisper transcription and optional native audio mode when enabled.</p>
+                <h3>Opt-in Engines</h3>
+                <p>ElevenLabs instant engine (streams while you speak, needs your ElevenLabs and Gemini keys), Free/Offline local Whisper transcription, and optional native gateway audio.</p>
             </div>
         </section>
 
@@ -553,7 +569,7 @@ cd joyvoice
 set JV_API_KEY=your_api_key
 run.bat</pre>
 
-            <p style="margin-top: 16px; color: var(--text-secondary);">Or download the prebuilt <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.5.5" style="color: var(--accent-cyan);">JoyVoice.exe (v2.5.5)</a> for zero-config Windows launch.</p>
+            <p style="margin-top: 16px; color: var(--text-secondary);">Or download the prebuilt <a href="https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0" style="color: var(--accent-cyan);">JoyVoice.exe (v2.6.0)</a> for zero-config Windows launch.</p>
         </section>
 
         <!-- FAQ Section (mirrors FAQPage JSON-LD above for answer engines) -->
@@ -574,6 +590,14 @@ run.bat</pre>
             <details style="margin-bottom: 12px;">
                 <summary style="cursor: pointer; font-weight: 600;">How is JoyVoice different from Windows voice typing (Win+H)?</summary>
                 <p style="color: var(--text-secondary); margin-top: 8px;"><code>Win+H</code> covers fewer languages, needs manual language switching, and has no translation targets. JoyVoice auto-detects 10 languages, translates into any of the 10 target languages, pastes clipboard-safely with retry, and adds text styles, history, and global hotkeys.</p>
+            </details>
+            <details style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600;">How fast is JoyVoice?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;">With the ElevenLabs instant engine (v2.6.0), audio streams while you hold the hotkey. In testing, English speech was pasted 0.41-0.56 s after release, and Bengali or mixed Bengali-English speech was pasted as complete English in about 1 s (0.92-1.2 s; a 30-second fast clip 1.44 s) with a fast translator key (2.3-3.5 s with the gateway alone; previously 3.6-4.3 s).</p>
+            </details>
+            <details style="margin-bottom: 12px;">
+                <summary style="cursor: pointer; font-weight: 600;">How does JoyVoice translate Bangla speech to English in real time?</summary>
+                <p style="color: var(--text-secondary); margin-top: 8px;">JoyVoice streams your voice to ElevenLabs Scribe v2 Realtime and Google Gemini 3.5 Transcribe Live at the same time. English speech uses the ElevenLabs text. For Bengali or Banglish speech (romanized Banglish is recognised too), Gemini finalizes the complete transcript right after you release the hotkey and a fast translator turns it into English in about 1 s. If that fails, ElevenLabs' own translation is used; if that fails too, JoyVoice falls back to the Cloud engine.</p>
             </details>
             <details>
                 <summary style="cursor: pointer; font-weight: 600;">Where do JoyVoice logs go?</summary>

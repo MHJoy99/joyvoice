@@ -12,6 +12,7 @@ Complete reference for the API gateway, available models, request/response shape
 4. [Text LLM API](#text-llm-api)
 5. [Response Parsing](#response-parsing)
 6. [Fallback Chain](#fallback-chain)
+   - [Instant Engine Services (v2.6.0)](#instant-engine-services-v260)
 7. [Language Codes Reference](#language-codes-reference)
 8. [Available Models](#available-models)
 9. [Benchmark Results](#benchmark-results)
@@ -37,7 +38,13 @@ Complete reference for the API gateway, available models, request/response shape
 | :---------------- | :------: | :-------------------------- | :------------------------------------------------------------------------------------- |
 | `JV_API_KEY`      |  ✅ Yes  | —                           | API gateway authentication key (Bearer token)                                          |
 | `JV_API_BASE`     |  ❌ No   | `https://gpt.bdx.market/v1` | Override the gateway base URL. Useful for self-hosted proxies or migrating gateways.   |
-| `JV_NATIVE_AUDIO` |  ❌ No   | `false`                     | Set to `true` to use gateway native audio. If unset/false, JoyVoice uses Google cloud ASR. |
+| `JV_NATIVE_AUDIO` |  ❌ No   | `false`                     | Set to `true` to use gateway native audio. If unset/false, JoyVoice uses Google cloud ASR. `run.bat` sets `false`. |
+| `JV_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` | ❌ No | — | ElevenLabs key for the instant engine when `elevenlabs_api_key` is blank in settings (v2.6.0) |
+| `JV_GEMINI_API_KEY` / `GEMINI_API_KEY` | ❌ No | — | Gemini API key for the Bengali ear (Transcribe Live / Live Translate) when `gemini_api_key` is blank in settings (v2.6.0) |
+| `JV_BENGALI_EAR` | ❌ No | _(unset)_ | `translate` uses the older Gemini Live Translate session instead of Gemini Transcribe Live for Bengali speech |
+| `JV_DATA_DIR` | ❌ No | `%APPDATA%\JoyVoice` | Moves all user data (settings, history, log, usage, prompt memory) to another folder; the test suite sets it so tests never touch real data |
+| `JV_FAST_TRANSLATE_API_KEY` / `GROQ_API_KEY` | ❌ No | — | Fast translator key when `fast_translate_api_key` is blank in settings (v2.6.0); none set = gateway only |
+| `JV_WIDGET_BLUR` | ❌ No | `1` | `0` turns off the floating widget's blurred-glass backdrop |
 
 ### Setting the API Key
 
@@ -381,7 +388,7 @@ Text LLM responses come back as plain text in `choices[0].message.content` — n
 
 ## Fallback Chain
 
-JoyVoice first checks `GET /models`. It uses `joyvoice-fast-audio` only when the gateway advertises that alias; otherwise it uses the verified fallback `gemini-3.6-flash`. If the native audio request fails, the existing cloud recovery path remains available:
+Stage 1 runs only when `JV_NATIVE_AUDIO=true`; otherwise the Cloud engine starts at Stage 2. JoyVoice first checks `GET /models`. It uses `joyvoice-fast-audio` only when the gateway advertises that alias; otherwise it uses the verified fallback `gemini-2.5-flash` (since v2.5.5). If the native audio request fails, the existing cloud recovery path remains available. With the ElevenLabs instant engine (v2.6.0), this whole chain is the last fallback (see [Instant Engine Services](#instant-engine-services-v260)):
 
 ```
 ┌─────────────────────────────────┐
@@ -445,6 +452,27 @@ JoyVoice first checks `GET /models`. It uses `joyvoice-fast-audio` only when the
 - If `JV_API_KEY` is missing, Stage 1 fails immediately and Stage 3 also fails — only Google ASR (Stage 2) works, producing a source-language transcript without translation
 - If Google ASR also fails (network down, rate limited by Google, `typing_extensions` missing), the widget shows error state
 - The fallback chain is implemented in `CloudASRWorker.run()` (app/main.py, lines 121–141)
+
+---
+
+## Instant Engine Services (v2.6.0)
+
+The opt-in ElevenLabs instant engine (`engine_mode="elevenlabs"`) does not use the gateway for speech. It opens two WebSocket sessions (ElevenLabs and a Gemini "ear") directly from the app when recording starts, with the user's own keys. Both need the `websockets>=14.0` package.
+
+| Service | Endpoint / model | Key (settings → env fallback) | Used for |
+| :--- | :--- | :--- | :--- |
+| **ElevenLabs Scribe v2 Realtime** | `wss://api.elevenlabs.io/v1/speech-to-text/realtime`, model `scribe_v2_realtime` | `elevenlabs_api_key` → `JV_ELEVENLABS_API_KEY` → `ELEVENLABS_API_KEY` | Transcript of all speech; optional `edited_transcript` translation backup |
+| **Google Gemini 3.5 Transcribe Live** (default Bengali ear) | Gemini Live API WebSocket (`generativelanguage.googleapis.com`), model `gemini-3.5-transcribe-live`, `languageCodes ["bn-BD"]`, `customVocabulary` = vocabulary keyterms (up to 100) | `gemini_api_key` → `JV_GEMINI_API_KEY` → `GEMINI_API_KEY` | Complete transcript of Bengali and mixed speech; on release `audioStreamEnd` → transcript + `generationComplete` 0.3–0.6 s later |
+| **Google Gemini Live Translate** (older ear, `JV_BENGALI_EAR=translate`) | Gemini Live API WebSocket (`generativelanguage.googleapis.com`), model `gemini-3.5-live-translate-preview`, target `en` | `gemini_api_key` → `JV_GEMINI_API_KEY` → `GEMINI_API_KEY` (a Gemini API key from Google AI Studio) | Heard transcript (`inputTranscription`) of Bengali and mixed speech, plus live English used for the completion check and as a checked fallback |
+| **Fast translator** (optional) | Any OpenAI-compatible `chat/completions`; default base `https://api.groq.com/openai/v1`, model `openai/gpt-oss-120b`, `reasoning_effort=low` | `fast_translate_api_key` → `JV_FAST_TRANSLATE_API_KEY` → `GROQ_API_KEY` | Translates the heard transcript to English, raced against the gateway text model |
+
+- **Audio:** PCM16 mono 16 kHz, base64, sent in 100 ms chunks while the hotkey is held.
+- **ElevenLabs query parameters:** `language_code` (from `elevenlabs_language`; with Bengali mode `live`/`elevenlabs`, `auto` becomes `bn` plus `secondary_languages=en`), repeated `keyterms=` parameters from `vocabulary_keyterms`, and `transcript_edit` (a translate and clean-up instruction) when translation is wanted.
+- **Commits:** manual; one every 25 s for long dictations and one at release. Each commit gets one `committed_transcript` and, with `transcript_edit`, one `edited_transcript`.
+- **Bengali route (engine `gemini-heard`), default ear:** Transcribe Live has no live English. At release the app sends `audioStreamEnd`; the server finalizes and the complete transcript plus `generationComplete` arrive 0.3–0.6 s later (the settled signal). The fast translator then races the gateway text model; the first valid English wins. Romanized Banglish output is detected (peak Bengali-script share plus a Banglish word list), so mixed speech is never taken for English. Measured release to text: about 1 s (0.92–1.2 s; a 30 s fast clip 1.44 s); English 0.44 s via ElevenLabs.
+- **Bengali route, older ear (`JV_BENGALI_EAR=translate`):** Gemini's live English is not pasted directly; it drops the final sentence of fast speech and paraphrases. The heard transcript is translated while the user talks (re-run whenever it grows) by the fast translator and the gateway text model in a race; the first valid English wins (fast translator about 0.3–0.7 s, gateway at least about 1.4 s). It is pasted once `heard_state()` judges the transcript complete: the live English caught up and ends a sentence, plus 0.45 s quiet; or an empty `inputTranscription` event (language code only, sent once the speech is used up) arrives at least 1.2 s after release with no text since; or 2.2 s pass with no new text. Fallbacks: live English only if `live_covers_heard()` passes, then ElevenLabs translation, then Cloud. A rate-limited fast translator (HTTP 429) leaves the gateway result.
+- **Gateway still used for:** the Bengali translation race (above), the spoken target override ("paste it in Russian" → text model, `translate_to_target`) and the Cloud fallback.
+- **Costs:** billed on the user's ElevenLabs plan and Google AI Studio project. Keyterms add about 20% and `transcript_edit` about 30% to the ElevenLabs speech-to-text cost (at least 10 s billed per commit).
 
 ---
 
@@ -678,6 +706,14 @@ Fields:
 - `model` — Which model was used
 - `mode` — Output mode (`translation`, `original`, `both`)
 
+The instant engine's Bengali route logs one line per job (no text):
+
+```
+ASR done (engine=gemini-heard, release_to_text=..., heard_chars=..., runs=..., via=fast|gateway|live)
+```
+
+`runs` is how many times the growing transcript was translated; `via` says which result was pasted. Log redaction covers gateway keys, ElevenLabs `sk_` keys and fast-translator `gsk_` keys.
+
 ---
 
 ## Text Style Prompts
@@ -748,6 +784,7 @@ STYLE_PROMPTS = {
 | **Max recording**     | 300 seconds (5 minutes) — runaway guard in `Recorder`                                                 |
 | **Max audio payload** | Dictation recordings are typically 5–30 seconds. 300-second max recording = ~960 KB of raw int16 PCM. |
 | **Google ASR**        | Free — no API key, no quota (but may have undocumented rate limits)                                   |
+| **Fast translator**   | Provider limits apply (Groq's free tier is rate-limited); a 429 falls back to the gateway result      |
 
 ---
 

@@ -7,6 +7,7 @@ Complete code structure, pipeline flow, state machine, threading model, and desi
 ## Table of Contents
 
 1. [High-Level Overview](#high-level-overview)
+   - [Engines (v2.6.0)](#engines-v260)
 2. [Directory Tree](#directory-tree)
 3. [Pipeline Diagram](#pipeline-diagram)
 4. [State Machine](#state-machine)
@@ -63,6 +64,52 @@ JoyVoice is a **Windows desktop voice dictation app** that captures speech, tran
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Engines (v2.6.0)
+
+JoyVoice has three engines, chosen by `engine_mode` (Settings → Free Mode → Engine). The code default is `cloud`.
+
+| Engine | `engine_mode` | Worker | How it works |
+| :--- | :--- | :--- | :--- |
+| **Cloud** (default) | `cloud` | `CloudASRWorker` | After release, the recorded PCM goes to Google Web Speech (`cloud_asr.py`) and the gateway text model translates it. Native gateway audio (`gemini_audio.py`, `joyvoice-fast-audio`) runs instead only when the environment variable `JV_NATIVE_AUDIO=true`; `run.bat` sets it to `false`. The diagram above and the "Native Audio" path below describe the `JV_NATIVE_AUDIO=true` case. |
+| **ElevenLabs instant** (opt-in) | `elevenlabs` | `ElevenLabsASRWorker` (subclass of `CloudASRWorker`) | Streams while F8 is held; see below. |
+| **Free & Offline** (opt-in) | `free` | `FreeASRWorker` | Local faster-whisper on GPU/CPU. |
+
+### ElevenLabs instant engine
+
+```
+F8 down ─▶ ScribeRealtimeSession.start()  (wss, scribe_v2_realtime)
+        └▶ TranscribeLiveSession.start()  (wss, gemini-3.5-transcribe-live, bn-BD,
+                                            customVocabulary = vocabulary keyterms, <=100)
+           or LiveTranslateSession.start() (gemini-3.5-live-translate-preview) with JV_BENGALI_EAR=translate
+               only if elevenlabs_bengali="live", target_language="en" and a Gemini key exists
+Recorder.set_listener(tee) ─▶ 100 ms PCM16 chunks to both sessions while recording
+while held ─▶ heard transcript (inputTranscription) grows → translate it again
+              fast_translate.py (OpenAI-compatible API) ┐ raced; first valid
+              gateway text model                        ┘ English wins
+F8 up   ─▶ Gemini end_input() (Transcribe Live: audioStreamEnd → complete transcript +
+              generationComplete 0.3–0.6 s later = settled); ScribeRealtimeSession.finish()
+        ─▶ ElevenLabsASRWorker.run():
+             1. Scribe text is Latin English, Gemini heard <20% Bengali (peak script share,
+                Banglish word list counts as Bengali) → paste Scribe text
+             2. otherwise (engine gemini-heard) → wait until heard_state() says complete, then paste
+                the translation of the full heard transcript
+                → else live English, only if live_covers_heard()
+                → else ElevenLabs edited_transcript (translation) → Cloud
+             3. spoken "paste it in <language>" → cloud_llm_rewrite(..., "translate_to_target")
+             4. any error / timeout / empty / non-English target → super().run() (Cloud engine)
+```
+
+- **ElevenLabs session** (`app/transcription/elevenlabs_realtime.py`): manual commits, one every 25 s (the server would auto-commit at about 36 s), one reply per commit. Optional `keyterms` (max 50, up to 20 characters each). When Bengali mode is `live` or `elevenlabs` and the target is English, the session also sends `transcript_edit` (a translate and clean-up instruction), `language_code=bn` and `secondary_languages=en`; `edited_text()` waits for the `edited_transcript` events.
+- **Gemini Transcribe Live session (default Bengali ear, 2026-10-16 late)** (`app/transcription/gemini_transcribe_live.py`, `TranscribeLiveSession`, a subclass of `LiveTranslateSession`): model `gemini-3.5-transcribe-live`, `languageCodes ["bn-BD"]` (Bengali comes back in Bengali script, English words stay Latin), `customVocabulary` = the vocabulary keyterms (up to 100). There is no live English. On release `audioStreamEnd` makes the server finalize at once; the complete transcript plus `generationComplete` arrive 0.3–0.6 s later, which `heard_state()` reports as complete (`settled_by=complete`). The fast translator then races the gateway. Romanized Banglish output is detected: `heard_non_latin_share()` keeps the peak Bengali-script share over all updates, and `banglish_share()` (a Banglish word list, ≥20% of words) counts as fully Bengali, so mixed speech is never mistaken for English. Measured release to text: about 1 s (0.92–1.2 s; a 30 s fast clip 1.44 s).
+- **Gemini Live Translate session (older ear, `JV_BENGALI_EAR=translate`)** (`app/transcription/gemini_live_translate.py`): its transcript lags 0.4–1.8 s. It produces two streams, live English (`outputTranscription`) and Gemini's own transcript of the speech (`inputTranscription`, "heard"). The live English is **not pasted directly**: with fast speakers it silently drops the final sentence, and it paraphrases ("buy" for "upload"). The heard transcript stays complete, so it is the source text. The settle logic is a non-blocking `poll()`; text that does not end a sentence is never accepted (the earlier 1.1 s quiet rule cut endings off). `end_input()` runs at release so the wait overlaps the Scribe wait.
+- **Heard route (engine `gemini-heard`, 2026-10-16), older ear:** while the user talks, the heard transcript is translated by a text model and re-translated whenever it grows. `heard_state()` reports the transcript complete when (a) the live English has caught up: its last piece arrived after the last heard piece and ends a sentence, plus 0.45 s of quiet; or (b) an empty `inputTranscription` idle marker (only a language code; the Live API sends these once the speech is used up) arrives at least 1.2 s after release with no text since; or (c) 2.2 s pass with no new text. The latest translation of the complete transcript is then pasted. If translation failed, the live English is used only when `live_covers_heard()` finds at least as many sentences as the transcript and no glued-repeat glitch (such as "theThe"); otherwise ElevenLabs translation, then Cloud. Log line: `ASR done (engine=gemini-heard, release_to_text=..., heard_chars=..., runs=..., via=fast|gateway|live)`.
+- **Fast translator** (`app/transcription/fast_translate.py`): any OpenAI-compatible chat API, raced against the gateway text model; the first valid English wins. Default Groq `openai/gpt-oss-120b` with `reasoning_effort=low` (about 0.3–0.7 s; the gateway needs at least about 1.4 s). An empty `fast_translate_api_key` (and no `JV_FAST_TRANSLATE_API_KEY` / `GROQ_API_KEY`) disables it, leaving the gateway alone. Never logs text or the key. Measured release to text: about 1 s with Transcribe Live (0.92–1.2 s), 1.3–2 s with Live Translate, 2.3–3.5 s gateway only; English stays 0.44 s via Scribe.
+- **Bengali speech option** (`elevenlabs_bengali`): `live` (default), `elevenlabs` (ElevenLabs only; Google is never opened), `banglish` (local Bengali script to Roman letters, `app/transcription/banglish.py`), `translate` (Cloud).
+- **Threads:** each session has a sender thread (owns the socket writes) and a reader thread; `feed()` runs on the PortAudio callback and only enqueues. Neither module logs audio, text or keys.
+- **Keys:** `elevenlabs_api_key` and `gemini_api_key` in settings, falling back to `JV_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` and `JV_GEMINI_API_KEY` / `GEMINI_API_KEY`. Without an ElevenLabs key the app shows a toast and uses the Cloud engine.
 
 ---
 
@@ -141,7 +188,11 @@ joyvoice/
 │   │
 │   ├── ui/                             # User interface
 │   │   ├── __init__.py
-│   │   ├── floating_widget.py          # Dark glass-morphism always-on-top pill
+│   │   ├── floating_widget.py          # Glass always-on-top pill (aurora, state morphs)
+│   │   ├── widget_gpu.py               # moderngl shader renderer (Ultra/High) for the pill
+│   │   ├── appearance.py               # Look settings: defaults, themes, quality, validation
+│   │   ├── appearance_tab.py           # Settings → Appearance tab with live preview
+│   │   ├── placement.py                # On-screen clamping and multi-monitor placement
 │   │   ├── tray.py                     # System tray icon + context menu
 │   │   ├── settings_window.py          # Tabbed settings dialog + language definitions
 │   │   ├── benchmark_dialog.py         # ASR engine comparison dialog
@@ -192,7 +243,7 @@ joyvoice/
 
 ## Pipeline Diagram
 
-### Primary Path: Gemini Native Audio
+### Native Audio Path (Cloud engine with `JV_NATIVE_AUDIO=true`)
 
 ```
 User presses F8 (or clicks mic)
@@ -694,7 +745,12 @@ class Recorder:
 
 ### `app/ui/floating_widget.py` — Floating Widget (~553 lines)
 
-**The user-facing UI.** A glass-morphism, draggable, always-on-top pill with waveform animation.
+**The user-facing UI.** A glass-morphism, draggable, always-on-top pill with waveform animation. Since v2.6.0 the glass is real: the pill grabs the desktop behind itself (it excludes itself from capture with `WDA_EXCLUDEFROMCAPTURE`) and blurs it, with Dynamic-Island-style state morphs; `JV_WIDGET_BLUR=0` turns the blur off. Windows acrylic is not used because it depends on the system transparency setting. The Settings window, toast and menu use a mint/green card look.
+
+- **GPU rendering** (`app/ui/widget_gpu.py`): shader rendering via moderngl on NVIDIA. Quality levels Ultra (GPU, bloom, up to 120 fps), High (GPU, 60 fps), Balanced (QPainter, 30 fps), Calm (15 fps, minimal motion) and Off, with an fps cap of 30, 60 or 120. If OpenGL fails, the widget falls back to Balanced. Aurora palette; the default theme is "Joy (signature)".
+- **Appearance** (`app/ui/appearance.py`, `app/ui/appearance_tab.py`): Settings → Appearance with a live preview: opacity, tint, blur, glow, shadow, themes and custom colours, motion speed, wave style, sensitivity, scale 50–200%, text size, roundness, show/hide timer, badge and cancel chip, idle behaviour, snap and lock, light/dark/auto glass, Reset, Export/Import.
+- **Accessibility:** high contrast, bold text, colour-blind palette, reduce motion (follows Windows), state word labels, screen-reader names, 44 px targets, proximity fade.
+- **Placement and stability** (`app/ui/placement.py`): context-menu glass offset, dark text and multi-monitor fixes; toast and language popup clamped on-screen; Settings opens on one screen; atomic settings save; a tray-hide watchdog. The Settings dialog no longer leaks (about 18 MB per open), and a native crash when switching quality is fixed. `QWidget.screen()` is avoided because it corrupted the heap (cause not yet explained). Ultra RSS stays flat at about 180–200 MB (it was 1.18 GB).
 
 | Feature               | Implementation                                                                            |
 | :-------------------- | :---------------------------------------------------------------------------------------- |
@@ -754,7 +810,9 @@ def paste_text(
 ) -> Optional[str]:  # Returns error message or None
 ```
 
-**Paste algorithm:**
+**Direct typing (v2.6.0):** with `paste_method="auto"` (default), single-line text is typed with SendInput `KEYEVENTF_UNICODE` (`type_unicode()`): no clipboard and no Ctrl key, so the `keyboard` library's suppressing hotkey hook cannot swallow a Ctrl+V. If typing is not accepted, the clipboard path below runs. Optional Enter (`paste_press_enter`) is sent 0.12 s later only if focus is still on an app in `paste_enter_apps`.
+
+**Paste algorithm (multi-line text, or `paste_method="clipboard"`):**
 
 1. Save current clipboard via `pyperclip.paste()`
 2. Copy JoyVoice result via `pyperclip.copy(text)`
@@ -786,6 +844,7 @@ Plain JSON at `%APPDATA%\JoyVoice\settings.json`. Filters out stale keys from le
 | :----------- | :-------------------- | :-------------------------------- |
 | **Normal**   | `%APPDATA%\JoyVoice\` | Default                           |
 | **Portable** | `<app dir>\data\`     | `portable.txt` exists next to app |
+| **Override** | `%JV_DATA_DIR%\`      | Env `JV_DATA_DIR` set (wins over both); `tests/conftest.py` uses it to isolate all user data |
 
 ---
 
@@ -811,6 +870,19 @@ All settings, their types, defaults, and descriptions.
 | `replacements`            | `dict[str,str]`     | `{...}`           | Custom word/phrase substitutions (case-insensitive, word-boundary)                                                                                     |
 | `widget_pos`              | `list[int] \| None` | `null`            | Saved widget position `[x, y]`. Auto-saved on quit. `null` = default (100, 100).                                                                       |
 | `first_run_complete`      | `bool`              | `false`           | Set to `true` after first launch. Controls first-run behavior.                                                                                         |
+| `engine_mode`             | `str`               | `"cloud"`         | `"cloud"`, `"free"` or `"elevenlabs"` (v2.6.0 instant engine) |
+| `elevenlabs_api_key`      | `str`               | `""`              | ElevenLabs key; blank falls back to `JV_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` |
+| `elevenlabs_language`     | `str`               | `"auto"`          | Spoken-language hint for ElevenLabs; `"auto"` is needed for Bengali |
+| `elevenlabs_bengali`      | `str`               | `"live"`          | Non-English speech: `"live"`, `"elevenlabs"`, `"banglish"`, `"translate"` |
+| `gemini_api_key`          | `str`               | `""`              | Google AI Studio key for Gemini Live Translate; blank falls back to `JV_GEMINI_API_KEY` / `GEMINI_API_KEY` |
+| `fast_translate_api_key`  | `str`               | `""`              | Key for the fast translator (any OpenAI-compatible API); empty disables it; falls back to `JV_FAST_TRANSLATE_API_KEY` / `GROQ_API_KEY` |
+| `fast_translate_base`     | `str`               | `"https://api.groq.com/openai/v1"` | Base URL of the fast translator API |
+| `fast_translate_model`    | `str`               | `"openai/gpt-oss-120b"` | Fast translator model |
+| `fast_translate_reasoning` | `str`              | `"low"`           | `reasoning_effort` sent to the fast translator (`""` omits it) |
+| `vocabulary_keyterms`     | `list[str]`         | `[]`              | Words for ElevenLabs to listen for (max 50, up to 20 characters each) |
+| `paste_method`            | `str`               | `"auto"`          | `"auto"` types single-line text directly; `"clipboard"` always uses Ctrl+V |
+| `paste_press_enter`       | `bool`              | `false`           | Press Enter after pasting, only in `paste_enter_apps` |
+| `paste_enter_apps`        | `list[str]`         | 5 apps            | `Code.exe`, `Cursor.exe`, `WindowsTerminal.exe`, `claude.exe`, `Antigravity.exe` |
 
 ### Replacement Dictionary Defaults
 

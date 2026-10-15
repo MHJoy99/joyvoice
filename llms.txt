@@ -1,19 +1,21 @@
 # JoyVoice: AI Floating Mic Dictation & Speech Translation for Windows
 
-> Current version: 2.5.5 (https://github.com/MHJoy99/joyvoice/releases/tag/v2.5.5)
+> Current version: 2.6.0 (https://github.com/MHJoy99/joyvoice/releases/tag/v2.6.0)
 >
-> JoyVoice is an open-source, low-latency floating microphone dictation and real-time speech translation application for Windows 10/11. It supports optional native audio through the `joyvoice-fast-audio` gateway alias, with Google Web Speech as the cloud fallback and Gemini 3.6 Flash for text translation/styling. Press F8, speak in any of 10 languages, and automatically paste clean translated text into any active Windows application.
+> JoyVoice is an open-source, low-latency floating microphone dictation and real-time speech translation application for Windows 10/11. It has three engines: Cloud (default; Google Web Speech plus a Gemini text model through an OpenAI-compatible gateway, with optional native audio through the `joyvoice-fast-audio` alias when `JV_NATIVE_AUDIO=true`), ElevenLabs instant (opt-in since v2.6.0; streams audio while you speak to ElevenLabs Scribe v2 Realtime and Google Gemini 3.5 Transcribe Live; Bengali is translated from Gemini's complete transcript by a fast text model in about 1 s), and Free & Offline (local faster-whisper). Press F8, speak in any of 10 languages, and automatically paste clean translated text into any active Windows application.
 
 ## Overview & Purpose
 
 JoyVoice solves the friction of cross-application multilingual typing and voice dictation. Unlike heavy local Whisper models requiring expensive GPUs or built-in OS dictation tools restricted to single languages, JoyVoice provides a lightweight, cloud-accelerated dictation pipeline packaged inside a sleek glass-morphism desktop widget.
 
 ### Key Highlights
+- **ElevenLabs instant engine (v2.6.0, opt-in):** English speech is pasted 0.41-0.56 s after hotkey release; Bengali or mixed Bengali-English speech is pasted as English about 1 s after release with a fast translator key (measured 0.92-1.2 s; a 30 s fast clip 1.44 s; 2.3-3.5 s with the gateway alone). Gemini 3.5 Transcribe Live (`gemini-3.5-transcribe-live`, `bn-BD`, custom vocabulary) finalizes the complete transcript 0.3-0.6 s after release (`audioStreamEnd` then `generationComplete`), and a fast OpenAI-compatible translator (default Groq `openai/gpt-oss-120b`) races the gateway text model, so endings are not cut off and wording is not paraphrased. Romanized Banglish is detected, so mixed speech is never mistaken for English. `JV_BENGALI_EAR=translate` restores the older Gemini Live Translate ear. Backups: Gemini's live English (only if it covers every sentence), ElevenLabs translation, Cloud engine. Needs your own ElevenLabs API key and a Gemini API key from Google AI Studio; the fast translator key is optional. Any failure falls back to the Cloud engine.
+- **GPU glass widget (v2.6.0):** aurora-palette floating pill drawn with moderngl shaders on NVIDIA (Ultra/High/Balanced/Calm/Off, fps cap 30/60/120, falls back to Balanced if OpenGL fails; about 180-200 MB of memory on Ultra). Settings → Appearance has a live preview for colours, themes, motion, size, glass and accessibility (high contrast, colour-blind palette, reduce motion, screen-reader names, 44 px targets).
 - **Zero Local GPU Overhead:** Runs effortlessly on integrated graphics in default cloud mode; all ASR and neural translation execute via cloud API.
 - **Native audio gateway:** Optional `joyvoice-fast-audio` sends one mono 16-bit 16 kHz WAV request containing transcript, English translation, and `target_override`.
 - **Cloud ASR + Gemini AI:** Uses Google Web Speech as fallback and Gemini 3.6 Flash for text translation and intelligent text styling.
 - **Automatic Language Detection:** Speak naturally in any supported language without manual toggle; JoyVoice identifies the source language instantly.
-- **Direct Clipboard-Safe Paste:** Automatically pastes output into the focused window (Slack, Notion, VS Code, Word, Chrome) using `Ctrl+V` with exponential backoff retry and clipboard preservation.
+- **Direct Typing and Clipboard-Safe Paste:** Single-line results are typed into the focused window with SendInput Unicode (no clipboard, no Ctrl). Multi-line text uses `Ctrl+V` with retry and clipboard preservation. Optional Enter after paste, only in listed apps (off by default).
 - **Opt-in Free & Offline Mode:** Supports local faster-whisper dictation without requiring cloud APIs when enabled.
 
 ---

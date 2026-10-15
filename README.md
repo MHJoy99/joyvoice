@@ -6,7 +6,7 @@
   <a href="#license"><img src="https://img.shields.io/badge/License-MIT-22d3ee?style=flat-square" alt="License: MIT"></a>
   <a href="#"><img src="https://img.shields.io/badge/Python-3.11-22d3ee?style=flat-square&logo=python&logoColor=white" alt="Python 3.11"></a>
   <a href="#"><img src="https://img.shields.io/badge/PySide6-6.7-22d3ee?style=flat-square&logo=qt&logoColor=white" alt="PySide6"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Version-2.5.5-22d3ee?style=flat-square" alt="Version 2.5.5"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Version-2.6.0-22d3ee?style=flat-square" alt="Version 2.6.0"></a>
   <a href="#"><img src="https://img.shields.io/badge/Languages-10-22d3ee?style=flat-square" alt="10 Languages"></a>
   <a href="#"><img src="https://img.shields.io/badge/Platform-Windows-22d3ee?style=flat-square&logo=windows&logoColor=white" alt="Platform: Windows"></a>
   <a href="llms.txt"><img src="https://img.shields.io/badge/AGO-llms.txt-22d3ee?style=flat-square" alt="llms.txt compliant"></a>
@@ -42,7 +42,13 @@ It is off by default and opt-in (`prompt_memory_enabled: False` in `app/storage/
 
 ### How do I dictate Bengali or Banglish into English on Windows?
 
-Press `F8`, speak naturally in Bengali or Bengali-English mixed speech, and JoyVoice auto-detects the source and pastes clean English into the app under your cursor via `Ctrl+V`. The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, and the text-style step translates Bengali or mixed Bengali-English input into natural English. No manual language switching or GPU is needed in cloud mode.
+Press `F8`, speak naturally in Bengali or Bengali-English mixed speech, and JoyVoice auto-detects the source and pastes clean English into the app under your cursor (single-line text is typed directly; multi-line text uses `Ctrl+V`). The transcription prompt explicitly handles Bangladeshi Bengali with English code-switching, and the text-style step translates Bengali or mixed Bengali-English input into natural English. No manual language switching or GPU is needed in cloud mode.
+
+With the opt-in **ElevenLabs instant engine** (v2.6.0), Google **Gemini 3.5 Transcribe Live** hears Bengali and mixed speech while you speak. When you release the hotkey it finalizes the complete transcript in 0.3–0.6 s, a fast translator turns it into English, and the English is pasted **about 1 s** after release (2.3–3.5 s with the gateway text model alone; 3.6–4.3 s on the older route). It waits for the complete transcript, so endings are not cut off, and romanized Banglish is recognised so mixed speech is never mistaken for English. If translation fails, Gemini's live English is used only when it covers every sentence; then ElevenLabs' own transcript translation; then the Cloud engine.
+
+### How fast is JoyVoice?
+
+With the ElevenLabs instant engine, audio streams to the speech services while you hold the hotkey, so most of the work is done before you let go. Measured on the developer's PC (2026-10-14 to 2026-10-16): English speech was pasted 0.41–0.56 s after release, including a 54-second dictation; Bengali or mixed Bengali-English speech about 1 s with a fast translator key (0.92–1.2 s; a 30-second fast clip took 1.44 s), 2.3–3.5 s without one; the ElevenLabs-only Bengali mode 3.4–4.3 s. The default Cloud engine takes longer and depends on recording length and network.
 
 <hr>
 
@@ -195,6 +201,37 @@ python app\main.py
 | 📝  | **5 Text Styles**                | Clean English · Raw transcript · AI prompt · Formal email · Custom rewrite                                         |
 | 🔌  | **Configurable API**             | Set the OpenAI-compatible base URL, API key, and audio/text models from the Settings UI — no env vars required.    |
 | 🆓  | **Free & Offline Mode**          | Run totally free with no API key — local Whisper ASR, one-click setup, built-in offline Bangla → English.          |
+
+### ⚡ ElevenLabs Instant Engine (v2.6.0)
+
+An opt-in third engine (**Settings → Free Mode → Engine → ElevenLabs instant**). While the hotkey is held, microphone audio streams in 100 ms chunks to two services at once, so the text is nearly ready when you stop talking. Cloud stays the default engine.
+
+|     | Feature                          | Detail |
+| :-: | -------------------------------- | :----- |
+| ⚡  | **Instant English**              | ElevenLabs Scribe v2 Realtime. English text pasted 0.41–0.56 s after hotkey release (measured, including a 54 s dictation). |
+| 🌏  | **Bengali and mixed speech**     | Google Gemini 3.5 Transcribe Live (`gemini-3.5-transcribe-live`, `bn-BD`, your "Words to listen for" as custom vocabulary) hears Bengali or Banglish speech. On release it finalizes the full transcript in 0.3–0.6 s; a fast translator (any OpenAI-compatible API, default Groq) raced against the gateway text model turns it into English about 1 s after release. Romanized Banglish is detected, and when Gemini heard Bengali its English overrules the ElevenLabs text. `JV_BENGALI_EAR=translate` brings back the older Gemini Live Translate ear. |
+| 🔁  | **Translation backup chain**     | Non-English speech: translation of Gemini's transcript → Gemini's live English (only if it covers every sentence) → ElevenLabs transcript translation → Cloud engine. The **Bengali speech** option can also be ElevenLabs-only, local Banglish (Roman letters), or Cloud translation. |
+| 🗣️  | **Spoken target override**       | "…paste it in Russian" translates the dictation with the gateway text model (about 2.2 s). |
+| 📖  | **Words to listen for**          | Up to 50 names (≤20 characters each) sent to ElevenLabs as keyterms (Settings → Replacements). Adds about 20% to the ElevenLabs speech-to-text cost. |
+| 🔑  | **Your own keys**                | An ElevenLabs API key and a Gemini API key from Google AI Studio, entered in **Settings → API** (stored only in `%APPDATA%\JoyVoice\settings.json`). Without the ElevenLabs key the Cloud engine is used. |
+
+> **⚠️ Limits:** About 1 s is the current floor for Bengali; under 0.5 s would need a paid streaming service. The older Live Translate ear is a preview model that paraphrases, so its live English is only a checked fallback. Without a fast translator key, Bengali takes 2.3–3.5 s, and the fast translator's free tier is rate-limited (it then falls back to the gateway). Mixed Bengali-English speech can be misheard when Google is unavailable, because ElevenLabs alone may write it as fake English words. Output mode `both` shows the English twice for Bengali speech. There is no live text preview on this engine yet. ElevenLabs transcript translation adds about 30% to the speech-to-text cost.
+
+### ⌨️ Paste Changes (v2.6.0)
+
+- **Direct typing:** single-line results are typed into the focused app with SendInput Unicode, with no clipboard and no `Ctrl+V` (`paste_method: auto`). Multi-line text still uses the clipboard-safe `Ctrl+V` paste.
+- **Enter after paste (opt-in):** `paste_press_enter` sends Enter 0.12 s after the paste, only when focus is still on an app listed in `paste_enter_apps` (default: VS Code, Cursor, Windows Terminal, Claude, Antigravity). Off by default; never in browsers.
+- **Replacements in Raw style:** the replacement table now also runs in the Raw text style, longest phrase first.
+
+### 🎨 Widget and Appearance (v2.6.0)
+
+|     | Feature                  | Detail |
+| :-: | ------------------------ | :----- |
+| 🚀  | **GPU rendering**        | On NVIDIA the pill is drawn with shaders (moderngl). Quality Ultra / High / Balanced / Calm / Off, fps cap 30, 60 or 120. If OpenGL fails it falls back to Balanced. Ultra stays at about 180–200 MB of memory. |
+| 🌈  | **Aurora look**          | Aurora palette with real blurred glass and Dynamic-Island-style state morphs. Default theme: "Joy (signature)". |
+| 🎛️  | **Settings → Appearance** | Live preview of opacity, tint, blur, glow, shadow, themes and custom colours, motion speed, wave style, sensitivity, scale 50–200%, text size, roundness, timer, badge and cancel chip, idle behaviour, snap and lock, light/dark/auto glass. Reset, Export and Import your look. |
+| ♿  | **Accessibility**        | High contrast, bold text, colour-blind palette, reduce motion (follows Windows), state word labels, screen-reader names, 44 px targets, proximity fade. |
+| 🛠️  | **Stability**            | Fixed a crash when switching quality and an 18 MB leak per Settings open; menus, toasts and popups stay on-screen across monitors; settings save atomically. |
 
 ### 🆓 Free & Offline Mode (v2.3.0)
 
@@ -413,7 +450,17 @@ Stored at `%APPDATA%\JoyVoice\settings.json`:
 | `api_key`                  | _(blank)_                   | API key stored locally; blank falls back to `JV_API_KEY` env var             |
 | `audio_model`              | `joyvoice-fast-audio`       | Verified gateway alias for native speech transcription and translation        |
 | `text_model`               | `gemini-3.6-flash`          | Model for translation and AI text styles                                     |
-| `engine_mode`              | `cloud`                     | Active engine: `cloud` (uses API key) / `free` (local models, no API key)    |
+| `engine_mode`              | `cloud`                     | Active engine: `cloud` (uses API key) / `free` (local models, no API key) / `elevenlabs` (instant engine, v2.6.0) |
+| `elevenlabs_api_key`       | _(blank)_                   | ElevenLabs key; blank falls back to `JV_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` |
+| `elevenlabs_language`      | `auto`                      | Spoken-language hint for ElevenLabs (`auto` is needed for Bengali)           |
+| `elevenlabs_bengali`       | `live`                      | Non-English speech: `live` (Gemini Live heard transcript + translation, ElevenLabs backup) / `elevenlabs` / `banglish` / `translate` (Cloud) |
+| `gemini_api_key`           | _(blank)_                   | Google AI Studio key for the Bengali ear (Transcribe Live); blank falls back to `JV_GEMINI_API_KEY` / `GEMINI_API_KEY` |
+| `fast_translate_api_key`   | _(blank)_                   | Optional fast translator key (any OpenAI-compatible API, e.g. Groq) for Bengali in about 1 s; blank falls back to `JV_FAST_TRANSLATE_API_KEY` / `GROQ_API_KEY`, none = gateway only. Set in `settings.json` |
+| `fast_translate_base` / `fast_translate_model` / `fast_translate_reasoning` | `https://api.groq.com/openai/v1` / `openai/gpt-oss-120b` / `low` | Fast translator endpoint, model and reasoning effort |
+| `vocabulary_keyterms`      | `[]`                        | Words for ElevenLabs to listen for (max 50, ≤20 characters each)             |
+| `paste_method`             | `auto`                      | `auto` types single-line text directly (no clipboard) / `clipboard`          |
+| `paste_press_enter`        | `false`                     | Press Enter after pasting, only in `paste_enter_apps`                        |
+| `paste_enter_apps`         | 5 apps                      | `Code.exe`, `Cursor.exe`, `WindowsTerminal.exe`, `claude.exe`, `Antigravity.exe` |
 | `mute_other_apps`          | `off`                       | Call muting mode: `off` \| `hotkey` \| `virtual_device`                      |
 | `call_mute_virtual_device` | `""`                        | Selected virtual audio device endpoint/name for `virtual_device` muting mode |
 | `free_asr_model`           | `small`                     | Free Mode local Whisper model: `tiny` / `base` / `small`                     |
@@ -428,12 +475,12 @@ Access via **right-click mic → Settings** or system tray icon.
 | :--------------- | :-------------------------------------------------------------------------------------------------------------------- |
 | **Output**       | Source language (10 langs + auto), target language (10 langs), dynamic output mode labels, text style, cloud note     |
 | **General**      | Source language (mirrors Output), launch on startup                                                                   |
-| **API**          | OpenAI-compatible base URL, masked API key (Show toggle), audio & text model dropdowns, Fetch models, Test connection |
-| **Free Mode**    | Engine switch (Cloud / Free & Offline), speech model (Tiny/Base/Small), device (Auto/CPU), translation, Set up + Test |
+| **API**          | OpenAI-compatible base URL, masked API key (Show toggle), audio & text model dropdowns, Fetch models, Test connection, ElevenLabs key, Gemini key |
+| **Free Mode**    | Engine switch (Cloud / Free & Offline / ElevenLabs instant), Bengali speech option, speech model (Tiny/Base/Small), device (Auto/CPU), translation, Set up + Test |
 | **Hotkey**       | Preset + custom hotkey, toggle/hold mode                                                                              |
 | **Audio**        | Input device picker + refresh                                                                                         |
-| **Paste**        | Paste/copy-only mode, delay, clipboard restore, wait-for-release                                                      |
-| **Replacements** | Phrase → Replacement table                                                                                            |
+| **Paste**        | Paste/copy-only mode, delay, clipboard restore, wait-for-release, Enter after pasting                                 |
+| **Replacements** | Phrase → Replacement table, Words to listen for (ElevenLabs keyterms)                                                 |
 | **History**      | Dictation history list + copy                                                                                         |
 
 ---
@@ -496,6 +543,11 @@ joyvoice/
 │   ├── transcription/
 │   │   ├── gemini_audio.py             ← Gemini native audio (optional opt-in via JV_NATIVE_AUDIO=true)
 │   │   ├── cloud_asr.py                ← Google Web Speech primary ASR (10-language auto-detect)
+│   │   ├── elevenlabs_realtime.py      ← ElevenLabs Scribe v2 Realtime websocket (instant engine)
+│   │   ├── gemini_transcribe_live.py   ← Gemini 3.5 Transcribe Live websocket (default Bengali ear)
+│   │   ├── gemini_live_translate.py    ← Gemini Live websocket (older ear, JV_BENGALI_EAR=translate)
+│   │   ├── fast_translate.py           ← Fast translator (OpenAI-compatible API, raced with gateway)
+│   │   ├── banglish.py                 ← Optional Bengali script → Banglish converter
 │   │   ├── text_cleaner.py             ← Punctuation/capitalization cleanup
 │   │   └── whisper_engine.py           ← Legacy local Whisper (repaired, inactive)
 │   ├── storage/
@@ -503,13 +555,16 @@ joyvoice/
 │   │   └── history_store.py            ← Dictation history
 │   ├── ui/
 │   │   ├── floating_widget.py          ← Glass-morphism widget, waveform, toast, confidence
+│   │   ├── widget_gpu.py               ← GPU (moderngl) shader renderer for the widget
+│   │   ├── appearance.py / appearance_tab.py ← Look settings and Settings → Appearance tab
+│   │   ├── placement.py                ← On-screen, multi-monitor placement
 │   │   ├── tray.py                     ← System tray icon + menu
 │   │   ├── settings_window.py          ← Tabbed settings dialog (9 tabs)
 │   │   ├── benchmark_dialog.py         ← ASR speed benchmark
 │   │   └── diagnostics_dialog.py       ← Device/connection diagnostics
 │   └── system/
 │       ├── hotkeys.py                  ← Global hotkey (F8) + quick language switcher (Ctrl+Shift+L)
-│       ├── paste.py                    ← Clipboard save → Ctrl+V (retry×3) → restore
+│       ├── paste.py                    ← Direct Unicode typing; clipboard save → Ctrl+V (retry×3) → restore
 │       ├── sounds.py                   ← winsound.Beep audio feedback (4 events)
 │       └── startup.py                  ← Launch-on-startup toggle
 │
@@ -540,6 +595,13 @@ Both models are served through any OpenAI-compatible API gateway. The base URL, 
 | :------------ | :------------------------- | :---------------------------------------: |
 | `JV_API_KEY`  | API gateway authentication | ❌ No (optional if set in Settings → API) |
 | `JV_API_BASE` | Override gateway URL       |   ❌ No (defaults to `gpt.bdx.market`)    |
+| `JV_NATIVE_AUDIO` | `true` enables native gateway audio on the Cloud engine (`run.bat` sets `false`) | ❌ No |
+| `JV_ELEVENLABS_API_KEY` / `ELEVENLABS_API_KEY` | ElevenLabs key fallback for the instant engine | ❌ No (optional if set in Settings → API) |
+| `JV_GEMINI_API_KEY` / `GEMINI_API_KEY` | Gemini API key fallback for the Bengali ear | ❌ No (optional if set in Settings → API) |
+| `JV_BENGALI_EAR` | `translate` uses the older Gemini Live Translate ear instead of Transcribe Live | ❌ No |
+| `JV_FAST_TRANSLATE_API_KEY` / `GROQ_API_KEY` | Fast translator key fallback (Bengali in about 1 s) | ❌ No (without it the gateway text model translates) |
+| `JV_WIDGET_BLUR` | `0` turns off the floating widget's blurred-glass backdrop | ❌ No |
+| `JV_DATA_DIR` | Keep all JoyVoice data (settings, history, log) in another folder instead of `%APPDATA%\JoyVoice` | ❌ No |
 
 > **Quick setup:** Configure the key in **Settings → API** (stored locally), or `setx JV_API_KEY "your-key"` to persist it across reboots for Desktop shortcuts.
 
@@ -613,6 +675,7 @@ pyperclip >= 1.9        → Clipboard read/write
 keyboard >= 0.13        → Global hotkey hooks
 SpeechRecognition >= 3.17 → Google Web Speech ASR (primary default)
 typing_extensions >= 4.16 → Required by SpeechRecognition
+websockets >= 14.0      → ElevenLabs and Gemini Live streaming (instant engine)
 faster-whisper >= 1.0.0 → Free Mode local Whisper ASR (offline)
 ctranslate2 >= 4.6.0    → Inference engine behind faster-whisper
 av >= 11.0.0            → Audio decoding for Free Mode (onnxruntime comes transitively for VAD)
@@ -701,6 +764,6 @@ _Keep what works. Ship only what is faster **and** better. Production stays on t
 ---
 
 <p align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.5.5 · October 2026</sub><br>
+  <sub>Built with ❤️ by <a href="https://github.com/MHJoy99">MH Joy</a> · v2.6.0 · October 2026</sub><br>
   <sub><a href="LICENSE">MIT License</a> · <a href="https://github.com/MHJoy99/joyvoice">GitHub</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="docs/">Docs</a></sub>
 </p>
